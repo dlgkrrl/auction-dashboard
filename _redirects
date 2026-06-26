@@ -1,0 +1,4 @@
+# Cloudflare Pages _redirects
+# SPA 라우팅: /api/* 는 Functions가 처리하므로 제외, 나머지는 index.html로
+/api/*  /api/:splat  200
+/*      /index.html  200

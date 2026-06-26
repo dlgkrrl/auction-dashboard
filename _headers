@@ -1,0 +1,9 @@
+# Cloudflare Pages _headers
+# 보안 헤더 설정 (모든 경로에 적용)
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  # ✅ 보안: connect-src에서 crm.thecalibration.kr 제거
+  #          브라우저는 /api/auction-data(동일 출처)만 호출하므로 외부 도메인 불필요
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:;

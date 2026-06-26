@@ -1,0 +1,11 @@
+# Cloudflare Wrangler 로컬 개발 설정
+# ⚠️ 이 파일에는 실제 토큰 값을 넣지 마세요. GitHub에 업로드되지 않도록 .gitignore에 포함됩니다.
+.wrangler/
+wrangler.toml.local
+
+# macOS 시스템 파일
+.DS_Store
+
+# 에디터 설정
+.vscode/
+.idea/
