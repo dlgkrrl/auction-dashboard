@@ -951,7 +951,7 @@
     // State
     // ─────────────────────────────────────────────────────
     let allItems = [];
-    let starred = new Set(JSON.parse(localStorage.getItem('auction_starred') || '[]'));
+    // ⭐ 관심 상태는 NocoDB item.is_interested 기준 (localStorage 사용 안 함)
     let filters = { risk: 'all', gap: 'all', star: false, urgent: false };
     let charts = {};
 
@@ -1023,7 +1023,7 @@
       const caution = allItems.filter(i => i.ai_risk === '주의').length;
       const danger = allItems.filter(i => i.ai_risk === '위험').length;
       const pdfOk = allItems.filter(i => i.pdf_spec_ok && i.pdf_survey_ok && i.pdf_appraisal_ok).length;
-      const starCount = allItems.filter(i => starred.has(String(i.Id))).length;
+      const starCount = allItems.filter(i => !!i.is_interested).length;
 
       document.getElementById('statsGrid').innerHTML = [
         { val: total + '건', label: '진행중 물건', accent: '#2f81f7' },
@@ -1129,7 +1129,7 @@
       let result = allItems.filter(item => {
         if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
-        if (filters.star && !starred.has(String(item.Id))) return false;
+        if (filters.star && !item.is_interested) return false;
         if (filters.urgent) {
           const bd = new Date(String(item.bid_date || '').split('T')[0]);
           const diff = Math.ceil((bd - today) / 86400000);
@@ -1178,7 +1178,7 @@
         const bdStr = String(item.bid_date || '').split('T')[0];
         const bd = new Date(bdStr);
         const diff = bdStr ? Math.ceil((bd - today) / 86400000) : null;
-        const isStarred = starred.has(String(item.Id));
+        const isStarred = !!item.is_interested;
         const isUrgent = diff !== null && diff >= 0 && diff <= 7;
 
         // D-Day display
@@ -1284,15 +1284,44 @@
     }
 
     // ─────────────────────────────────────────────────────
-    // Starred (localStorage)
+    // Starred (NocoDB 연동 — 낙관적 UI + PATCH 중계)
     // ─────────────────────────────────────────────────────
-    function toggleStar(id) {
+    async function toggleStar(id) {
       const sid = String(id);
-      if (starred.has(sid)) { starred.delete(sid); showToast('관심 해제됨'); }
-      else { starred.add(sid); showToast('⭐ 관심 등록됨'); }
-      localStorage.setItem('auction_starred', JSON.stringify([...starred]));
+      const item = allItems.find(i => String(i.Id) === sid);
+      if (!item) return;
+
+      // ── 1. 낙관적 UI 업데이트 (즉시 반영) ──────────────
+      const prevState = !!item.is_interested;
+      const nextState = !prevState;
+      item.is_interested = nextState;
       updateStats();
       applyFilters();
+
+      // ── 2. PATCH 페이로드 구성 ───────────────────────────
+      const payload = nextState
+        ? { is_interested: true, interest_level: 1, interested_at: new Date().toISOString() }
+        : { is_interested: false };
+
+      // ── 3. 백엔드 프록시로 PATCH 요청 ────────────────────
+      try {
+        const res = await fetch(`/api/auction-data?id=${sid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        showToast(nextState ? '⭐ 관심 등록됨' : '관심 해제됨');
+      } catch (err) {
+        // ── 4. 실패 시 롤백 ─────────────────────────────────
+        item.is_interested = prevState;
+        updateStats();
+        applyFilters();
+        showToast(`❌ 저장 실패: ${err.message}`, 'error');
+      }
     }
 
     // ─────────────────────────────────────────────────────
@@ -1465,7 +1494,7 @@
       const result = allItems.filter(item => {
         if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
-        if (filters.star && !starred.has(String(item.Id))) return false;
+        if (filters.star && !item.is_interested) return false;
         if (filters.urgent) {
           const bd = new Date(String(item.bid_date || '').split('T')[0]);
           const diff = Math.ceil((bd - today) / 86400000);
