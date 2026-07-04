@@ -21,7 +21,7 @@ const CORS_HEADERS = {
 
 export async function onRequestGet({ request, env }) {
   // ── 환경변수 확인 ──────────────────────────────────────
-  const { NOCODB_TOKEN, NOCODB_BASE, TABLE_ID, PROJECT_ID } = env;
+  const { NOCODB_TOKEN, NOCODB_BASE, TABLE_ID, PROJECT_ID, KAKAO_MAP_API_KEY } = env;
 
   if (!NOCODB_TOKEN || !NOCODB_BASE || !TABLE_ID || !PROJECT_ID) {
     return new Response(
@@ -92,6 +92,9 @@ export async function onRequestGet({ request, env }) {
 
   // ── 성공: JSON을 그대로 브라우저에 반환 ───────────────
   const data = await nocoRes.json();
+  if (KAKAO_MAP_API_KEY) {
+    data.KAKAO_MAP_API_KEY = KAKAO_MAP_API_KEY;
+  }
   return new Response(JSON.stringify(data), {
     status: 200,
     headers: {

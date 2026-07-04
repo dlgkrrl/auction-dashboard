@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap"
     rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- 카카오맵 API는 동적으로 로딩됩니다 -->
   <style>
     /* ── Reset & Base ── */
     *,
@@ -587,6 +588,162 @@
       }
     }
 
+    /* ── Clickable PDF Chip ── */
+    .pdf-chip.clickable {
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .pdf-chip.clickable:hover {
+      filter: brightness(1.2);
+    }
+
+    /* ── Map View ── */
+    #mapContainer {
+      width: 100%;
+      height: 600px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      display: none;
+      margin-bottom: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .map-error {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      color: var(--text-sub);
+      font-size: 14px;
+      text-align: center;
+      padding: 20px;
+      z-index: 10;
+    }
+
+    /* ── Detail Modal ── */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+      opacity: 1;
+    }
+
+    .modal-container {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+      transform: translateY(20px);
+      transition: transform .2s;
+    }
+
+    .modal-overlay.show .modal-container {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      border-radius: 16px 16px 0 0;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .modal-subtitle {
+      font-size: 12px;
+      color: var(--text-sub);
+      font-weight: 400;
+      margin-top: 4px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      font-size: 24px;
+      cursor: pointer;
+      transition: color .15s;
+      line-height: 1;
+    }
+
+    .modal-close:hover {
+      color: var(--text);
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-section {
+      margin-bottom: 24px;
+    }
+
+    .modal-section-title {
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-bottom: 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .modal-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+      white-space: pre-wrap;
+      background: var(--surface2);
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      background: var(--surface);
+      border-radius: 0 0 16px 16px;
+    }
+
     /* ── Toast ── */
     .toast {
       position: fixed;
@@ -651,6 +808,9 @@
         </div>
       </a>
       <div class="header-actions">
+        <button class="btn-refresh" id="btnToggleMap" onclick="toggleMap()" aria-label="지도 보기">
+          <span class="icon">🗺️</span> 지도
+        </button>
         <span class="last-updated" id="lastUpdated">—</span>
         <button class="btn-refresh" id="btnRefresh" onclick="loadData()" aria-label="데이터 새로고침">
           <span class="icon">↻</span> 새로고침
@@ -737,12 +897,30 @@
       <!-- Count -->
       <div style="font-size:12px;color:var(--text-sub);margin-bottom:12px" id="countLabel">불러오는 중…</div>
 
+      <!-- Map Container -->
+      <div id="mapContainer" role="region" aria-label="지도 뷰"></div>
+
       <!-- Cards -->
       <div class="cards-grid" id="cardsGrid" role="list" aria-label="경매 물건 목록"></div>
     </main>
 
     <!-- Toast -->
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- Detail/Text Modal -->
+    <div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
+      <div class="modal-container" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title" id="modalTitle">상세 정보</div>
+            <div class="modal-subtitle" id="modalSubtitle"></div>
+          </div>
+          <button class="modal-close" onclick="closeModal()" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+        <div class="modal-footer" id="modalFooter"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -783,7 +961,10 @@
           'ai_risk', 'ai_recommend', 'gap_score', 'gap_score_grade',
           'bid_target', 'bid_confidence', 'real_trade_3m_avg', 'bid_vs_trade_gap_rate',
           'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
-          'is_interested', 'court_url', 'ai_summary'
+          'is_interested', 'court_url', 'ai_summary',
+          'pdf_spec_url', 'pdf_survey_text', 'pdf_appraisal_url',
+          'ai_flags', 'tenant_deposit_total', 'senior_lien_total',
+          'cancellation_standard', 'tenant_count', 'pdf_risk_flags'
         ].join(',');
 
         // ✅ 보안: 토큰 없이 Cloudflare 서버리스 프록시(/api/auction-data)만 호출
@@ -801,6 +982,10 @@
 
         const data = await res.json();
         allItems = data.list || [];
+
+        if (data.KAKAO_MAP_API_KEY) {
+          loadKakaoMapScript(data.KAKAO_MAP_API_KEY);
+        }
 
         updateStats();
         updateCharts();
@@ -1012,10 +1197,13 @@
           ? `<span style="color:${item.bid_vs_trade_gap_rate < 0 ? '#3fb950' : '#f85149'};font-size:11px"> ${item.bid_vs_trade_gap_rate < 0 ? '▼' : '▲'}${Math.abs(item.bid_vs_trade_gap_rate)}% 시세대비</span>`
           : '';
 
+        const specUrl = getDocUrl(item.pdf_spec_url);
+        const appraisalUrl = getDocUrl(item.pdf_appraisal_url);
+
         return `
     <article class="item-card${isUrgent ? ' urgent' : ''}${isStarred ? ' interested' : ''}"
              role="listitem" aria-label="${item.complex_name || item.case_no} 물건 카드"
-             onclick="openCourt('${item.court_url || ''}','${item.case_no || ''}')">
+             onclick="openDetailModal('${item.Id}')">
       <div class="card-top">
         <div>
           <div class="card-title">${item.complex_name || '단지명 미확인'}</div>
@@ -1049,13 +1237,16 @@
       </div>` : ''}
 
       <div class="pdf-row">
-        <div class="pdf-chip ${item.pdf_spec_ok ? 'pdf-ok' : 'pdf-ng'}" title="매각물건명세서">
+        <div class="pdf-chip ${item.pdf_spec_ok ? 'pdf-ok' : 'pdf-ng'} ${specUrl ? 'clickable' : ''}" title="매각물건명세서"
+             ${specUrl ? `onclick="event.stopPropagation(); window.open('${specUrl}', '_blank')"` : ''}>
           ${item.pdf_spec_ok ? '✅' : '❌'} 명세서
         </div>
-        <div class="pdf-chip ${item.pdf_survey_ok ? 'pdf-ok' : 'pdf-ng'}" title="현황조사서">
+        <div class="pdf-chip ${item.pdf_survey_ok ? 'pdf-ok' : 'pdf-ng'} ${item.pdf_survey_text ? 'clickable' : ''}" title="현황조사서"
+             ${item.pdf_survey_text ? `onclick="event.stopPropagation(); openTextModal('현황조사서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.pdf_survey_text)))"` : ''}>
           ${item.pdf_survey_ok ? '✅' : '❌'} 현황
         </div>
-        <div class="pdf-chip ${item.pdf_appraisal_ok ? 'pdf-ok' : 'pdf-ng'}" title="감정평가서">
+        <div class="pdf-chip ${item.pdf_appraisal_ok ? 'pdf-ok' : 'pdf-ng'} ${appraisalUrl ? 'clickable' : ''}" title="감정평가서"
+             ${appraisalUrl ? `onclick="event.stopPropagation(); window.open('${appraisalUrl}', '_blank')"` : ''}>
           ${item.pdf_appraisal_ok ? '✅' : '❌'} 감정
         </div>
       </div>
@@ -1095,10 +1286,242 @@
     }
 
     // ─────────────────────────────────────────────────────
-    // Helpers
+    // Helpers & Modals
     // ─────────────────────────────────────────────────────
+    function getDocUrl(val) {
+      if (!val) return null;
+      if (typeof val === 'string') return val;
+      if (Array.isArray(val) && val.length > 0 && val[0].url) return val[0].url;
+      return null;
+    }
+
+    function openTextModal(title, subtitle, textEncoded) {
+      const text = JSON.parse(decodeURIComponent(textEncoded));
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalSubtitle').textContent = subtitle;
+      document.getElementById('modalBody').innerHTML = `<div class="modal-text">${text}</div>`;
+      document.getElementById('modalFooter').innerHTML = '';
+      document.getElementById('detailModal').classList.add('show');
+    }
+
+    function openDetailModal(id) {
+      const item = allItems.find(i => String(i.Id) === String(id));
+      if (!item) return;
+
+      document.getElementById('modalTitle').textContent = item.complex_name || item.case_no;
+      document.getElementById('modalSubtitle').textContent = `${item.location || ''} | ${item.area_m2 || '-'}㎡ | ${item.floor || '-'}층`;
+
+      const safeFmt = (n) => {
+        if (!n || n <= 0) return '-';
+        const e = Math.floor(n / 100000000), m = Math.round((n % 100000000) / 10000);
+        return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
+      };
+
+      let bodyHtml = '';
+
+      // AI 요약
+      if (item.ai_summary) {
+        const riskColor = item.ai_risk === '안전' ? 'var(--green)' : item.ai_risk === '주의' ? 'var(--yellow)' : 'var(--red)';
+        bodyHtml += `
+          <div class="modal-section">
+            <div class="modal-section-title">AI 권리분석 요약</div>
+            <div class="modal-text" style="border-left: 3px solid ${riskColor}; padding-left: 12px; background: rgba(0,0,0,0.2);">
+              <strong style="color:${riskColor}">${item.ai_risk || '미분석'} | ${item.ai_recommend || ''}</strong><br/>
+              ${item.ai_summary}
+              ${item.ai_flags ? `<br/><br/><span style="color:var(--text-sub)">🚩 특이사항: ${item.ai_flags}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      // 가격 정보
+      bodyHtml += `
+        <div class="modal-section">
+          <div class="modal-section-title">가격 정보</div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border);">
+            <div>
+              <div style="font-size:11px; color:var(--text-sub)">감정가</div>
+              <div style="font-weight:700; font-size:15px">${safeFmt(item.appraisal_price)}</div>
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--text-sub)">최저매각가 (${item.price_rate || 0}%)</div>
+              <div style="font-weight:700; font-size:15px; color:var(--blue)">${safeFmt(item.min_price)}</div>
+            </div>
+            ${item.bid_target ? `
+            <div style="grid-column: 1 / -1; margin-top:8px; border-top:1px solid var(--border); padding-top:8px;">
+              <div style="font-size:11px; color:var(--text-sub)">추천 입찰가</div>
+              <div style="font-weight:700; font-size:15px; color:var(--green)">${safeFmt(item.bid_target)}</div>
+            </div>` : ''}
+          </div>
+        </div>
+      `;
+
+      // 기타 권리 정보
+      if (item.cancellation_standard || item.tenant_count > 0 || item.senior_lien_total > 0) {
+        bodyHtml += `
+          <div class="modal-section">
+            <div class="modal-section-title">세부 권리 정보</div>
+            <ul style="font-size:13px; color:var(--text); line-height:1.6; padding-left:20px;">
+              ${item.cancellation_standard ? `<li><strong>말소기준권리:</strong> ${item.cancellation_standard}</li>` : ''}
+              ${item.tenant_count > 0 ? `<li><strong>임차인:</strong> ${item.tenant_count}명 (총 보증금 ${safeFmt(item.tenant_deposit_total)})</li>` : ''}
+              ${item.senior_lien_total > 0 ? `<li><strong>선순위 채권:</strong> ${safeFmt(item.senior_lien_total)}</li>` : ''}
+            </ul>
+          </div>
+        `;
+      }
+
+      document.getElementById('modalBody').innerHTML = bodyHtml;
+
+      document.getElementById('modalFooter').innerHTML = `
+        ${item.naver_url ? `<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px;" href="${item.naver_url}" target="_blank">네이버 시세</a>` : ''}
+        ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px;" href="${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>` : ''}
+      `;
+
+      document.getElementById('detailModal').classList.add('show');
+    }
+
+    function closeModal(e) {
+      if (e && e.target.id !== 'detailModal') return;
+      document.getElementById('detailModal').classList.remove('show');
+    }
+
+    // Map feature
+    let isMapMode = false;
+    let mapInstance = null;
+    let mapMarkers = [];
+
+    function toggleMap() {
+      isMapMode = !isMapMode;
+      const btn = document.getElementById('btnToggleMap');
+      const mapContainer = document.getElementById('mapContainer');
+      const cardsGrid = document.getElementById('cardsGrid');
+
+      if (isMapMode) {
+        btn.innerHTML = '<span class="icon">📄</span> 리스트로 돌아가기';
+        btn.classList.add('active');
+        cardsGrid.style.display = 'none';
+        mapContainer.style.display = 'block';
+        initMap();
+      } else {
+        btn.innerHTML = '<span class="icon">🗺️</span> 지도 보기';
+        btn.classList.remove('active');
+        mapContainer.style.display = 'none';
+        cardsGrid.style.display = 'grid';
+      }
+    }
+
+    function initMap() {
+      if (!window.kakao || !window.kakao.maps) {
+        document.getElementById('mapContainer').innerHTML = '<div class="map-error">카카오맵 API 스크립트를 서버에서 불러오는 중입니다...<br/>잠시 후 다시 시도해주세요.</div>';
+        return;
+      }
+
+      if (!mapInstance) {
+        const container = document.getElementById('mapContainer');
+        const options = {
+          center: new kakao.maps.LatLng(37.566826, 126.9786567), // 기본: 서울시청
+          level: 10
+        };
+        mapInstance = new kakao.maps.Map(container, options);
+
+        const zoomControl = new kakao.maps.ZoomControl();
+        mapInstance.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+      }
+
+      updateMapMarkers();
+    }
+
+    function updateMapMarkers() {
+      if (!mapInstance || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) return;
+
+      mapMarkers.forEach(m => m.setMap(null));
+      mapMarkers = [];
+
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const sort = document.getElementById('sortSelect').value;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+
+      const result = allItems.filter(item => {
+        if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
+        if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
+        if (filters.star && !starred.has(String(item.Id))) return false;
+        if (filters.urgent) {
+          const bd = new Date(String(item.bid_date || '').split('T')[0]);
+          const diff = Math.ceil((bd - today) / 86400000);
+          if (diff < 0 || diff > 7) return false;
+        }
+        if (q) {
+          const hay = [item.complex_name, item.location, item.case_no].join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      const geocoder = new kakao.maps.services.Geocoder();
+      const bounds = new kakao.maps.LatLngBounds();
+      let added = 0;
+
+      result.forEach(item => {
+        if (!item.location) return;
+
+        geocoder.addressSearch(item.location, function (data, status) {
+          if (status === kakao.maps.services.Status.OK) {
+            const coords = new kakao.maps.LatLng(data[0].y, data[0].x);
+
+            let mColor = '#2f81f7';
+            if (item.ai_risk === '위험') mColor = '#f85149';
+            else if (item.ai_risk === '주의') mColor = '#d29922';
+            else if (item.ai_risk === '안전') mColor = '#3fb950';
+
+            const content = `<div style="background:${mColor}; color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.5); border:2px solid #fff; cursor:pointer;" onclick="openDetailModal('${item.Id}')">${item.gap_score_grade || 'O'}</div>`;
+
+            const customOverlay = new kakao.maps.CustomOverlay({
+              position: coords,
+              content: content,
+              clickable: true
+            });
+
+            customOverlay.setMap(mapInstance);
+            mapMarkers.push(customOverlay);
+            bounds.extend(coords);
+            added++;
+
+            if (added === result.length || added > 0) {
+              mapInstance.setBounds(bounds);
+            }
+          }
+        });
+      });
+    }
+
+    // applyFilters 후 맵 마커 업데이트 연동
+    const originalApplyFilters = applyFilters;
+    applyFilters = function () {
+      originalApplyFilters();
+      if (isMapMode) updateMapMarkers();
+    };
+
     function openCourt(url, caseNo) {
       if (url) window.open(url, '_blank', 'noopener');
+    }
+
+    let kakaoMapScriptLoaded = false;
+    function loadKakaoMapScript(apiKey) {
+      if (kakaoMapScriptLoaded) return;
+      if (window.kakao && window.kakao.maps) return;
+      
+      kakaoMapScriptLoaded = true;
+      const script = document.createElement('script');
+      script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+      document.head.appendChild(script);
+
+      script.onload = () => {
+        kakao.maps.load(() => {
+          if (isMapMode) {
+            initMap();
+          }
+        });
+      };
     }
 
     let toastTimer;
