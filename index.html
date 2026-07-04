@@ -1252,6 +1252,7 @@
       <div class="card-footer">
         <div class="case-no">${item.case_no || '-'}</div>
         <div class="card-actions">
+          <button class="btn-sm btn-map" onclick="event.stopPropagation(); showOnMap('${item.Id}')" aria-label="지도에서 보기">🗺️ 지도</button>
           <button class="btn-sm btn-star ${isStarred ? 'starred' : ''}"
                   id="star-${item.Id}"
                   onclick="event.stopPropagation();toggleStar('${item.Id}')"
@@ -1482,7 +1483,21 @@
             else if (item.ai_risk === '주의') mColor = '#d29922';
             else if (item.ai_risk === '안전') mColor = '#3fb950';
 
-            const content = `<div style="background:${mColor}; color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.5); border:2px solid #fff; cursor:pointer;" onclick="openDetailModal('${item.Id}')">${item.gap_score_grade || 'O'}</div>`;
+            const safeFmt = (n) => {
+              if (!n || n <= 0) return '-';
+              const e = Math.floor(n / 100000000), m = Math.round((n % 100000000) / 10000);
+              return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
+            };
+            const content = `<div style="position:relative;" 
+                onmouseenter="this.querySelector('.hover-info').style.display='block'" 
+                onmouseleave="this.querySelector('.hover-info').style.display='none'">
+              <div style="background:${mColor}; color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.5); border:2px solid #fff; cursor:pointer;" onclick="openDetailModal('${item.Id}')">${item.gap_score_grade || 'O'}</div>
+              <div class="hover-info" style="display:none; position:absolute; bottom:35px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:8px; font-size:12px; width:max-content; box-shadow:0 8px 24px rgba(0,0,0,0.4); z-index:100; pointer-events:none; white-space:nowrap; text-align:center;">
+                <strong style="display:block; margin-bottom:4px; font-size:13px; color:var(--blue);">${item.case_no}</strong>
+                ${item.complex_name || '단지명 미확인'} / ${item.floor || '-'}층<br/>
+                <span style="color:var(--text-sub)">최저</span> <strong>${safeFmt(item.min_price)}</strong>
+              </div>
+            </div>`;
 
             const customOverlay = new kakao.maps.CustomOverlay({
               position: coords,
@@ -1512,6 +1527,25 @@
 
     function openCourt(url, caseNo) {
       if (url) window.open(url, '_blank', 'noopener');
+    }
+
+    function showOnMap(id) {
+      if (!isMapMode) toggleMap();
+      const item = allItems.find(i => String(i.Id) === String(id));
+      if (item && item.location) {
+        // 약간의 지연 후 위치 이동 (지도가 처음 렌더링 될 시간을 확보)
+        setTimeout(() => {
+          if (!mapInstance || !window.kakao || !window.kakao.maps.services) return;
+          const geocoder = new kakao.maps.services.Geocoder();
+          geocoder.addressSearch(item.location, function (data, status) {
+            if (status === kakao.maps.services.Status.OK) {
+              const coords = new kakao.maps.LatLng(data[0].y, data[0].x);
+              mapInstance.setCenter(coords);
+              mapInstance.setLevel(3); // 확대
+            }
+          });
+        }, 300);
+      }
     }
 
     let kakaoMapScriptLoaded = false;
