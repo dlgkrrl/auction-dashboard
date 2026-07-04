@@ -316,6 +316,15 @@
       outline: none;
     }
 
+    /* ── Map Dark Mode ── */
+    #mapContainer {
+      background: var(--bg) !important;
+    }
+    /* 카카오맵 타일 레이어에만 다크모드 필터 적용 (모든 지도 타일 이미지 대상) */
+    #mapContainer img {
+      filter: invert(90%) hue-rotate(180deg) brightness(85%) contrast(110%);
+    }
+
     /* ── Cards Grid ── */
     .cards-grid {
       display: grid;
