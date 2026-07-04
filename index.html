@@ -1242,7 +1242,7 @@
           ${item.pdf_spec_ok ? '✅' : '❌'} 명세서
         </div>
         <div class="pdf-chip ${item.pdf_survey_ok ? 'pdf-ok' : 'pdf-ng'} ${item.pdf_survey_text ? 'clickable' : ''}" title="현황조사서"
-             ${item.pdf_survey_text ? `onclick="event.stopPropagation(); openTextModal('현황조사서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.pdf_survey_text)))"` : ''}>
+             ${item.pdf_survey_text ? `onclick="event.stopPropagation(); openSurveyModal('${item.Id}')"` : ''}>
           ${item.pdf_survey_ok ? '✅' : '❌'} 현황
         </div>
         <div class="pdf-chip ${item.pdf_appraisal_ok ? 'pdf-ok' : 'pdf-ng'} ${appraisalUrl ? 'clickable' : ''}" title="감정평가서"
@@ -1293,6 +1293,17 @@
       if (typeof val === 'string') return val;
       if (Array.isArray(val) && val.length > 0 && val[0].url) return val[0].url;
       return null;
+    }
+
+    function openSurveyModal(id) {
+      const item = allItems.find(i => String(i.Id) === String(id));
+      if (item && item.pdf_survey_text) {
+        document.getElementById('modalTitle').textContent = '현황조사서';
+        document.getElementById('modalSubtitle').textContent = item.case_no;
+        document.getElementById('modalBody').innerHTML = `<div class="modal-text">${item.pdf_survey_text}</div>`;
+        document.getElementById('modalFooter').innerHTML = '';
+        document.getElementById('detailModal').classList.add('show');
+      }
     }
 
     function openTextModal(title, subtitle, textEncoded) {
@@ -1515,6 +1526,10 @@
       script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
       document.head.appendChild(script);
 
+      script.onerror = () => {
+        const el = document.getElementById('mapContainer');
+        if(el) el.innerHTML = '<div class="map-error">카카오맵 API 로드 실패.<br/>도메인이 카카오 디벨로퍼스에 등록되지 않았거나 API 키가 잘못되었습니다.</div>';
+      };
       script.onload = () => {
         kakao.maps.load(() => {
           if (isMapMode) {
