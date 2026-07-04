@@ -316,15 +316,6 @@
       outline: none;
     }
 
-    /* ── Map Dark Mode ── */
-    #mapContainer {
-      background: var(--bg) !important;
-    }
-    /* 카카오맵 타일 레이어에만 다크모드 필터 적용 (모든 지도 타일 이미지 대상) */
-    #mapContainer img {
-      filter: invert(90%) hue-rotate(180deg) brightness(85%) contrast(110%);
-    }
-
     /* ── Cards Grid ── */
     .cards-grid {
       display: grid;
@@ -546,6 +537,17 @@
 
     .btn-court:hover {
       background: var(--blue);
+      color: #fff;
+    }
+
+    .btn-map {
+      background: rgba(63,185,80,0.15);
+      color: var(--green);
+      border: 1px solid rgba(63,185,80,0.3);
+    }
+
+    .btn-map:hover {
+      background: var(--green);
       color: #fff;
     }
 
