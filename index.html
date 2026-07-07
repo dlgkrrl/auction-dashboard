@@ -971,9 +971,9 @@
           'bid_target', 'bid_confidence', 'real_trade_3m_avg', 'bid_vs_trade_gap_rate',
           'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
           'is_interested', 'court_url', 'ai_summary',
-          'pdf_spec_url', 'pdf_survey_text', 'pdf_appraisal_url',
-          'ai_flags', 'tenant_deposit_total', 'senior_lien_total',
-          'cancellation_standard', 'tenant_count', 'pdf_risk_flags'
+          'cancellation_standard', 'tenant_count', 'docs_risk_flags', 'docs_status',
+          'doc_spec_text', 'doc_survey_text', 'doc_appraisal_text',
+          'doc_registry_text', 'doc_ledger_text', 'real_trade_history'
         ].join(',');
 
         // ✅ 보안: 토큰 없이 Cloudflare 서버리스 프록시(/api/auction-data)만 호출
@@ -1246,17 +1246,31 @@
       </div>` : ''}
 
       <div class="pdf-row">
-        <div class="pdf-chip ${item.pdf_spec_ok ? 'pdf-ok' : 'pdf-ng'} ${specUrl ? 'clickable' : ''}" title="매각물건명세서"
-             ${specUrl ? `onclick="event.stopPropagation(); window.open('${specUrl}', '_blank')"` : ''}>
-          ${item.pdf_spec_ok ? '✅' : '❌'} 명세서
+        <div class="pdf-chip ${item.doc_spec_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="매각물건명세서"
+             ${item.doc_spec_text ? `onclick="event.stopPropagation(); openTextModal('매각물건명세서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_spec_text)))"` : ''}>
+          ${item.doc_spec_text ? '✅' : '❌'} 명세서
         </div>
-        <div class="pdf-chip ${item.pdf_survey_ok ? 'pdf-ok' : 'pdf-ng'} ${item.pdf_survey_text ? 'clickable' : ''}" title="현황조사서"
-             ${item.pdf_survey_text ? `onclick="event.stopPropagation(); openSurveyModal('${item.Id}')"` : ''}>
-          ${item.pdf_survey_ok ? '✅' : '❌'} 현황
+        <div class="pdf-chip ${item.doc_survey_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="현황조사서"
+             ${item.doc_survey_text ? `onclick="event.stopPropagation(); openTextModal('현황조사서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_survey_text)))"` : ''}>
+          ${item.doc_survey_text ? '✅' : '❌'} 현황
         </div>
-        <div class="pdf-chip ${item.pdf_appraisal_ok ? 'pdf-ok' : 'pdf-ng'} ${appraisalUrl ? 'clickable' : ''}" title="감정평가서"
-             ${appraisalUrl ? `onclick="event.stopPropagation(); window.open('${appraisalUrl}', '_blank')"` : ''}>
-          ${item.pdf_appraisal_ok ? '✅' : '❌'} 감정
+        <div class="pdf-chip ${item.doc_appraisal_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="감정평가서"
+             ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openTextModal('감정평가서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_appraisal_text)))"` : ''}>
+          ${item.doc_appraisal_text ? '✅' : '❌'} 감정
+        </div>
+        <div class="pdf-chip ${item.doc_registry_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="등기사항전부증명서"
+             ${item.doc_registry_text ? `onclick="event.stopPropagation(); openTextModal('등기사항전부증명서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_registry_text)))"` : ''}>
+          ${item.doc_registry_text ? '✅' : '❌'} 등기
+        </div>
+        <div class="pdf-chip ${item.doc_ledger_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="건축물대장"
+             ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openTextModal('건축물대장', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_ledger_text)))"` : ''}>
+          ${item.doc_ledger_text ? '✅' : '❌'} 대장
+        </div>
+      </div>
+      <div class="pdf-row" style="margin-top:4px;">
+        <div class="pdf-chip ${item.real_trade_history ? 'pdf-ok clickable' : 'pdf-ng'}" title="실거래가 히스토리" style="width:100%"
+             ${item.real_trade_history ? `onclick="event.stopPropagation(); openTextModal('실거래가 내역', '${item.case_no}', encodeURIComponent(JSON.stringify(item.real_trade_history)))"` : ''}>
+          ${item.real_trade_history ? '✅ 국토부 실거래가 확인' : '❌ 실거래가 없음'}
         </div>
       </div>
 
@@ -1334,16 +1348,6 @@
       return null;
     }
 
-    function openSurveyModal(id) {
-      const item = allItems.find(i => String(i.Id) === String(id));
-      if (item && item.pdf_survey_text) {
-        document.getElementById('modalTitle').textContent = '현황조사서';
-        document.getElementById('modalSubtitle').textContent = item.case_no;
-        document.getElementById('modalBody').innerHTML = `<div class="modal-text">${item.pdf_survey_text}</div>`;
-        document.getElementById('modalFooter').innerHTML = '';
-        document.getElementById('detailModal').classList.add('show');
-      }
-    }
 
     function openTextModal(title, subtitle, textEncoded) {
       const text = JSON.parse(decodeURIComponent(textEncoded));
