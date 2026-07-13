@@ -1247,29 +1247,29 @@
 
       <div class="pdf-row">
         <div class="pdf-chip ${item.doc_spec_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="매각물건명세서"
-             ${item.doc_spec_text ? `onclick="event.stopPropagation(); openTextModal('매각물건명세서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_spec_text)))"` : ''}>
+             ${item.doc_spec_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_spec_text', '매각물건명세서')"` : ''}>
           ${item.doc_spec_text ? '✅' : '❌'} 명세서
         </div>
         <div class="pdf-chip ${item.doc_survey_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="현황조사서"
-             ${item.doc_survey_text ? `onclick="event.stopPropagation(); openTextModal('현황조사서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_survey_text)))"` : ''}>
+             ${item.doc_survey_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_survey_text', '현황조사서')"` : ''}>
           ${item.doc_survey_text ? '✅' : '❌'} 현황
         </div>
         <div class="pdf-chip ${item.doc_appraisal_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="감정평가서"
-             ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openTextModal('감정평가서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_appraisal_text)))"` : ''}>
+             ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_appraisal_text', '감정평가서')"` : ''}>
           ${item.doc_appraisal_text ? '✅' : '❌'} 감정
         </div>
         <div class="pdf-chip ${item.doc_registry_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="등기사항전부증명서"
-             ${item.doc_registry_text ? `onclick="event.stopPropagation(); openTextModal('등기사항전부증명서', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_registry_text)))"` : ''}>
+             ${item.doc_registry_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_registry_text', '등기사항전부증명서')"` : ''}>
           ${item.doc_registry_text ? '✅' : '❌'} 등기
         </div>
         <div class="pdf-chip ${item.doc_ledger_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="건축물대장"
-             ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openTextModal('건축물대장', '${item.case_no}', encodeURIComponent(JSON.stringify(item.doc_ledger_text)))"` : ''}>
+             ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_ledger_text', '건축물대장')"` : ''}>
           ${item.doc_ledger_text ? '✅' : '❌'} 대장
         </div>
       </div>
       <div class="pdf-row" style="margin-top:4px;">
         <div class="pdf-chip ${item.real_trade_history ? 'pdf-ok clickable' : 'pdf-ng'}" title="실거래가 히스토리" style="width:100%"
-             ${item.real_trade_history ? `onclick="event.stopPropagation(); openTextModal('실거래가 내역', '${item.case_no}', encodeURIComponent(JSON.stringify(item.real_trade_history)))"` : ''}>
+             ${item.real_trade_history ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'real_trade_history', '실거래가 내역')"` : ''}>
           ${item.real_trade_history ? '✅ 국토부 실거래가 확인' : '❌ 실거래가 없음'}
         </div>
       </div>
@@ -1349,11 +1349,15 @@
     }
 
 
-    function openTextModal(title, subtitle, textEncoded) {
-      const text = JSON.parse(decodeURIComponent(textEncoded));
+    function openTextModal(id, fieldName, title) {
+      const item = allItems.find(i => String(i.Id) === String(id));
+      if (!item) return;
+      const text = item[fieldName] || '내용이 없습니다.';
+      const subtitle = item.case_no || '';
       document.getElementById('modalTitle').textContent = title;
       document.getElementById('modalSubtitle').textContent = subtitle;
-      document.getElementById('modalBody').innerHTML = `<div class="modal-text">${text}</div>`;
+      const formattedText = typeof text === 'string' ? text.replace(/\n/g, '<br/>') : JSON.stringify(text, null, 2).replace(/\n/g, '<br/>');
+      document.getElementById('modalBody').innerHTML = `<div class="modal-text" style="line-height:1.6; font-size:13px;">${formattedText}</div>`;
       document.getElementById('modalFooter').innerHTML = '';
       document.getElementById('detailModal').classList.add('show');
     }
@@ -1373,63 +1377,96 @@
 
       let bodyHtml = '';
 
-      // AI 요약
-      if (item.ai_summary) {
+      if (item.ai_summary || item.ai_flags) {
         const riskColor = item.ai_risk === '안전' ? 'var(--green)' : item.ai_risk === '주의' ? 'var(--yellow)' : 'var(--red)';
         bodyHtml += `
           <div class="modal-section">
-            <div class="modal-section-title">AI 권리분석 요약</div>
+            <div class="modal-section-title">🤖 AI 권리분석 요약</div>
             <div class="modal-text" style="border-left: 3px solid ${riskColor}; padding-left: 12px; background: rgba(0,0,0,0.2);">
               <strong style="color:${riskColor}">${item.ai_risk || '미분석'} | ${item.ai_recommend || ''}</strong><br/>
-              ${item.ai_summary}
+              ${item.ai_summary || ''}
               ${item.ai_flags ? `<br/><br/><span style="color:var(--text-sub)">🚩 특이사항: ${item.ai_flags}</span>` : ''}
             </div>
           </div>
         `;
       }
 
-      // 가격 정보
       bodyHtml += `
         <div class="modal-section">
-          <div class="modal-section-title">가격 정보</div>
+          <div class="modal-section-title">💰 가격 및 갭(GAP) 분석</div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border);">
             <div>
               <div style="font-size:11px; color:var(--text-sub)">감정가</div>
-              <div style="font-weight:700; font-size:15px">${safeFmt(item.appraisal_price)}</div>
+              <div style="font-weight:700; font-size:14px">${safeFmt(item.appraisal_price)}</div>
             </div>
             <div>
               <div style="font-size:11px; color:var(--text-sub)">최저매각가 (${item.price_rate || 0}%)</div>
-              <div style="font-weight:700; font-size:15px; color:var(--blue)">${safeFmt(item.min_price)}</div>
+              <div style="font-weight:700; font-size:14px; color:var(--blue)">${safeFmt(item.min_price)}</div>
             </div>
-            ${item.bid_target ? `
-            <div style="grid-column: 1 / -1; margin-top:8px; border-top:1px solid var(--border); padding-top:8px;">
-              <div style="font-size:11px; color:var(--text-sub)">추천 입찰가</div>
-              <div style="font-weight:700; font-size:15px; color:var(--green)">${safeFmt(item.bid_target)}</div>
+            ${item.real_trade_3m_avg || item.real_trade_6m_avg ? `
+            <div style="grid-column: 1 / -1; margin-top:8px; border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:11px; color:var(--text-sub)">국토부 실거래가 (3개월 평균)</div>
+                <div style="font-weight:700; font-size:14px">${safeFmt(item.real_trade_3m_avg || item.real_trade_6m_avg)}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px; color:var(--text-sub)">GAP SCORE / 시세 대비</div>
+                <div style="font-weight:700; font-size:13px; color:${item.bid_vs_trade_gap_rate < 0 ? 'var(--green)' : 'var(--red)'}">
+                  ${item.gap_score_grade || '-'}급 (${item.gap_score || 0}점) / ${item.bid_vs_trade_gap_rate < 0 ? '할인' : '초과'} ${Math.abs(item.bid_vs_trade_gap_rate || 0)}%
+                </div>
+              </div>
             </div>` : ''}
           </div>
         </div>
       `;
 
-      // 기타 권리 정보
-      if (item.cancellation_standard || item.tenant_count > 0 || item.senior_lien_total > 0) {
+      if (item.bid_target || item.bid_strategy_text) {
         bodyHtml += `
           <div class="modal-section">
-            <div class="modal-section-title">세부 권리 정보</div>
-            <ul style="font-size:13px; color:var(--text); line-height:1.6; padding-left:20px;">
-              ${item.cancellation_standard ? `<li><strong>말소기준권리:</strong> ${item.cancellation_standard}</li>` : ''}
-              ${item.tenant_count > 0 ? `<li><strong>임차인:</strong> ${item.tenant_count}명 (총 보증금 ${safeFmt(item.tenant_deposit_total)})</li>` : ''}
-              ${item.senior_lien_total > 0 ? `<li><strong>선순위 채권:</strong> ${safeFmt(item.senior_lien_total)}</li>` : ''}
-            </ul>
+            <div class="modal-section-title">🎯 AI 입찰 전략 (V3 엔진)</div>
+            <div style="background:rgba(47,129,247,0.1); padding:12px; border-radius:8px; border:1px solid rgba(47,129,247,0.3);">
+              <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <div><span style="font-size:11px; color:var(--text-sub);">신뢰도:</span> <strong style="color:var(--text);">${item.bid_confidence || '-'}</strong></div>
+                <div><span style="font-size:11px; color:var(--text-sub);">기준 낙찰가율:</span> <strong style="color:var(--text);">${item.bid_rate_used || 0}%</strong></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:12px; background:var(--surface); padding:10px; border-radius:6px;">
+                <div style="text-align:center;">하한가<br/><strong>${safeFmt(item.bid_min)}</strong></div>
+                <div style="text-align:center; color:var(--green);">목표 입찰가<br/><strong style="font-size:14px;">${safeFmt(item.bid_target)}</strong></div>
+                <div style="text-align:center; color:var(--red);">상한가<br/><strong>${safeFmt(item.bid_max)}</strong></div>
+              </div>
+              ${item.bid_strategy_text ? `<div style="font-size:13px; line-height:1.5; color:var(--text); border-top:1px solid var(--border); padding-top:8px; margin-top:8px;">${item.bid_strategy_text.replace(/\n/g, '<br/>')}</div>` : ''}
+            </div>
           </div>
         `;
       }
 
+      bodyHtml += `
+        <div class="modal-section">
+          <div class="modal-section-title">📋 권리 상세 및 원문 서류 열람</div>
+          <ul style="font-size:13px; color:var(--text); line-height:1.6; padding-left:20px; margin-bottom:12px;">
+            ${item.cancellation_standard ? `<li><strong>말소기준권리:</strong> ${item.cancellation_standard}</li>` : ''}
+            <li><strong>임차인 현황:</strong> ${item.tenant_count > 0 ? `${item.tenant_count}명 (총 보증금 ${safeFmt(item.tenant_deposit_total)})` : (item.tenant_count === 0 ? '없음' : '확인 불가')}</li>
+            ${item.senior_lien_total > 0 ? `<li><strong>선순위 채권:</strong> ${safeFmt(item.senior_lien_total)}</li>` : ''}
+            ${item.inherited_amount > 0 ? `<li style="color:var(--red);"><strong>⚠️ 인수금액:</strong> ${safeFmt(item.inherited_amount)}</li>` : ''}
+          </ul>
+          
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            ${item.doc_spec_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_spec_text', '매각물건명세서')">📄 명세서</button>` : ''}
+            ${item.doc_survey_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_survey_text', '현황조사서')">📄 현황조사서</button>` : ''}
+            ${item.doc_appraisal_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_appraisal_text', '감정평가서')">📄 감정평가서</button>` : ''}
+            ${item.doc_registry_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_registry_text', '등기사항전부증명서')">📄 등기부</button>` : ''}
+            ${item.doc_ledger_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_ledger_text', '건축물대장')">📄 건축물대장</button>` : ''}
+            ${item.real_trade_history ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'real_trade_history', '실거래가 내역')">📈 실거래가</button>` : ''}
+          </div>
+        </div>
+      `;
+
       document.getElementById('modalBody').innerHTML = bodyHtml;
 
-      document.getElementById('modalFooter').innerHTML = `
-        ${item.naver_url ? `<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px;" href="${item.naver_url}" target="_blank">네이버 시세</a>` : ''}
-        ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px;" href="${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>` : ''}
-      `;
+      document.getElementById('modalFooter').innerHTML = \`
+        \${item.naver_url ? \`<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; text-decoration:none;" href="\${item.naver_url}" target="_blank">네이버 시세</a>\` : ''}
+        \${item.court_url ? \`<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="\${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>\` : ''}
+      \`;
 
       document.getElementById('detailModal').classList.add('show');
     }
