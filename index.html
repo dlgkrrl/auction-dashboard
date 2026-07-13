@@ -1270,7 +1270,11 @@
       <div class="pdf-row" style="margin-top:4px;">
         <div class="pdf-chip ${item.real_trade_history ? 'pdf-ok clickable' : 'pdf-ng'}" title="실거래가 히스토리" style="width:100%"
              ${item.real_trade_history ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'real_trade_history', '실거래가 내역')"` : ''}>
-          ${item.real_trade_history ? '✅ 국토부 실거래가 확인' : '❌ 실거래가 없음'}
+          ${item.real_trade_history 
+            ? ((item.real_trade_3m_avg > 0 || item.real_trade_6m_avg > 0 || item.real_trade_12m_avg > 0)
+                ? `✅ <b>실거래</b> <span style="font-weight:normal; font-size:11px; margin-left:4px;">(3개월: ${fmt(item.real_trade_3m_avg)} / 6개월: ${fmt(item.real_trade_6m_avg)} / 1년: ${fmt(item.real_trade_12m_avg)})</span>` 
+                : '✅ 국토부 실거래가 확인') 
+            : '❌ 실거래가 없음'}
         </div>
       </div>
 
