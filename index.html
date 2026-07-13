@@ -1463,10 +1463,10 @@
 
       document.getElementById('modalBody').innerHTML = bodyHtml;
 
-      document.getElementById('modalFooter').innerHTML = \`
-        \${item.naver_url ? \`<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; text-decoration:none;" href="\${item.naver_url}" target="_blank">네이버 시세</a>\` : ''}
-        \${item.court_url ? \`<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="\${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>\` : ''}
-      \`;
+      document.getElementById('modalFooter').innerHTML = `
+        ${item.naver_url ? `<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.naver_url}" target="_blank">네이버 시세</a>` : ''}
+        ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>` : ''}
+      `;
 
       document.getElementById('detailModal').classList.add('show');
     }
