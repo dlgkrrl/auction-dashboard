@@ -1131,9 +1131,11 @@
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
         if (filters.star && !item.is_interested) return false;
         if (filters.urgent) {
-          const bd = new Date(String(item.bid_date || '').split('T')[0]);
-          const diff = Math.ceil((bd - today) / 86400000);
-          if (diff < 0 || diff > 7) return false;
+          const bdStr = String(item.bid_date || '').split('T')[0];
+          const bdParts = bdStr.split('-');
+          const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
+          const diff = Math.round((bd - today) / 86400000);
+          if (isNaN(diff) || diff < 0 || diff > 7) return false;
         }
         if (q) {
           const hay = [item.complex_name, item.location, item.case_no].join(' ').toLowerCase();
@@ -1176,8 +1178,9 @@
 
       grid.innerHTML = items.map(item => {
         const bdStr = String(item.bid_date || '').split('T')[0];
-        const bd = new Date(bdStr);
-        const diff = bdStr ? Math.ceil((bd - today) / 86400000) : null;
+        const bdParts = bdStr.split('-');
+        const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
+        const diff = bdStr ? Math.round((bd - today) / 86400000) : null;
         const isStarred = !!item.is_interested;
         const isUrgent = diff !== null && diff >= 0 && diff <= 7;
 
@@ -1541,9 +1544,11 @@
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
         if (filters.star && !item.is_interested) return false;
         if (filters.urgent) {
-          const bd = new Date(String(item.bid_date || '').split('T')[0]);
-          const diff = Math.ceil((bd - today) / 86400000);
-          if (diff < 0 || diff > 7) return false;
+          const bdStr = String(item.bid_date || '').split('T')[0];
+          const bdParts = bdStr.split('-');
+          const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
+          const diff = Math.round((bd - today) / 86400000);
+          if (isNaN(diff) || diff < 0 || diff > 7) return false;
         }
         if (q) {
           const hay = [item.complex_name, item.location, item.case_no].join(' ').toLowerCase();
