@@ -990,7 +990,7 @@
         // ✅ 보안: 토큰 없이 Cloudflare 서버리스 프록시(/api/auction-data)만 호출
         //         실제 NocoDB 호출과 토큰 첨부는 서버(functions/api/auction-data.js)에서 처리
         const params = new URLSearchParams({
-          where: '(status,eq,진행중)~or(status,eq,진행)~or(status,eq,낙찰)',
+          where: '(status,eq,진행중)~or(status,eq,낙찰)~or(status,eq,유찰)',
           sort: 'bid_date',
           limit: CONFIG.PAGE_SIZE,
           fields,
