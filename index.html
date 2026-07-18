@@ -990,7 +990,7 @@
         // ✅ 보안: 토큰 없이 Cloudflare 서버리스 프록시(/api/auction-data)만 호출
         //         실제 NocoDB 호출과 토큰 첨부는 서버(functions/api/auction-data.js)에서 처리
         const params = new URLSearchParams({
-          where: '(status,eq,진행중)~or(status,eq,낙찰)',
+          where: '(status,eq,진행중)~or(status,eq,진행)~or(status,eq,낙찰)',
           sort: 'bid_date',
           limit: CONFIG.PAGE_SIZE,
           fields,
@@ -1029,11 +1029,12 @@
     // Stats
     // ─────────────────────────────────────────────────────
     function updateStats() {
-      const ongoing = allItems.filter(i => i.status === '진행중').length;
+      const isOngoing = (s) => s === '진행중' || s === '진행';
+      const ongoing = allItems.filter(i => isOngoing(i.status)).length;
       const sold = allItems.filter(i => i.status === '낙찰').length;
-      const safe = allItems.filter(i => i.ai_risk === '안전' && i.status === '진행중').length;
-      const caution = allItems.filter(i => i.ai_risk === '주의' && i.status === '진행중').length;
-      const danger = allItems.filter(i => i.ai_risk === '위험' && i.status === '진행중').length;
+      const safe = allItems.filter(i => i.ai_risk === '안전' && isOngoing(i.status)).length;
+      const caution = allItems.filter(i => i.ai_risk === '주의' && isOngoing(i.status)).length;
+      const danger = allItems.filter(i => i.ai_risk === '위험' && isOngoing(i.status)).length;
       const starCount = allItems.filter(i => !!i.is_interested).length;
 
       document.getElementById('statsGrid').innerHTML = [
@@ -1138,7 +1139,11 @@
       const today = new Date(); today.setHours(0, 0, 0, 0);
 
       let result = allItems.filter(item => {
-        if (filters.status !== 'all' && item.status !== filters.status) return false;
+        if (filters.status === '진행중') {
+          if (item.status !== '진행중' && item.status !== '진행') return false;
+        } else if (filters.status !== 'all' && item.status !== filters.status) {
+          return false;
+        }
         if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
         if (filters.star && !item.is_interested) return false;
