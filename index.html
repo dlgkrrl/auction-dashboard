@@ -1573,12 +1573,6 @@
 
 
     // ─────────────────────────────────────────────────────
-    // Document Viewer & Smart Parsers
-    // ─────────────────────────────────────────────────────
-    let currentDocItemId = null;
-    let currentDocField = null;
-
-    // ─────────────────────────────────────────────────────
     // Unified Modal & Smart Document Viewer
     // ─────────────────────────────────────────────────────
     let currentDocItemId = null;
@@ -2289,13 +2283,27 @@
 
     function renderTradeTableFromArray(rows) {
       let sumPrice = 0, count = 0;
+      let maxP = 0, minP = Infinity;
+      const validPoints = [];
+
       rows.forEach(r => {
         const p = parseInt(String(r.price).replace(/,/g, ''), 10);
         if (!isNaN(p) && p > 0) {
           sumPrice += p;
           count++;
+          if (p > maxP) maxP = p;
+          if (p < minP) minP = p;
+          validPoints.push({
+            date: r.date,
+            price: p,
+            floor: r.floor,
+            name: r.name,
+            area: r.area
+          });
         }
       });
+
+      if (minP === Infinity) minP = 0;
       const avgPrice = count > 0 ? Math.round(sumPrice / count) : 0;
       const fmtPrice = (val) => {
         const n = parseInt(String(val).replace(/,/g, ''), 10);
@@ -2304,13 +2312,71 @@
         return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만원`;
       };
 
+      // Generate SVG Line Chart if at least 2 data points exist
+      let chartSvgHtml = '';
+      if (validPoints.length >= 2) {
+        const sorted = [...validPoints].sort((a, b) => new Date(a.date.replace(/\./g, '-')) - new Date(b.date.replace(/\./g, '-')));
+
+        const width = 780;
+        const height = 180;
+        const padding = 35;
+        const chartW = width - padding * 2;
+        const chartH = height - padding * 2;
+
+        const rangeP = maxP - minP || 1;
+        const minVal = Math.max(0, minP - rangeP * 0.1);
+        const maxVal = maxP + rangeP * 0.1;
+        const valRange = maxVal - minVal;
+
+        const points = sorted.map((pt, idx) => {
+          const x = padding + (idx / (sorted.length - 1)) * chartW;
+          const y = padding + chartH - ((pt.price - minVal) / valRange) * chartH;
+          return { x, y, pt };
+        });
+
+        const polylinePoints = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        const areaPoints = `${padding},${height - padding} ${polylinePoints} ${width - padding},${height - padding}`;
+
+        chartSvgHtml = `
+          <div style="margin-top:16px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--text-sub); margin-bottom:8px;">
+              <span>📈 <strong>실거래가 가격 추이</strong> (${sorted[0].date} ~ ${sorted[sorted.length-1].date})</span>
+              <span>최고가 <strong style="color:var(--red);">${fmtPrice(maxP)}</strong> / 최저가 <strong style="color:var(--blue);">${fmtPrice(minP)}</strong></span>
+            </div>
+            <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; overflow:visible; display:block;">
+              <defs>
+                <linearGradient id="tradeGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#3fb950" stop-opacity="0.35"/>
+                  <stop offset="100%" stop-color="#3fb950" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <line x1="${padding}" y1="${padding}" x2="${width - padding}" y2="${padding}" stroke="var(--border)" stroke-dasharray="3,3" opacity="0.5"/>
+              <line x1="${padding}" y1="${height / 2}" x2="${width - padding}" y2="${height / 2}" stroke="var(--border)" stroke-dasharray="3,3" opacity="0.3"/>
+              <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="var(--border)"/>
+              
+              <polygon points="${areaPoints}" fill="url(#tradeGrad)" />
+              <polyline points="${polylinePoints}" fill="none" stroke="#3fb950" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+              
+              ${points.map(p => `
+                <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#3fb950" stroke="var(--bg)" stroke-width="1.5" style="cursor:pointer;">
+                  <title>${p.pt.date} | ${p.pt.floor}층 | ${fmtPrice(p.pt.price)}</title>
+                </circle>
+              `).join('')}
+            </svg>
+          </div>
+        `;
+      }
+
       let html = `
         <div class="doc-section-card" style="border-top:3px solid var(--green);">
           <div class="doc-section-card-title">📈 국토부 실거래가 내역 요약 (${rows.length}건)</div>
           <div class="kv-grid">
             <div class="kv-item"><span class="kv-label">총 거래 건수</span><span class="kv-value"><strong>${rows.length}건</strong></span></div>
             <div class="kv-item"><span class="kv-label">평균 거래가</span><span class="kv-value"><strong style="color:var(--green); font-size:15px;">${fmtPrice(avgPrice)}</strong></span></div>
+            <div class="kv-item"><span class="kv-label">최고 거래가</span><span class="kv-value"><strong style="color:var(--red);">${fmtPrice(maxP)}</strong></span></div>
+            <div class="kv-item"><span class="kv-label">최저 거래가</span><span class="kv-value"><strong style="color:var(--blue);">${fmtPrice(minP)}</strong></span></div>
           </div>
+          ${chartSvgHtml}
         </div>
 
         <div class="doc-section-card">
