@@ -469,6 +469,11 @@
       color: var(--red);
     }
 
+    .dday-sold {
+      background: rgba(163, 113, 247, .15);
+      color: #a371f7;
+    }
+
     .pdf-row {
       display: flex;
       gap: 6px;
@@ -872,6 +877,11 @@
           <input id="searchInput" class="search-input" type="search" placeholder="단지명, 소재지, 사건번호 검색…" aria-label="물건 검색"
             oninput="applyFilters()" />
         </div>
+        <div class="filter-group" role="group" aria-label="상태 필터">
+          <button class="filter-btn" data-filter="status" data-value="all" onclick="setFilter('status','all',this)">전체</button>
+          <button class="filter-btn active" data-filter="status" data-value="진행중" onclick="setFilter('status','진행중',this)">진행중</button>
+          <button class="filter-btn" data-filter="status" data-value="낙찰" onclick="setFilter('status','낙찰',this)">낙찰</button>
+        </div>
         <div class="filter-group" role="group" aria-label="AI 위험도 필터">
           <button class="filter-btn active" data-filter="risk" data-value="all"
             onclick="setFilter('risk','all',this)">전체</button>
@@ -952,7 +962,7 @@
     // ─────────────────────────────────────────────────────
     let allItems = [];
     // ⭐ 관심 상태는 NocoDB item.is_interested 기준 (localStorage 사용 안 함)
-    let filters = { risk: 'all', gap: 'all', star: false, urgent: false };
+    let filters = { status: '진행중', risk: 'all', gap: 'all', star: false, urgent: false };
     let charts = {};
 
     // ─────────────────────────────────────────────────────
@@ -973,13 +983,14 @@
           'is_interested', 'court_url', 'ai_summary',
           'cancellation_standard', 'tenant_count', 'docs_risk_flags', 'docs_status',
           'doc_spec_text', 'doc_survey_text', 'doc_appraisal_text',
-          'doc_registry_text', 'doc_ledger_text', 'real_trade_history'
+          'doc_registry_text', 'doc_ledger_text', 'real_trade_history',
+          'status', 'actual_bid_price', 'actual_bid_rate', 'bidder_count', 'bid_engine_error'
         ].join(',');
 
         // ✅ 보안: 토큰 없이 Cloudflare 서버리스 프록시(/api/auction-data)만 호출
         //         실제 NocoDB 호출과 토큰 첨부는 서버(functions/api/auction-data.js)에서 처리
         const params = new URLSearchParams({
-          where: '(status,eq,진행중)',
+          where: '(status,eq,진행중)~or(status,eq,낙찰)',
           sort: 'bid_date',
           limit: CONFIG.PAGE_SIZE,
           fields,
@@ -1018,19 +1029,19 @@
     // Stats
     // ─────────────────────────────────────────────────────
     function updateStats() {
-      const total = allItems.length;
-      const safe = allItems.filter(i => i.ai_risk === '안전').length;
-      const caution = allItems.filter(i => i.ai_risk === '주의').length;
-      const danger = allItems.filter(i => i.ai_risk === '위험').length;
-      const pdfOk = allItems.filter(i => i.pdf_spec_ok && i.pdf_survey_ok && i.pdf_appraisal_ok).length;
+      const ongoing = allItems.filter(i => i.status === '진행중').length;
+      const sold = allItems.filter(i => i.status === '낙찰').length;
+      const safe = allItems.filter(i => i.ai_risk === '안전' && i.status === '진행중').length;
+      const caution = allItems.filter(i => i.ai_risk === '주의' && i.status === '진행중').length;
+      const danger = allItems.filter(i => i.ai_risk === '위험' && i.status === '진행중').length;
       const starCount = allItems.filter(i => !!i.is_interested).length;
 
       document.getElementById('statsGrid').innerHTML = [
-        { val: total + '건', label: '진행중 물건', accent: '#2f81f7' },
-        { val: safe + '건', label: '🟢 안전', accent: '#3fb950' },
-        { val: caution + '건', label: '🟡 주의', accent: '#d29922' },
-        { val: danger + '건', label: '🔴 위험', accent: '#f85149' },
-        { val: pdfOk + '건', label: '📄 서류 완비', accent: '#a371f7' },
+        { val: ongoing + '건', label: '진행중 물건', accent: '#2f81f7' },
+        { val: sold + '건', label: '최근 낙찰', accent: '#a371f7' },
+        { val: safe + '건', label: '🟢 안전 (진행중)', accent: '#3fb950' },
+        { val: caution + '건', label: '🟡 주의 (진행중)', accent: '#d29922' },
+        { val: danger + '건', label: '🔴 위험 (진행중)', accent: '#f85149' },
         { val: starCount + '건', label: '⭐ 관심 등록', accent: '#a371f7' },
       ].map(s => `
     <div class="stat-card" style="--accent:${s.accent}">
@@ -1127,6 +1138,7 @@
       const today = new Date(); today.setHours(0, 0, 0, 0);
 
       let result = allItems.filter(item => {
+        if (filters.status !== 'all' && item.status !== filters.status) return false;
         if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
         if (filters.star && !item.is_interested) return false;
@@ -1186,7 +1198,8 @@
 
         // D-Day display
         let ddayText, ddayClass;
-        if (diff === null) { ddayText = '-'; ddayClass = ''; }
+        if (item.status === '낙찰') { ddayText = '🔨 낙찰'; ddayClass = 'dday-sold'; }
+        else if (diff === null) { ddayText = '-'; ddayClass = ''; }
         else if (diff < 0) { ddayText = '종료'; ddayClass = ''; }
         else if (diff === 0) { ddayText = '오늘!'; ddayClass = 'dday-today'; }
         else if (diff <= 7) { ddayText = `D-${diff}`; ddayClass = 'dday-urgent'; }
@@ -1246,6 +1259,11 @@
       <div style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px">
         🎯 추천 입찰가: <strong style="color:var(--green)">${fmt(item.bid_target)}</strong>
         ${gapRateStr}
+      </div>` : ''}
+
+      ${item.status === '낙찰' ? `
+      <div style="background:rgba(163,113,247,.1);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;border:1px solid rgba(163,113,247,.3)">
+        🔨 <strong>실제 낙찰가:</strong> ${fmt(item.actual_bid_price)} <span style="color:#a371f7">(${item.actual_bid_rate || 0}%)</span> / 👥 ${item.bidder_count || 0}명 응찰
       </div>` : ''}
 
       <div class="pdf-row">
@@ -1383,6 +1401,33 @@
       };
 
       let bodyHtml = '';
+
+      if (item.status === '낙찰') {
+        const errVal = item.bid_engine_error || 0;
+        const errColor = errVal > 0 ? 'var(--red)' : errVal < 0 ? 'var(--green)' : 'var(--text-sub)';
+        bodyHtml += `
+          <div class="modal-section">
+            <div class="modal-section-title">🔨 경매 낙찰 결과</div>
+            <div style="background:rgba(163,113,247,0.1); padding:16px; border-radius:8px; border:1px solid rgba(163,113,247,0.3);">
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <div>
+                  <div style="font-size:12px; color:var(--text-sub); margin-bottom:4px;">실제 낙찰가 (${item.actual_bid_rate || 0}%)</div>
+                  <div style="font-weight:700; font-size:18px; color:#a371f7">${safeFmt(item.actual_bid_price)}</div>
+                </div>
+                <div>
+                  <div style="font-size:12px; color:var(--text-sub); margin-bottom:4px;">응찰자 수</div>
+                  <div style="font-weight:700; font-size:18px;">👥 ${item.bidder_count || 0}명</div>
+                </div>
+              </div>
+              ${item.bid_target ? `
+              <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(163,113,247,0.2); font-size:13px; display:flex; justify-content:space-between;">
+                <div><strong>V3 목표가 대비 오차:</strong> <span style="color:${errColor}; font-weight:800;">${errVal > 0 ? '+' : ''}${errVal}%</span></div>
+                <div style="color:var(--text-sub);">목표가: ${safeFmt(item.bid_target)}</div>
+              </div>` : ''}
+            </div>
+          </div>
+        `;
+      }
 
       if (item.ai_summary || item.ai_flags) {
         const riskColor = item.ai_risk === '안전' ? 'var(--green)' : item.ai_risk === '주의' ? 'var(--yellow)' : 'var(--red)';
