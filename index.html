@@ -2304,33 +2304,77 @@
     }
 
     function parseDocRegistry(rawText) {
-      let html = '';
-      const text = String(rawText);
+      if (!rawText) return '<div class="doc-section-card">등기사항전부증명서 데이터가 없습니다.</div>';
 
-      const summaryIdx = text.indexOf('주요 등기사항 요약');
+      let html = '';
+      const fullText = String(rawText);
+
+      // Clean page noise, headers, disclaimers
+      let text = fullText
+        .replace(/M\s*Y\s*A\s*U\s*C\s*T\s*I\s*O\s*N/gi, '')
+        .replace(/열\s*람\s*용/g, '')
+        .replace(/열람일시\s*:[^\n]*/g, '')
+        .replace(/관할등기소[^\n]*/g, '')
+        .replace(/본 등기사항증명서는[^\n]*/g, '')
+        .replace(/실선으로 그어진[^\n]*/g, '')
+        .replace(/기록사항 없는[^\n]*/g, '')
+        .replace(/증명서는 컬러[^\n]*/g, '')
+        .replace(/Powered by TCPDF[^\n]*/gi, '')
+        .replace(/\b\d+\/\d+\b/g, '');
+
+      // 1. Separate Summary Section
+      let summaryText = '';
+      let mainText = text;
+      const summaryIdx = text.search(/주요\s*등기사항\s*요약/);
       if (summaryIdx !== -1) {
-        const summaryText = text.substring(summaryIdx);
+        summaryText = text.substring(summaryIdx).trim();
+        mainText = text.substring(0, summaryIdx).trim();
+
         html += `
-          <div class="doc-section-card" style="border: 2px solid var(--blue); background: rgba(56, 139, 253, 0.05);">
-            <div class="doc-section-card-title">⭐ [등기부 핵심 요약 카드]</div>
-            <div style="font-size:13px; line-height:1.6; color:var(--text);">${highlightKeywords(escapeHtml(summaryText).replace(/\n/g, '<br/>'))}</div>
+          <div class="doc-section-card" style="border: 2px solid var(--blue); background: rgba(56, 139, 253, 0.06);">
+            <div class="doc-section-card-title">⭐ 주요 등기사항 요약 (말소되지 않은 유효 권리)</div>
+            <div style="font-size:13px; line-height:1.65; white-space:pre-wrap; color:var(--text);">${highlightKeywords(escapeHtml(summaryText))}</div>
           </div>
         `;
       }
 
-      const parts = text.split(/(?=【\s*(?:표\s*제\s*부|갑\s*구|을\s*구)\s*】)/);
-      parts.forEach(part => {
-        if (!part.trim() || part.includes('주요 등기사항 요약')) return;
+      // 2. Split mainText into 표제부(1동), 표제부(전유), 갑구, 을구
+      const sectionMatches = mainText.split(/(?=【\s*(?:표\s*제\s*부|갑\s*구|을\s*구)\s*】)/);
 
-        let title = '등기 정보';
-        if (part.includes('표  제  부') || part.includes('표제부')) title = '📐 【 표 제 부 】 (건물 및 대지권 표시)';
-        else if (part.includes('갑      구') || part.includes('갑구')) title = '👤 【 갑 구 】 (소유권에 관한 사항 - 가압류/경매)';
-        else if (part.includes('을      구') || part.includes('을구')) title = '🏦 【 을 구 】 (소유권 이외 권리 - 근저당/전세권)';
+      sectionMatches.forEach(sec => {
+        const secText = sec.trim();
+        if (!secText) return;
+
+        let title = '📋 등기사항 정보';
+        let subTitle = '';
+        let borderColor = 'var(--border)';
+
+        if (secText.includes('【 표 제 부 】') || secText.includes('표제부')) {
+          if (secText.includes('1동의 건물의 표시')) {
+            title = '🏢 【 표 제 부 】 (1동의 건물의 표시)';
+            subTitle = '1동 건물 전체 층수, 소재지번, 구조 및 연면적';
+          } else if (secText.includes('전유부분')) {
+            title = '🏠 【 표 제 부 】 (전유부분 건물의 표시 & 대지권 비율)';
+            subTitle = '해당 호수 전유면적 및 토지 대지권 비율';
+          } else {
+            title = '📐 【 표 제 부 】 (건물 및 대지권 표시)';
+          }
+          borderColor = 'var(--blue)';
+        } else if (secText.includes('【 갑 구 】') || secText.includes('갑구')) {
+          title = '👤 【 갑 구 】 (소유권에 관한 사항 - 소유자 / 압류 / 가압류 / 경매)';
+          subTitle = '소유권 변동 역사, 압류, 가압류, 임의/강제 경매개시결정';
+          borderColor = 'var(--red)';
+        } else if (secText.includes('【 을 구 】') || secText.includes('을 구') || secText.includes('을구')) {
+          title = '🏦 【 을 구 】 (소유권 이외의 권리 - 근저당권 / 전세권 / 임차권)';
+          subTitle = '근저당권 채권최고액, 채권자, 전세권 및 주택임차권등기 설정 내역';
+          borderColor = 'var(--green)';
+        }
 
         html += `
-          <div class="doc-section-card">
+          <div class="doc-section-card" style="border-top: 3px solid ${borderColor};">
             <div class="doc-section-card-title">${title}</div>
-            <div style="font-size:13px; line-height:1.6;">${highlightKeywords(escapeHtml(part.trim()).replace(/\n/g, '<br/>'))}</div>
+            ${subTitle ? `<div style="font-size:12px; color:var(--text-sub); margin-bottom:10px;">${subTitle}</div>` : ''}
+            <div style="font-size:12.5px; line-height:1.65; white-space:pre-wrap; font-family:monospace; color:var(--text);">${highlightKeywords(escapeHtml(secText))}</div>
           </div>
         `;
       });
