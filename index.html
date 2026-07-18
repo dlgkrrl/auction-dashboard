@@ -1900,6 +1900,55 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
+    // ─────────────────────────────────────────────────────
+    // SVG Chart Floating HTML Tooltip Handlers
+    // ─────────────────────────────────────────────────────
+    function showChartTooltip(e, date, floor, priceStr) {
+      let tt = document.getElementById('chartTooltip');
+      if (!tt) {
+        tt = document.createElement('div');
+        tt.id = 'chartTooltip';
+        tt.style.cssText = `
+          position: fixed;
+          z-index: 99999;
+          pointer-events: none;
+          background: rgba(13, 17, 23, 0.94);
+          border: 1px solid var(--blue, #58a6ff);
+          border-radius: 8px;
+          padding: 8px 12px;
+          font-size: 12px;
+          color: #ffffff;
+          box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+          backdrop-filter: blur(6px);
+          transition: opacity 0.1s ease, transform 0.05s ease;
+          opacity: 0;
+        `;
+        document.body.appendChild(tt);
+      }
+      tt.innerHTML = `
+        <div style="font-weight:700; color:var(--blue); margin-bottom:3px;">📅 ${date}</div>
+        <div>🏢 ${floor}층 | <strong style="color:#3fb950;">💰 ${priceStr}</strong></div>
+      `;
+      tt.style.left = (e.clientX + 14) + 'px';
+      tt.style.top = (e.clientY - 42) + 'px';
+      tt.style.opacity = '1';
+    }
+
+    function moveChartTooltip(e) {
+      const tt = document.getElementById('chartTooltip');
+      if (tt && tt.style.opacity === '1') {
+        tt.style.left = (e.clientX + 14) + 'px';
+        tt.style.top = (e.clientY - 42) + 'px';
+      }
+    }
+
+    function hideChartTooltip() {
+      const tt = document.getElementById('chartTooltip');
+      if (tt) {
+        tt.style.opacity = '0';
+      }
+    }
+
     function parseDocSpec(rawText) {
       let html = '';
       const text = String(rawText);
@@ -1979,48 +2028,7 @@
       }
 
       if (tenantBlock) {
-        const headerNoise = /점유자|성\s*명|점유\s*부분|정보출처|구\s*분|점유의\s*권\s*원|임대차기간|\(점유기간\)|보\s*증\s*금|차\s*임|전입신고일자|외국인등록|체류지변경신고|일자|사업자등록|신청일자|확정일자|배당|요구여부|\(배당요구일자\)|부동산의 점유자와/;
-        const lines = tenantBlock.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !headerNoise.test(l));
-
-        const tenants = [];
-        let curTenant = null;
-
-        const isHeaderOrNoise = (t) => headerNoise.test(t) || t.startsWith('※') || t.includes('대항요건') || t.includes('인수되게');
-
-        lines.forEach(l => {
-          if (isHeaderOrNoise(l)) return;
-
-          // Check if line is multi-column space/tab separated
-          const parts = l.split(/\s{2,}|\t/);
-          if (parts.length >= 3) {
-            tenants.push({
-              name: parts[0] || '-',
-              portion: parts[1] || '-',
-              source: parts[2] || '-',
-              type: parts[3] || parts[4] || '-',
-              period: parts[5] || '-',
-              deposit: parts[6] || '-',
-              rent: parts[7] || '-',
-              moveInDate: parts[8] || '-',
-              fixDate: parts[9] || '-',
-              dividendDate: parts[10] || '-'
-            });
-            return;
-          }
-
-          // Single token line (vertical PDF layout)
-          // A name token starts a new tenant if it looks like a person's name (2-4 letters) or is not a standard keyword
-          const isKeyword = /^(전부|미상|없음|권리신고|현황조사|등기사항전부증명서|주거|상가|임차인|임차권자|\d|\d{4}|없음)$/.test(l);
-          const isDateOrMoney = /\d{4}|\d+만원|\d+억/.test(l);
-
-          if (!curTenant || (!isKeyword && !isDateOrMoney && l.length <= 4 && !l.includes('~'))) {
-            if (curTenant) tenants.push(curTenant);
-            curTenant = { name: l, fields: [] };
-          } else if (curTenant) {
-            curTenant.fields.push(l);
-          }
-        });
-        if (curTenant) tenants.push(curTenant);
+        const tenants = parseTenantBlock(tenantBlock);
 
         if (tenants.length > 0) {
           html += `
@@ -2037,50 +2045,20 @@
           `;
 
           tenants.forEach(t => {
-            if (t.portion !== undefined) {
-              // Pre-formatted multi-column row
-              html += `
-                <tr>
-                  <td><strong>${escapeHtml(t.name)}</strong></td>
-                  <td>${escapeHtml(t.portion)}</td>
-                  <td>${escapeHtml(t.source)}</td>
-                  <td><span class="doc-badge doc-badge-warning">${escapeHtml(t.type)}</span></td>
-                  <td>${escapeHtml(t.period)}</td>
-                  <td><strong style="color:var(--green);">${escapeHtml(t.deposit)}</strong></td>
-                  <td>${escapeHtml(t.rent)}</td>
-                  <td>${escapeHtml(t.moveInDate)}</td>
-                  <td>${escapeHtml(t.fixDate)}</td>
-                  <td>${escapeHtml(t.dividendDate)}</td>
-                </tr>
-              `;
-            } else {
-              // Grouped vertical tokens
-              const f = t.fields || [];
-              const portion = f[0] || '-';
-              const source = f[1] || '-';
-              const type = `${f[2] || ''} ${f[3] || ''}`.trim() || '임차인';
-              const period = f[4] || '-';
-              const deposit = f[5] || '-';
-              const rent = f[6] || '-';
-              const moveInDate = f[7] || '-';
-              const fixDate = f[8] || '-';
-              const dividendDate = f[9] || '-';
-
-              html += `
-                <tr>
-                  <td><strong>${escapeHtml(t.name)}</strong></td>
-                  <td>${escapeHtml(portion)}</td>
-                  <td>${escapeHtml(source)}</td>
-                  <td><span class="doc-badge doc-badge-warning">${escapeHtml(type)}</span></td>
-                  <td>${escapeHtml(period)}</td>
-                  <td><strong style="color:var(--green);">${escapeHtml(deposit)}</strong></td>
-                  <td>${escapeHtml(rent)}</td>
-                  <td>${escapeHtml(moveInDate)}</td>
-                  <td>${escapeHtml(fixDate)}</td>
-                  <td>${escapeHtml(dividendDate)}</td>
-                </tr>
-              `;
-            }
+            html += `
+              <tr>
+                <td><strong>${escapeHtml(t.name)}</strong></td>
+                <td>${escapeHtml(t.portion)}</td>
+                <td>${escapeHtml(t.source)}</td>
+                <td><span class="doc-badge doc-badge-warning">${escapeHtml(t.type)}</span></td>
+                <td>${escapeHtml(t.period)}</td>
+                <td><strong style="color:var(--green);">${escapeHtml(t.deposit)}</strong></td>
+                <td>${escapeHtml(t.rent)}</td>
+                <td>${escapeHtml(t.moveInDate)}</td>
+                <td>${escapeHtml(t.fixDate)}</td>
+                <td>${escapeHtml(t.dividendDate)}</td>
+              </tr>
+            `;
           });
 
           html += `</tbody></table></div></div>`;
@@ -2113,6 +2091,116 @@
       `;
 
       return html;
+    }
+
+    function parseTenantBlock(rawBlock) {
+      const headerNoise = /^(점유자|성\s*명|성 명|점유|부분|점유부분|정보출처|구\s*분|구분|점유의|권\s*원|권원|점유의\s*권\s*원|임대차기간|\(점유기간\)|보\s*증\s*금|보증금|차\s*임|차임|전입신고일자[^\n]*|외국인등록[^\n]*|체류지변경신고[^\n]*|일자[^\n]*|사업자등록[^\n]*|신청일자|확정일자|배당|요구여부|\(배당요구일자\)|류지변경신고\)|록\s*신청일자|일자·사업자등|부동산의 점유자와[^\n]*)$/i;
+
+      const lines = rawBlock.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && !headerNoise.test(l) && !l.startsWith('※') && !l.includes('대항요건') && !l.includes('인수되게'));
+
+      if (lines.length === 0) return [];
+
+      // Horizontal table check
+      const horizontalRows = lines.filter(l => l.split(/\s{2,}|\t/).length >= 3);
+      if (horizontalRows.length > 0) {
+        return horizontalRows.map(l => {
+          const cols = l.split(/\s{2,}|\t/);
+          return {
+            name: cols[0] || '-',
+            portion: cols[1] || '-',
+            source: cols[2] || '-',
+            type: cols[3] || cols[4] || '-',
+            period: cols[5] || '-',
+            deposit: cols[6] || '-',
+            rent: cols[7] || '-',
+            moveInDate: cols[8] || '-',
+            fixDate: cols[9] || '-',
+            dividendDate: cols[10] || '-'
+          };
+        });
+      }
+
+      // Vertical token stream parsing
+      const nonNameWords = new Set(['전부', '부분', '미상', '없음', '주거', '상가', '임차인', '임차권자', '임차권', '자', '권리신고', '현황조사', '등기사항전', '부증명서', '등기사항전부증명서', '점유', '권원', '일자', '도로명주소', '철근콘크리트조', '박공지붕']);
+      const isNameToken = (t) => (/^[가-힣]{2,4}$/.test(t) && !nonNameWords.has(t) && !/\d/.test(t)) || t === '미상';
+
+      const tenantGroups = [];
+      let currentTokens = [];
+
+      lines.forEach(line => {
+        if (isNameToken(line)) {
+          if (currentTokens.length > 0) {
+            tenantGroups.push(currentTokens);
+          }
+          currentTokens = [line];
+        } else {
+          if (currentTokens.length === 0) {
+            currentTokens = [line];
+          } else {
+            currentTokens.push(line);
+          }
+        }
+      });
+      if (currentTokens.length > 0) {
+        tenantGroups.push(currentTokens);
+      }
+
+      const results = [];
+      tenantGroups.forEach(tokens => {
+        if (!tokens || tokens.length === 0) return;
+        const name = tokens[0];
+        if (nonNameWords.has(name) || name.includes('부동산') || name.includes('타경')) return;
+
+        let portion = '-', source = '-', type = '-', period = '-', deposit = '-', rent = '-', moveInDate = '-', fixDate = '-', dividendDate = '-';
+        const unassigned = [];
+
+        tokens.slice(1).forEach(tok => {
+          if (tok === '전부' || tok === '일부') portion = tok;
+          else if (tok.includes('등기사항') || tok.includes('부증명서') || tok.includes('권리신고') || tok.includes('현황조사')) {
+            source = source === '-' ? tok : (source + tok);
+          }
+          else if (tok.includes('주거') || tok.includes('임차') || tok.includes('자') || tok.includes('상가')) {
+            type = type === '-' ? tok : (type + (tok.length === 1 ? '' : ' ') + tok);
+          }
+          else if (tok.includes('~')) period = tok;
+          else if (tok.includes('원') || tok.includes('만') || tok.includes('억')) {
+            if (deposit === '-') deposit = tok;
+            else if (rent === '-') rent = tok;
+          }
+          else if (/\d{4}\.\d{1,2}\.\d{1,2}/.test(tok) || /\d{4}-\d{1,2}-\d{1,2}/.test(tok)) {
+            if (moveInDate === '-') moveInDate = tok;
+            else if (fixDate === '-') fixDate = tok;
+            else if (dividendDate === '-') dividendDate = tok;
+          }
+          else if (tok === '없음' || tok === '미상') {
+            if (deposit === '-') deposit = tok;
+            else if (rent === '-') rent = tok;
+            else if (dividendDate === '-') dividendDate = tok;
+          }
+          else {
+            unassigned.push(tok);
+          }
+        });
+
+        if (unassigned.length > 0 && type === '-') type = unassigned.join(' ');
+
+        results.push({
+          name,
+          portion,
+          source: source.replace('등기사항전부증명서', '등기사항전부증명서'),
+          type: type.trim(),
+          period,
+          deposit,
+          rent,
+          moveInDate,
+          fixDate,
+          dividendDate
+        });
+      });
+
+      return results;
     }
 
     function parseDocSurvey(rawText) {
@@ -2358,8 +2446,10 @@
               <polyline points="${polylinePoints}" fill="none" stroke="#3fb950" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
               
               ${points.map(p => `
-                <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#3fb950" stroke="var(--bg)" stroke-width="1.5" style="cursor:pointer;">
-                  <title>${p.pt.date} | ${p.pt.floor}층 | ${fmtPrice(p.pt.price)}</title>
+                <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="#3fb950" stroke="var(--bg)" stroke-width="2" style="cursor:pointer; transition:r 0.15s ease;"
+                        onmouseenter="showChartTooltip(event, '${p.pt.date}', '${p.pt.floor}', '${fmtPrice(p.pt.price)}')"
+                        onmousemove="moveChartTooltip(event)"
+                        onmouseleave="hideChartTooltip()">
                 </circle>
               `).join('')}
             </svg>
