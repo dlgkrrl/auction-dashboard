@@ -916,8 +916,17 @@
       <!-- Count -->
       <div style="font-size:12px;color:var(--text-sub);margin-bottom:12px" id="countLabel">불러오는 중…</div>
 
+      <!-- Map Filter Bar (지도 모드에서만 표시) -->
+      <div id="mapFilterBar" style="display:none; padding:8px 16px; background:var(--surface2); border:1px solid var(--border); border-bottom:none; border-radius:10px 10px 0 0; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-size:12px; color:var(--text-sub); font-weight:600;">🗺️ 지도 표시:</span>
+        <button class="filter-btn active" id="mapFilter-진행중" onclick="setMapFilter('진행중',this)">📍 진행중</button>
+        <button class="filter-btn" id="mapFilter-낙찰" onclick="setMapFilter('낙찰',this)">🔨 낙찰</button>
+        <button class="filter-btn" id="mapFilter-all" onclick="setMapFilter('all',this)">전체</button>
+        <span id="mapMarkerCount" style="font-size:11px; color:var(--text-sub); margin-left:auto; background:var(--surface3,#0d1117); padding:2px 8px; border-radius:10px;"></span>
+      </div>
+
       <!-- Map Container -->
-      <div id="mapContainer" role="region" aria-label="지도 뷰"></div>
+      <div id="mapContainer" role="region" aria-label="지도 뷰" style="border-radius:0 0 10px 10px;"></div>
 
       <!-- Cards -->
       <div class="cards-grid" id="cardsGrid" role="list" aria-label="경매 물건 목록"></div>
@@ -978,7 +987,9 @@
           'Id', 'case_no', 'location', 'complex_name', 'area_m2', 'floor',
           'appraisal_price', 'min_price', 'price_rate', 'loss_count', 'bid_date',
           'ai_risk', 'ai_recommend', 'gap_score', 'gap_score_grade',
-          'bid_target', 'bid_confidence', 'real_trade_3m_avg', 'bid_vs_trade_gap_rate',
+          'bid_target', 'bid_min', 'bid_max', 'bid_rate_used', 'bid_strategy_text',
+          'bid_confidence', 'real_trade_3m_avg', 'real_trade_6m_avg', 'real_trade_12m_avg',
+          'bid_vs_trade_gap_rate',
           'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
           'is_interested', 'court_url', 'ai_summary',
           'cancellation_standard', 'tenant_count', 'docs_risk_flags', 'docs_status',
@@ -1537,25 +1548,40 @@
     let isMapMode = false;
     let mapInstance = null;
     let mapMarkers = [];
+    let mapStatusFilter = '진행중'; // 기본: 진행중만 표시
 
     function toggleMap() {
       isMapMode = !isMapMode;
       const btn = document.getElementById('btnToggleMap');
       const mapContainer = document.getElementById('mapContainer');
+      const mapFilterBar = document.getElementById('mapFilterBar');
       const cardsGrid = document.getElementById('cardsGrid');
 
       if (isMapMode) {
         btn.innerHTML = '<span class="icon">📄</span> 리스트로 돌아가기';
         btn.classList.add('active');
         cardsGrid.style.display = 'none';
+        mapFilterBar.style.display = 'flex';
         mapContainer.style.display = 'block';
+        // 지도 열 때 기본 필터: 진행중
+        mapStatusFilter = '진행중';
+        document.querySelectorAll('[id^="mapFilter-"]').forEach(b => b.classList.remove('active'));
+        document.getElementById('mapFilter-진행중').classList.add('active');
         initMap();
       } else {
         btn.innerHTML = '<span class="icon">🗺️</span> 지도 보기';
         btn.classList.remove('active');
+        mapFilterBar.style.display = 'none';
         mapContainer.style.display = 'none';
         cardsGrid.style.display = 'grid';
       }
+    }
+
+    function setMapFilter(val, btn) {
+      mapStatusFilter = val;
+      document.querySelectorAll('[id^="mapFilter-"]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateMapMarkers();
     }
 
     function initMap() {
@@ -1590,6 +1616,11 @@
       const today = new Date(); today.setHours(0, 0, 0, 0);
 
       const result = allItems.filter(item => {
+        // 지도 전용 상태 필터
+        if (mapStatusFilter === '진행중' && item.status !== '진행중') return false;
+        if (mapStatusFilter === '낙찰' && item.status !== '낙찰') return false;
+
+        // 기존 필터 (risk, gap, star, urgent, 검색어)
         if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
         if (filters.star && !item.is_interested) return false;
@@ -1606,6 +1637,10 @@
         }
         return true;
       });
+
+      // 마커 수 카운터 업데이트
+      const countEl = document.getElementById('mapMarkerCount');
+      if (countEl) countEl.textContent = `${result.length}개 표시`;
 
       const geocoder = new kakao.maps.services.Geocoder();
       const bounds = new kakao.maps.LatLngBounds();
