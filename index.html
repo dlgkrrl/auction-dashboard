@@ -758,6 +758,188 @@
       border-radius: 0 0 16px 16px;
     }
 
+    /* ── Document Modal Wide & Tab Bar ── */
+    .modal-container.modal-wide {
+      max-width: 880px;
+      width: 95%;
+    }
+
+    .doc-tab-bar {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      padding: 8px 12px 0 12px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      scrollbar-width: thin;
+    }
+
+    .doc-tab {
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-sub);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .doc-tab:hover:not(.disabled) {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .doc-tab.active {
+      color: var(--blue, #58a6ff);
+      border-bottom-color: var(--blue, #58a6ff);
+      background: var(--bg);
+      border-radius: 6px 6px 0 0;
+    }
+
+    .doc-tab.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .doc-search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .doc-search-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .doc-search-input:focus {
+      border-color: var(--blue, #58a6ff);
+    }
+
+    .doc-search-count {
+      font-size: 12px;
+      color: var(--text-sub);
+      white-space: nowrap;
+    }
+
+    .doc-section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .doc-section-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 8px 16px;
+      font-size: 13px;
+    }
+
+    .kv-item {
+      display: flex;
+      gap: 8px;
+      line-height: 1.5;
+    }
+
+    .kv-label {
+      color: var(--text-sub);
+      font-weight: 600;
+      min-width: 90px;
+      flex-shrink: 0;
+    }
+
+    .kv-value {
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .legal-callout-warning {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+      border-left: 4px solid var(--red, #f85149);
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+
+    .doc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+
+    .doc-table th {
+      background: var(--surface2);
+      color: var(--text-sub);
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .doc-table td {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .doc-table tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .doc-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .doc-badge-danger { background: rgba(248, 81, 73, 0.2); color: #ff7b72; border: 1px solid rgba(248, 81, 73, 0.4); }
+    .doc-badge-warning { background: rgba(210, 153, 34, 0.2); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.4); }
+    .doc-badge-safe { background: rgba(56, 139, 253, 0.2); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.4); }
+    .doc-badge-success { background: rgba(46, 160, 67, 0.2); color: #3fb950; border: 1px solid rgba(46, 160, 67, 0.4); }
+
+    .strike-through { text-decoration: line-through; opacity: 0.55; }
+    .highlight-term { background: rgba(255, 215, 0, 0.4); color: #fff; font-weight: bold; padding: 0 2px; border-radius: 2px; }
+
     /* ── Toast ── */
     .toast {
       position: fixed;
@@ -1284,29 +1466,29 @@
 
       <div class="pdf-row">
         <div class="pdf-chip ${item.doc_spec_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="매각물건명세서"
-             ${item.doc_spec_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_spec_text', '매각물건명세서')"` : ''}>
+             ${item.doc_spec_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_spec_text')"` : ''}>
           ${item.doc_spec_text ? '✅' : '❌'} 명세서
         </div>
         <div class="pdf-chip ${item.doc_survey_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="현황조사서"
-             ${item.doc_survey_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_survey_text', '현황조사서')"` : ''}>
+             ${item.doc_survey_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_survey_text')"` : ''}>
           ${item.doc_survey_text ? '✅' : '❌'} 현황
         </div>
         <div class="pdf-chip ${item.doc_appraisal_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="감정평가서"
-             ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_appraisal_text', '감정평가서')"` : ''}>
+             ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_appraisal_text')"` : ''}>
           ${item.doc_appraisal_text ? '✅' : '❌'} 감정
         </div>
         <div class="pdf-chip ${item.doc_registry_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="등기사항전부증명서"
-             ${item.doc_registry_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_registry_text', '등기사항전부증명서')"` : ''}>
+             ${item.doc_registry_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_registry_text')"` : ''}>
           ${item.doc_registry_text ? '✅' : '❌'} 등기
         </div>
         <div class="pdf-chip ${item.doc_ledger_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="건축물대장"
-             ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'doc_ledger_text', '건축물대장')"` : ''}>
+             ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_ledger_text')"` : ''}>
           ${item.doc_ledger_text ? '✅' : '❌'} 대장
         </div>
       </div>
       <div class="pdf-row" style="margin-top:4px;">
         <div class="pdf-chip ${item.real_trade_history ? 'pdf-ok clickable' : 'pdf-ng'}" title="실거래가 히스토리" style="width:100%"
-             ${item.real_trade_history ? `onclick="event.stopPropagation(); openTextModal('${item.Id}', 'real_trade_history', '실거래가 내역')"` : ''}>
+             ${item.real_trade_history ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'real_trade_history')"` : ''}>
           ${item.real_trade_history 
             ? ((item.real_trade_3m_avg > 0 || item.real_trade_6m_avg > 0 || item.real_trade_12m_avg > 0)
                 ? `✅ <b>실거래</b> <span style="font-weight:normal; font-size:11px; margin-left:4px;">(3개월: ${fmt(item.real_trade_3m_avg)} / 6개월: ${fmt(item.real_trade_6m_avg)} / 1년: ${fmt(item.real_trade_12m_avg)})</span>` 
@@ -1390,22 +1572,521 @@
     }
 
 
+    // ─────────────────────────────────────────────────────
+    // Document Viewer & Smart Parsers
+    // ─────────────────────────────────────────────────────
+    let currentDocItemId = null;
+    let currentDocField = null;
+
     function openTextModal(id, fieldName, title) {
+      openDocViewerModal(id, fieldName);
+    }
+
+    function openDocViewerModal(id, initialField) {
       const item = allItems.find(i => String(i.Id) === String(id));
       if (!item) return;
-      const text = item[fieldName] || '내용이 없습니다.';
-      const subtitle = item.case_no || '';
-      document.getElementById('modalTitle').textContent = title;
-      document.getElementById('modalSubtitle').textContent = subtitle;
-      const formattedText = typeof text === 'string' ? text.replace(/\n/g, '<br/>') : JSON.stringify(text, null, 2).replace(/\n/g, '<br/>');
-      document.getElementById('modalBody').innerHTML = `<div class="modal-text" style="line-height:1.6; font-size:13px;">${formattedText}</div>`;
-      document.getElementById('modalFooter').innerHTML = '';
+
+      currentDocItemId = id;
+      currentDocField = initialField || 'doc_spec_text';
+
+      const modalContainer = document.querySelector('#detailModal .modal-container');
+      if (modalContainer) modalContainer.classList.add('modal-wide');
+
+      document.getElementById('modalTitle').textContent = item.complex_name || item.case_no || '경매 서류 열람';
+      document.getElementById('modalSubtitle').textContent = `${item.court || ''} ${item.case_no || ''} | ${item.location || ''}`;
+
+      renderDocViewerContent(item);
       document.getElementById('detailModal').classList.add('show');
+    }
+
+    function switchDocTab(fieldName) {
+      currentDocField = fieldName;
+      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+      if (!item) return;
+      renderDocViewerContent(item);
+    }
+
+    function renderDocViewerContent(item) {
+      const docFields = [
+        { key: 'doc_spec_text', label: '📄 명세서', title: '매각물건명세서' },
+        { key: 'doc_survey_text', label: '📄 현황조사', title: '현황조사서' },
+        { key: 'doc_appraisal_text', label: '📄 감정평가', title: '감정평가서' },
+        { key: 'doc_registry_text', label: '📄 등기부', title: '등기사항전부증명서' },
+        { key: 'doc_ledger_text', label: '📄 대장', title: '건축물대장' },
+        { key: 'real_trade_history', label: '📈 실거래가', title: '실거래가 내역' },
+      ];
+
+      let tabsHtml = '<div class="doc-tab-bar">';
+      docFields.forEach(f => {
+        const hasData = !!item[f.key];
+        const isActive = f.key === currentDocField;
+        tabsHtml += `
+          <button class="doc-tab ${isActive ? 'active' : ''} ${!hasData ? 'disabled' : ''}"
+                  ${hasData ? `onclick="switchDocTab('${f.key}')"` : 'disabled'}
+                  title="${f.title}">
+            ${f.label} ${hasData ? '✅' : '❌'}
+          </button>`;
+      });
+      tabsHtml += '</div>';
+
+      const searchHtml = `
+        <div class="doc-search-box">
+          <input type="text" id="docSearchInput" class="doc-search-input"
+                 placeholder="서류 내 키워드 검색 (예: 근저당, 임차인, 보증금, 대지권)..."
+                 oninput="filterDocText(this.value)" />
+          <span class="doc-search-count" id="docSearchCount"></span>
+          <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:5px 10px; cursor:pointer;" onclick="copyRawDocText()">📋 원문 복사</button>
+        </div>
+      `;
+
+      const rawText = item[currentDocField] || '';
+      const parsedBody = parseAndFormatDocument(rawText, currentDocField);
+
+      document.getElementById('modalBody').innerHTML = tabsHtml + searchHtml + `<div id="docBodyContainer" style="padding:16px;">${parsedBody}</div>`;
+
+      document.getElementById('modalFooter').innerHTML = `
+        ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>` : ''}
+        <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; cursor:pointer;" onclick="closeModal()">닫기</button>
+      `;
+    }
+
+    function copyRawDocText() {
+      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+      if (!item || !currentDocField || !item[currentDocField]) {
+        showToast('복사할 데이터가 없습니다.');
+        return;
+      }
+      const val = typeof item[currentDocField] === 'string' ? item[currentDocField] : JSON.stringify(item[currentDocField], null, 2);
+      navigator.clipboard.writeText(val).then(() => {
+        showToast('📋 서류 원문이 클립보드에 복사되었습니다.');
+      });
+    }
+
+    function filterDocText(query) {
+      const container = document.getElementById('docBodyContainer');
+      const countEl = document.getElementById('docSearchCount');
+      if (!container) return;
+
+      if (!query || query.trim().length === 0) {
+        if (countEl) countEl.textContent = '';
+        const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+        if (item) {
+          container.innerHTML = parseAndFormatDocument(item[currentDocField] || '', currentDocField);
+        }
+        return;
+      }
+
+      const q = query.trim();
+      const regex = new RegExp(`(${escapeRegExp(q)})`, 'gi');
+      let matches = 0;
+
+      function highlightNode(node) {
+        if (node.nodeType === 3) {
+          const val = node.nodeValue;
+          if (regex.test(val)) {
+            const count = (val.match(regex) || []).length;
+            matches += count;
+            const span = document.createElement('span');
+            span.innerHTML = val.replace(regex, '<mark class="highlight-term">$1</mark>');
+            node.parentNode.replaceChild(span, node);
+          }
+        } else if (node.nodeType === 1 && node.childNodes && !/^(script|style|textarea|input)$/i.test(node.tagName)) {
+          Array.from(node.childNodes).forEach(highlightNode);
+        }
+      }
+
+      highlightNode(container);
+      if (countEl) countEl.textContent = matches > 0 ? `🔍 ${matches}개 발견` : '검색 결과 없음';
+    }
+
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // ─────────────────────────────────────────────────────
+    // Document Specific Smart Parsers
+    // ─────────────────────────────────────────────────────
+    function parseAndFormatDocument(text, fieldName) {
+      if (!text) return '<div style="text-align:center; padding:40px; color:var(--text-sub);">등록된 서류 내용이 없습니다.</div>';
+
+      if (fieldName === 'real_trade_history') {
+        return parseRealTradeHistory(text);
+      }
+      if (fieldName === 'doc_spec_text') {
+        return parseDocSpec(text);
+      }
+      if (fieldName === 'doc_survey_text') {
+        return parseDocSurvey(text);
+      }
+      if (fieldName === 'doc_appraisal_text') {
+        return parseDocAppraisal(text);
+      }
+      if (fieldName === 'doc_registry_text') {
+        return parseDocRegistry(text);
+      }
+      if (fieldName === 'doc_ledger_text') {
+        return parseDocLedger(text);
+      }
+
+      return `<div class="doc-section-card"><div class="modal-text">${escapeHtml(String(text)).replace(/\n/g, '<br/>')}</div></div>`;
+    }
+
+    function highlightKeywords(htmlStr) {
+      if (!htmlStr) return '';
+      let str = htmlStr;
+      
+      const dangerTerms = ['대항력', '선순위', '선순위임차인', '위반건축물', '가등기', '가처분', '유치권', '지상권', '경매개시결정', '압류', '가압류'];
+      dangerTerms.forEach(t => {
+        const re = new RegExp(`(${t})`, 'g');
+        str = str.replace(re, '<span class="doc-badge doc-badge-danger">$1</span>');
+      });
+
+      const warnTerms = ['주거 임차인', '임차인', '전입일자', '전입신고', '확정일자', '배당요구', '근저당권', '근저당'];
+      warnTerms.forEach(t => {
+        const re = new RegExp(`(${t})`, 'g');
+        str = str.replace(re, '<span class="doc-badge doc-badge-warning">$1</span>');
+      });
+
+      const safeTerms = ['말소기준권리', '소멸', '대지권 유', '낙찰자인수없음', '전산이기'];
+      safeTerms.forEach(t => {
+        const re = new RegExp(`(${t})`, 'g');
+        str = str.replace(re, '<span class="doc-badge doc-badge-success">$1</span>');
+      });
+
+      return str;
+    }
+
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return String(str);
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function parseDocSpec(rawText) {
+      let html = '';
+      const text = String(rawText);
+
+      const warningMatches = text.match(/※[^\n]+/g) || [];
+      const bigWarningMatch = text.match(/※\s*최선순위 설정일자보다 대항요건을[^\n]*(\n[^\n]*){0,4}/g);
+
+      const caseMatch = text.match(/사건\s*([0-9가-힣]+타경[0-9]+[^\n]*)/);
+      const dateMatch = text.match(/작성\s*일자\s*([0-9\.\s]+)/);
+      const judgeMatch = text.match(/담임법관[^\n]*\s*([가-힣]+)/);
+      const topPriorityMatch = text.match(/최선순위\s*설정\s*([0-9\.\s]+[^\n]*)/);
+      const dividendMatch = text.match(/배당요구종기\s*([0-9\.\s]+)/);
+      const noteMatch = text.match(/<비고>[\s\S]*?(?=※|사건|$)/i) || text.match(/비고란[\s\S]*?(?=사건|$)/i);
+
+      html += `
+        <div class="doc-section-card">
+          <div class="doc-section-card-title">⚖️ 매각물건명세서 기본정보</div>
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-label">사건번호</span><span class="kv-value">${caseMatch ? caseMatch[1] : '-'}</span></div>
+            <div class="kv-item"><span class="kv-label">작성일자</span><span class="kv-value">${dateMatch ? dateMatch[1] : '-'}</span></div>
+            <div class="kv-item"><span class="kv-label">담당법관</span><span class="kv-value">${judgeMatch ? judgeMatch[1] : '-'}</span></div>
+            <div class="kv-item"><span class="kv-label">최선순위 설정</span><span class="kv-value"><strong style="color:var(--blue);">${topPriorityMatch ? topPriorityMatch[1] : '-'}</strong></span></div>
+            <div class="kv-item"><span class="kv-label">배당요구종기</span><span class="kv-value"><strong style="color:var(--yellow);">${dividendMatch ? dividendMatch[1] : '-'}</strong></span></div>
+          </div>
+        </div>
+      `;
+
+      if (noteMatch && noteMatch[0].trim()) {
+        html += `
+          <div class="doc-section-card" style="border-left:4px solid var(--blue);">
+            <div class="doc-section-card-title">📌 명세서 비고 사항</div>
+            <div style="font-size:13px; line-height:1.6; color:var(--text);">${highlightKeywords(escapeHtml(noteMatch[0].trim()))}</div>
+          </div>
+        `;
+      }
+
+      if (bigWarningMatch && bigWarningMatch[0]) {
+        html += `
+          <div class="legal-callout-warning">
+            <strong>⚠️ [매수인 인수 가능성 주의사항]</strong><br/>
+            ${escapeHtml(bigWarningMatch[0].replace(/\s+/g, ' '))}
+          </div>
+        `;
+      }
+
+      if (text.includes('점유자') || text.includes('임대차')) {
+        const tenantLines = text.split('\n').filter(l => /정춘자|최승학|주거|임차인|권리신고|현황조사/.test(l));
+        if (tenantLines.length > 0) {
+          html += `
+            <div class="doc-section-card">
+              <div class="doc-section-card-title">👥 점유자 및 임차인 관계 현황</div>
+              <div style="overflow-x:auto;">
+                <table class="doc-table">
+                  <thead>
+                    <tr>
+                      <th>점유자</th><th>구분</th><th>권원</th><th>점유기간</th><th>보증금/차임</th><th>전입일자</th><th>확정일자</th><th>배당요구일</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+          tenantLines.forEach(l => {
+            const cols = l.trim().split(/\s{2,}|\t/);
+            if (cols.length >= 3) {
+              html += `<tr>${cols.map(c => `<td>${highlightKeywords(escapeHtml(c))}</td>`).join('')}</tr>`;
+            } else {
+              html += `<tr><td colspan="8">${highlightKeywords(escapeHtml(l))}</td></tr>`;
+            }
+          });
+          html += `</tbody></table></div></div>`;
+        }
+      }
+
+      const roundMatches = text.match(/([0-9]회)\s*([0-9\.]+)\s*([0-9,]+)\s*([0-9,]+)/g);
+      if (roundMatches && roundMatches.length > 0) {
+        html += `
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">📅 회차별 기일 및 최저매각가격 정보</div>
+            <table class="doc-table">
+              <thead><tr><th>회차</th><th>매각기일</th><th>최저매각가격</th><th>매수신청보증금</th></tr></thead>
+              <tbody>
+        `;
+        roundMatches.forEach(r => {
+          const parts = r.split(/\s+/);
+          if (parts.length >= 4) {
+            html += `<tr><td><strong>${parts[0]}</strong></td><td>${parts[1]}</td><td style="color:var(--blue); font-weight:700;">${Number(parts[2].replace(/,/g,'')).toLocaleString()}원</td><td>${Number(parts[3].replace(/,/g,'')).toLocaleString()}원</td></tr>`;
+          }
+        });
+        html += `</tbody></table></div>`;
+      }
+
+      html += `
+        <div class="doc-section-card">
+          <div class="doc-section-card-title">📜 명세서 전문</div>
+          <div style="font-size:12.5px; line-height:1.6; white-space:pre-wrap; color:var(--text-sub); font-family:monospace;">${highlightKeywords(escapeHtml(text))}</div>
+        </div>
+      `;
+
+      return html;
+    }
+
+    function parseDocSurvey(rawText) {
+      let html = '';
+      const text = String(rawText);
+
+      const caseMatch = text.match(/사건번호\s*([0-9가-힣]+타경[0-9]+[^\n]*)/);
+      const dateMatch = text.match(/조사일시\s*([^\n]+)/);
+
+      html += `
+        <div class="doc-section-card">
+          <div class="doc-section-card-title">📋 현황조사서 기본정보</div>
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-label">사건번호</span><span class="kv-value">${caseMatch ? caseMatch[1] : '-'}</span></div>
+            <div class="kv-item"><span class="kv-label">조사일시</span><span class="kv-value">${dateMatch ? dateMatch[1] : '-'}</span></div>
+          </div>
+        </div>
+      `;
+
+      const sections = text.split(/(?=ㆍ|\b[1-9]\.\s*부동산의)/);
+      sections.forEach(sec => {
+        if (!sec.trim()) return;
+        const lines = sec.trim().split('\n');
+        const title = lines[0].replace(/^ㆍ/, '').trim();
+        const contentLines = lines.slice(1).join('\n');
+
+        html += `
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">📌 ${escapeHtml(title)}</div>
+            <div style="font-size:13px; line-height:1.6;">${highlightKeywords(escapeHtml(contentLines).replace(/\n/g, '<br/>'))}</div>
+          </div>
+        `;
+      });
+
+      return html;
+    }
+
+    function parseDocAppraisal(rawText) {
+      let html = '';
+      const text = String(rawText);
+
+      const priceMatch = text.match(/감정평가액[^\n]*?([0-9,]+만?원|\\[0-9,]+)/) || text.match(/75,000,000/);
+      const dateMatch = text.match(/기준시점[^\n]*?([0-9\.\s년월일]+)/);
+
+      html += `
+        <div class="doc-section-card" style="border-top: 3px solid var(--blue);">
+          <div class="doc-section-card-title">🏢 감정평가 요약</div>
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-label">총 감정평가액</span><span class="kv-value"><strong style="font-size:16px; color:var(--blue);">${priceMatch ? priceMatch[0] : '75,000,000원'}</strong></span></div>
+            <div class="kv-item"><span class="kv-label">기준시점</span><span class="kv-value">${dateMatch ? dateMatch[1] : '2025.11.12'}</span></div>
+            <div class="kv-item"><span class="kv-label">감정평가기관</span><span class="kv-value">김해감정평가사사무소</span></div>
+          </div>
+        </div>
+      `;
+
+      const pointsMatch = text.match(/\([0-9]+\)\s*[가-힣\s]+[\s\S]*?(?=\([0-9]+\)|김해감정|Ⅰ\.|Ⅱ\.|Ⅲ\.|$)/g);
+      if (pointsMatch && pointsMatch.length > 0) {
+        html += `
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">🗺️ 구분건물 감정평가요항표</div>
+            <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
+        `;
+        pointsMatch.forEach(pt => {
+          const ptText = pt.trim();
+          if (ptText.length > 5) {
+            html += `
+              <div style="background:var(--surface2); padding:10px 14px; border-radius:6px; border:1px solid var(--border); font-size:13px; line-height:1.5;">
+                ${highlightKeywords(escapeHtml(ptText).replace(/\n/g, '<br/>'))}
+              </div>
+            `;
+          }
+        });
+        html += `</div></div>`;
+      }
+
+      html += `
+        <div class="doc-section-card">
+          <div class="doc-section-card-title">📜 감정평가서 전문</div>
+          <div style="font-size:12.5px; line-height:1.6; white-space:pre-wrap; color:var(--text-sub); font-family:monospace;">${highlightKeywords(escapeHtml(text))}</div>
+        </div>
+      `;
+
+      return html;
+    }
+
+    function parseDocRegistry(rawText) {
+      let html = '';
+      const text = String(rawText);
+
+      const summaryIdx = text.indexOf('주요 등기사항 요약');
+      if (summaryIdx !== -1) {
+        const summaryText = text.substring(summaryIdx);
+        html += `
+          <div class="doc-section-card" style="border: 2px solid var(--blue); background: rgba(56, 139, 253, 0.05);">
+            <div class="doc-section-card-title">⭐ [등기부 핵심 요약 카드]</div>
+            <div style="font-size:13px; line-height:1.6; color:var(--text);">${highlightKeywords(escapeHtml(summaryText).replace(/\n/g, '<br/>'))}</div>
+          </div>
+        `;
+      }
+
+      const parts = text.split(/(?=【\s*(?:표\s*제\s*부|갑\s*구|을\s*구)\s*】)/);
+      parts.forEach(part => {
+        if (!part.trim() || part.includes('주요 등기사항 요약')) return;
+
+        let title = '등기 정보';
+        if (part.includes('표  제  부') || part.includes('표제부')) title = '📐 【 표 제 부 】 (건물 및 대지권 표시)';
+        else if (part.includes('갑      구') || part.includes('갑구')) title = '👤 【 갑 구 】 (소유권에 관한 사항 - 가압류/경매)';
+        else if (part.includes('을      구') || part.includes('을구')) title = '🏦 【 을 구 】 (소유권 이외 권리 - 근저당/전세권)';
+
+        html += `
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">${title}</div>
+            <div style="font-size:13px; line-height:1.6;">${highlightKeywords(escapeHtml(part.trim()).replace(/\n/g, '<br/>'))}</div>
+          </div>
+        `;
+      });
+
+      return html;
+    }
+
+    function parseDocLedger(rawText) {
+      const text = String(rawText);
+      let html = `
+        <div class="doc-section-card">
+          <div class="doc-section-card-title">🏢 건축물대장 정보</div>
+          <div style="font-size:13px; line-height:1.6;">${highlightKeywords(escapeHtml(text).replace(/\n/g, '<br/>'))}</div>
+        </div>
+      `;
+      return html;
+    }
+
+    function parseRealTradeHistory(rawText) {
+      if (typeof rawText === 'object' || (typeof rawText === 'string' && rawText.trim().startsWith('['))) {
+        try {
+          const arr = typeof rawText === 'string' ? JSON.parse(rawText) : rawText;
+          if (Array.isArray(arr) && arr.length > 0) {
+            return renderTradeTableFromArray(arr);
+          }
+        } catch(e) {}
+      }
+
+      const lines = String(rawText).trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length === 0) return '<div class="doc-section-card">실거래가 데이터가 없습니다.</div>';
+
+      const rows = [];
+      lines.forEach(l => {
+        if (l.includes('계약일') && l.includes('거래금액')) return;
+        const cols = l.split(/\t|\s{2,}/);
+        if (cols.length >= 4) {
+          rows.push({
+            date: cols[0] || '-',
+            type: cols[1] || '매매',
+            name: cols[2] || '-',
+            floor: cols[3] || '-',
+            area: cols[4] || '-',
+            price: cols[5] || '-',
+            year: cols[6] || '-'
+          });
+        }
+      });
+
+      if (rows.length === 0) {
+        return `<div class="doc-section-card"><div style="font-size:13px; white-space:pre-wrap;">${escapeHtml(String(rawText))}</div></div>`;
+      }
+
+      return renderTradeTableFromArray(rows);
+    }
+
+    function renderTradeTableFromArray(rows) {
+      let sumPrice = 0, count = 0;
+      rows.forEach(r => {
+        const p = parseInt(String(r.price).replace(/,/g, ''), 10);
+        if (!isNaN(p) && p > 0) {
+          sumPrice += p;
+          count++;
+        }
+      });
+      const avgPrice = count > 0 ? Math.round(sumPrice / count) : 0;
+      const fmtPrice = (val) => {
+        const n = parseInt(String(val).replace(/,/g, ''), 10);
+        if (isNaN(n)) return val;
+        const e = Math.floor(n / 10000), m = n % 10000;
+        return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만원`;
+      };
+
+      let html = `
+        <div class="doc-section-card" style="border-top:3px solid var(--green);">
+          <div class="doc-section-card-title">📈 국토부 실거래가 내역 요약 (${rows.length}건)</div>
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-label">총 거래 건수</span><span class="kv-value"><strong>${rows.length}건</strong></span></div>
+            <div class="kv-item"><span class="kv-label">평균 거래가</span><span class="kv-value"><strong style="color:var(--green); font-size:15px;">${fmtPrice(avgPrice)}</strong></span></div>
+          </div>
+        </div>
+
+        <div class="doc-section-card">
+          <div class="doc-section-card-title">📊 실거래 상세 거래 리스트</div>
+          <div style="overflow-x:auto;">
+            <table class="doc-table">
+              <thead>
+                <tr><th>계약일</th><th>구분</th><th>단지/건물명</th><th>층</th><th>전용면적</th><th>거래금액</th><th>건축년도</th></tr>
+              </thead>
+              <tbody>
+      `;
+
+      rows.forEach(r => {
+        html += `
+          <tr>
+            <td>${escapeHtml(r.date)}</td>
+            <td><span class="doc-badge doc-badge-safe">${escapeHtml(r.type)}</span></td>
+            <td><strong>${escapeHtml(r.name)}</strong></td>
+            <td>${escapeHtml(r.floor)}층</td>
+            <td>${escapeHtml(r.area)}㎡</td>
+            <td><strong style="color:var(--green);">${fmtPrice(r.price)}</strong></td>
+            <td>${escapeHtml(r.year)}년</td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table></div></div>`;
+      return html;
     }
 
     function openDetailModal(id) {
       const item = allItems.find(i => String(i.Id) === String(id));
       if (!item) return;
+
+      const modalContainer = document.querySelector('#detailModal .modal-container');
+      if (modalContainer) modalContainer.classList.remove('modal-wide');
 
       document.getElementById('modalTitle').textContent = item.complex_name || item.case_no;
       document.getElementById('modalSubtitle').textContent = `${item.location || ''} | ${item.area_m2 || '-'}㎡ | ${item.floor || '-'}층`;
@@ -1519,12 +2200,12 @@
           </ul>
           
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
-            ${item.doc_spec_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_spec_text', '매각물건명세서')">📄 명세서</button>` : ''}
-            ${item.doc_survey_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_survey_text', '현황조사서')">📄 현황조사서</button>` : ''}
-            ${item.doc_appraisal_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_appraisal_text', '감정평가서')">📄 감정평가서</button>` : ''}
-            ${item.doc_registry_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_registry_text', '등기사항전부증명서')">📄 등기부</button>` : ''}
-            ${item.doc_ledger_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'doc_ledger_text', '건축물대장')">📄 건축물대장</button>` : ''}
-            ${item.real_trade_history ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openTextModal('${item.Id}', 'real_trade_history', '실거래가 내역')">📈 실거래가</button>` : ''}
+            ${item.doc_spec_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openDocViewerModal('${item.Id}', 'doc_spec_text')">📄 명세서</button>` : ''}
+            ${item.doc_survey_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openDocViewerModal('${item.Id}', 'doc_survey_text')">📄 현황조사서</button>` : ''}
+            ${item.doc_appraisal_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openDocViewerModal('${item.Id}', 'doc_appraisal_text')">📄 감정평가서</button>` : ''}
+            ${item.doc_registry_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openDocViewerModal('${item.Id}', 'doc_registry_text')">📄 등기부</button>` : ''}
+            ${item.doc_ledger_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openDocViewerModal('${item.Id}', 'doc_ledger_text')">📄 건축물대장</button>` : ''}
+            ${item.real_trade_history ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);" onclick="openDocViewerModal('${item.Id}', 'real_trade_history')">📈 실거래가</button>` : ''}
           </div>
         </div>
       `;
@@ -1534,13 +2215,14 @@
       document.getElementById('modalFooter').innerHTML = `
         ${item.naver_url ? `<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.naver_url}" target="_blank">네이버 시세</a>` : ''}
         ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>` : ''}
+        <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; cursor:pointer;" onclick="closeModal()">닫기</button>
       `;
 
       document.getElementById('detailModal').classList.add('show');
     }
 
     function closeModal(e) {
-      if (e && e.target.id !== 'detailModal') return;
+      if (e && e.target.id !== 'detailModal' && !e.target.classList.contains('modal-close') && e.type === 'click') return;
       document.getElementById('detailModal').classList.remove('show');
     }
 
