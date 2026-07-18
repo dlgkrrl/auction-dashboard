@@ -2094,15 +2094,35 @@
     }
 
     function parseTenantBlock(rawBlock) {
-      const headerNoise = /^(점유자|성\s*명|성 명|점유|부분|점유부분|정보출처|구\s*분|구분|점유의|권\s*원|권원|점유의\s*권\s*원|임대차기간|\(점유기간\)|보\s*증\s*금|보증금|차\s*임|차임|전입신고일자[^\n]*|외국인등록[^\n]*|체류지변경신고[^\n]*|일자[^\n]*|사업자등록[^\n]*|신청일자|확정일자|배당|요구여부|\(배당요구일자\)|류지변경신고\)|록\s*신청일자|일자·사업자등|부동산의 점유자와[^\n]*)$/i;
+      // 1. Strip everything before header end (배당요구일자)
+      let dataText = rawBlock;
+      const headerMatch = rawBlock.match(/\(배당요구일자\)|배당요구일자|배당\s*요구여부/);
+      if (headerMatch) {
+        dataText = rawBlock.substring(rawBlock.indexOf(headerMatch[0]) + headerMatch[0].length);
+      }
 
-      const lines = rawBlock.split('\n')
+      // 2. Stop at '부동산의 표시' or '[물건 1]' or '감정평가액'
+      const stopIdx = dataText.search(/부동산의\s*표시|\[물건\s*\d+\]|감정평가액/);
+      if (stopIdx !== -1) {
+        dataText = dataText.substring(0, stopIdx);
+      }
+
+      const nonNameWords = new Set([
+        '점유자', '성명', '점유', '부분', '점유부분', '정보출처', '구분', '권원', '점유의', '임대차기간',
+        '전부', '일부', '미상', '없음', '주거', '상가', '임차인', '임차권자', '주택임차권자', '주택임차권',
+        '임차권', '주택임', '차권자', '자', '권리신고', '현황조사', '등기사항전', '부증명서', '등기사항전부증명서',
+        '등기사항', '전산이기', '소멸', '인수', '말소기준', '근저당', '가압류', '압류', '경매개시', '임차권등기',
+        '대항력', '배당요구', '전입신고', '확정일자', '사업자등록', '도로명주소', '철근콘크리트조', '박공지붕',
+        '스라브지붕', '아파트', '공동주택', '부동산', '건물', '토지'
+      ]);
+
+      const lines = dataText.split('\n')
         .map(l => l.trim())
-        .filter(l => l.length > 0 && !headerNoise.test(l) && !l.startsWith('※') && !l.includes('대항요건') && !l.includes('인수되게'));
+        .filter(l => l.length > 0 && !l.startsWith('※') && !l.includes('대항요건') && !l.includes('인수되게'));
 
       if (lines.length === 0) return [];
 
-      // Horizontal table check
+      // Check horizontal table (multi-column space/tab separated)
       const horizontalRows = lines.filter(l => l.split(/\s{2,}|\t/).length >= 3);
       if (horizontalRows.length > 0) {
         return horizontalRows.map(l => {
@@ -2123,7 +2143,6 @@
       }
 
       // Vertical token stream parsing
-      const nonNameWords = new Set(['전부', '부분', '미상', '없음', '주거', '상가', '임차인', '임차권자', '임차권', '자', '권리신고', '현황조사', '등기사항전', '부증명서', '등기사항전부증명서', '점유', '권원', '일자', '도로명주소', '철근콘크리트조', '박공지붕']);
       const isNameToken = (t) => (/^[가-힣]{2,4}$/.test(t) && !nonNameWords.has(t) && !/\d/.test(t)) || t === '미상';
 
       const tenantGroups = [];
@@ -2131,19 +2150,17 @@
 
       lines.forEach(line => {
         if (isNameToken(line)) {
-          if (currentTokens.length > 0) {
+          if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
             tenantGroups.push(currentTokens);
           }
           currentTokens = [line];
         } else {
-          if (currentTokens.length === 0) {
-            currentTokens = [line];
-          } else {
+          if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
             currentTokens.push(line);
           }
         }
       });
-      if (currentTokens.length > 0) {
+      if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
         tenantGroups.push(currentTokens);
       }
 
@@ -2169,7 +2186,7 @@
             if (deposit === '-') deposit = tok;
             else if (rent === '-') rent = tok;
           }
-          else if (/\d{4}\.\d{1,2}\.\d{1,2}/.test(tok) || /\d{4}-\d{1,2}-\d{1,2}/.test(tok)) {
+          else if (/\d{4}\.\s*\d{1,2}\.\s*\d{1,2}/.test(tok) || /\d{4}-\d{1,2}-\d{1,2}/.test(tok)) {
             if (moveInDate === '-') moveInDate = tok;
             else if (fixDate === '-') fixDate = tok;
             else if (dividendDate === '-') dividendDate = tok;
