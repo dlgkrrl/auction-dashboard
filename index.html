@@ -474,6 +474,21 @@
       color: #a371f7;
     }
 
+    .dday-cancel {
+      background: rgba(139, 148, 158, .12);
+      color: #8b949e;
+    }
+
+    .dday-fail {
+      background: rgba(248, 81, 73, .1);
+      color: #f85149;
+    }
+
+    .dday-reschedule {
+      background: rgba(56, 139, 253, .1);
+      color: #388bfd;
+    }
+
     .pdf-row {
       display: flex;
       gap: 6px;
@@ -1394,14 +1409,26 @@
         const isStarred = !!item.is_interested;
         const isUrgent = diff !== null && diff >= 0 && diff <= 7;
 
-        // D-Day display
+        // D-Day display — status 필드를 우선 분기, bid_date는 보조 판단만
         let ddayText, ddayClass;
-        if (item.status === '낙찰') { ddayText = '🔨 낙찰'; ddayClass = 'dday-sold'; }
-        else if (diff === null) { ddayText = '-'; ddayClass = ''; }
-        else if (diff < 0) { ddayText = '종료'; ddayClass = ''; }
-        else if (diff === 0) { ddayText = '오늘!'; ddayClass = 'dday-today'; }
-        else if (diff <= 7) { ddayText = `D-${diff}`; ddayClass = 'dday-urgent'; }
-        else { ddayText = `D-${diff}`; ddayClass = ''; }
+        if (item.status === '낙찰' || item.status === '매각') {
+          ddayText = '🔨 낙찰'; ddayClass = 'dday-sold';
+        } else if (item.status === '취하') {
+          ddayText = '🚫 취하'; ddayClass = 'dday-cancel';
+        } else if (item.status === '유찰') {
+          ddayText = '↩ 유찰'; ddayClass = 'dday-fail';
+        } else if (diff === null) {
+          ddayText = '-'; ddayClass = '';
+        } else if (diff < 0) {
+          // 진행중이지만 bid_date가 과거 → 기일 변경 대기 중
+          ddayText = '📅 기일변경'; ddayClass = 'dday-reschedule';
+        } else if (diff === 0) {
+          ddayText = '오늘!'; ddayClass = 'dday-today';
+        } else if (diff <= 7) {
+          ddayText = `D-${diff}`; ddayClass = 'dday-urgent';
+        } else {
+          ddayText = `D-${diff}`; ddayClass = '';
+        }
 
         // Risk badge
         const riskClass = item.ai_risk === '안전' ? 'badge-safe' : item.ai_risk === '주의' ? 'badge-warn' : 'badge-danger';
