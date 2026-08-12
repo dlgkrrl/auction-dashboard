@@ -1371,7 +1371,25 @@
 
       // Sort
       result.sort((a, b) => {
-        if (sort === 'bid_date') return (a.bid_date || '').localeCompare(b.bid_date || '');
+        if (sort === 'bid_date') {
+          const getDiff = (item) => {
+            const bdStr = String(item.bid_date || '').split('T')[0];
+            if (!bdStr) return 9999;
+            const bdParts = bdStr.split('-');
+            if (bdParts.length !== 3) return 9999;
+            const bd = new Date(bdParts[0], bdParts[1] - 1, bdParts[2]);
+            return Math.round((bd - today) / 86400000);
+          };
+          const diffA = getDiff(a);
+          const diffB = getDiff(b);
+
+          const isFutureA = !isNaN(diffA) && diffA >= 0 && (a.status === '진행중' || a.status === '진행');
+          const isFutureB = !isNaN(diffB) && diffB >= 0 && (b.status === '진행중' || b.status === '진행');
+
+          if (isFutureA && !isFutureB) return -1;
+          if (!isFutureA && isFutureB) return 1;
+          return (a.bid_date || '').localeCompare(b.bid_date || '');
+        }
         if (sort === 'gap_score') return (b.gap_score || 0) - (a.gap_score || 0);
         if (sort === 'price_rate') return (a.price_rate || 0) - (b.price_rate || 0);
         if (sort === 'loss_count') return (b.loss_count || 0) - (a.loss_count || 0);
@@ -1420,8 +1438,8 @@
         } else if (diff === null) {
           ddayText = '-'; ddayClass = '';
         } else if (diff < 0) {
-          // 진행중이지만 bid_date가 과거 → 기일 변경 대기 중
-          ddayText = '📅 기일변경'; ddayClass = 'dday-reschedule';
+          // 진행중이지만 bid_date가 과거 → 결과 대기 중
+          ddayText = '⏳ 결과대기'; ddayClass = 'dday-reschedule';
         } else if (diff === 0) {
           ddayText = '오늘!'; ddayClass = 'dday-today';
         } else if (diff <= 7) {
