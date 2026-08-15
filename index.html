@@ -1230,6 +1230,26 @@
     // Cloudflare 대시보드 → Settings → Environment variables 에서 설정:
     //   NOCODB_TOKEN, NOCODB_BASE, TABLE_ID, PROJECT_ID
     // ─────────────────────────────────────────────────────
+    
+    // ─────────────────────────────────────────────────────
+    // Global Currency & Number Formatter (Universal Safe)
+    // ─────────────────────────────────────────────────────
+    function fmt(n) {
+      if (n === 0) return "0원";
+      if (!n || isNaN(n)) return "-";
+      const isNeg = n < 0;
+      const absN = Math.abs(n);
+      const e = Math.floor(absN / 100000000);
+      const m = Math.round((absN % 100000000) / 10000);
+      let str = "";
+      if (e > 0) {
+        str = m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`;
+      } else {
+        str = `${m.toLocaleString()}만`;
+      }
+      return isNeg ? `-${str}` : str;
+    }
+
     const CONFIG = {
       // 서버리스 프록시 엔드포인트 (토큰 불필요)
       API_ENDPOINT: '/api/auction-data',
