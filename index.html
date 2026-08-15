@@ -4,36 +4,50 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>경매 대시보드 — THE CALIBRATION</title>
-  <meta name="description" content="THE CALIBRATION 경매 물건 실시간 대시보드. GAP 스코어, AI 위험도, 3대 서류 수집 현황을 한눈에 파악합니다." />
+  <title>경매 의사결정 OS 2.0 — THE CALIBRATION</title>
+  <meta name="description" content="THE CALIBRATION 2.0 — 개인 맞춤 실투자금·세후 ROI 시뮬레이터, NocoDB 낙찰통계 및 투자 파이프라인 대시보드" />
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- 카카오맵 API는 동적으로 로딩됩니다 -->
+  <!-- ROI 계산기 모듈 로드 -->
+  <script src="roi_calculator.js"></script>
   <style>
-    /* ── Reset & Base ── */
-    *,
-    *::before,
-    *::after {
+    /* ── Reset & Theme ── */
+    *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
 
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface2: #1c2333;
-      --border: #30363d;
-      --text: #e6edf3;
-      --text-sub: #8b949e;
-      --blue: #2f81f7;
-      --blue-dim: #1a3a5c;
-      --green: #3fb950;
-      --yellow: #d29922;
-      --red: #f85149;
-      --purple: #a371f7;
-      --orange: #f0883e;
+      --bg: #0b0f17;
+      --surface: #141b26;
+      --surface2: #1b2536;
+      --surface-hover: #222f44;
+      --border: #2a3649;
+      --border-sub: #1f293a;
+      --text: #f0f6fc;
+      --text-sub: #8b9bb4;
+      --text-dim: #5a6a85;
+      
+      --blue: #3b82f6;
+      --blue-dim: #1e3a8a44;
+      --blue-border: #2563eb;
+      --green: #10b981;
+      --green-dim: #064e3b44;
+      --yellow: #f59e0b;
+      --yellow-dim: #78350f44;
+      --red: #ef4444;
+      --red-dim: #7f1d1d44;
+      --purple: #8b5cf6;
+      --purple-dim: #4c1d9544;
+      --cyan: #06b6d4;
+      --cyan-dim: #164e6344;
+      --orange: #f97316;
+      
+      --radius-sm: 6px;
       --radius: 12px;
+      --radius-lg: 18px;
+      --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
     }
 
     html {
@@ -44,214 +58,193 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Pretendard', -apple-system, sans-serif;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       min-height: 100vh;
+      line-height: 1.5;
     }
 
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: var(--surface);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: var(--border);
-      border-radius: 3px;
-    }
+    /* ── Scrollbars ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
     /* ── Layout ── */
-    .app {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
 
     /* ── Header ── */
     header {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(13, 17, 23, .9);
-      backdrop-filter: blur(12px);
+      background: rgba(11, 15, 23, 0.92);
+      backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
       padding: 0 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 60px;
+      height: 64px;
+      gap: 16px;
     }
 
     .logo {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       text-decoration: none;
     }
 
     .logo-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #2f81f7, #a371f7);
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 18px;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
     }
 
-    .logo-text {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text);
+    .logo-text { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+    .logo-sub { font-size: 11px; color: var(--blue); font-weight: 600; text-transform: uppercase; }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 4px;
+      border-radius: 10px;
     }
 
-    .logo-sub {
-      font-size: 11px;
+    .view-btn {
+      background: transparent;
+      border: none;
       color: var(--text-sub);
-      font-weight: 400;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+    }
+
+    .view-btn.active {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
     }
 
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+    }
+
+    .profile-badge-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .2s;
+    }
+    .profile-badge-btn:hover {
+      border-color: var(--blue);
+      background: var(--surface-hover);
     }
 
     .btn-refresh {
       background: var(--blue-dim);
       color: var(--blue);
-      border: 1px solid var(--blue);
+      border: 1px solid var(--blue-border);
       border-radius: 8px;
-      padding: 6px 14px;
+      padding: 7px 14px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      transition: all .15s;
       display: flex;
       align-items: center;
       gap: 6px;
+      transition: all .15s;
     }
+    .btn-refresh:hover { background: var(--blue); color: #fff; }
+    .btn-refresh.loading .icon { animation: spin 1s linear infinite; }
 
-    .btn-refresh:hover {
-      background: var(--blue);
-      color: #fff;
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    .btn-refresh.loading .icon {
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    .last-updated {
-      font-size: 11px;
-      color: var(--text-sub);
-    }
-
-    /* ── Main ── */
+    /* ── Main Container ── */
     main {
       flex: 1;
-      padding: 24px;
-      max-width: 1400px;
+      padding: 20px 24px;
+      max-width: 1600px;
       margin: 0 auto;
       width: 100%;
     }
 
-    /* ── Stats Row ── */
-    .stats-grid {
+    /* ── Top KPI Bar ── */
+    .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
-    .stat-card {
+    .kpi-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 16px 18px;
+      padding: 14px 16px;
       position: relative;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
       transition: transform .15s, border-color .15s;
     }
-
-    .stat-card:hover {
+    .kpi-card:hover {
       transform: translateY(-2px);
       border-color: var(--blue);
     }
-
-    .stat-card::before {
+    .kpi-card::before {
       content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
+      top: 0; left: 0; right: 0;
+      height: 3px;
       background: var(--accent, var(--blue));
     }
-
-    .stat-value {
-      font-size: 28px;
-      font-weight: 800;
-      line-height: 1;
-      margin-bottom: 4px;
-    }
-
-    .stat-label {
-      font-size: 11px;
-      color: var(--text-sub);
-      font-weight: 500;
-    }
-
-    /* ── Charts Row ── */
-    .charts-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-
-    .chart-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-    }
-
-    .chart-title {
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 16px;
-      color: var(--text-sub);
-      text-transform: uppercase;
-      letter-spacing: .5px;
-    }
-
-    .chart-wrap {
-      position: relative;
-      height: 180px;
-    }
+    .kpi-title { font-size: 11px; font-weight: 600; color: var(--text-sub); margin-bottom: 6px; }
+    .kpi-val { font-size: 24px; font-weight: 800; line-height: 1.1; margin-bottom: 2px; }
+    .kpi-sub { font-size: 11px; color: var(--text-dim); }
 
     /* ── Filter Bar ── */
     .filter-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       flex-wrap: wrap;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
 
     .filter-group {
       display: flex;
       gap: 6px;
+      flex-wrap: wrap;
     }
 
     .filter-btn {
@@ -259,50 +252,59 @@
       border: 1px solid var(--border);
       color: var(--text-sub);
       border-radius: 20px;
-      padding: 5px 14px;
+      padding: 5px 12px;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: all .15s;
       white-space: nowrap;
     }
-
-    .filter-btn:hover,
-    .filter-btn.active {
+    .filter-btn:hover, .filter-btn.active {
       background: var(--blue-dim);
       border-color: var(--blue);
       color: var(--blue);
     }
 
-    .search-wrap {
-      flex: 1;
-      min-width: 200px;
-      position: relative;
+    .filter-btn.filter-star.active {
+      background: var(--yellow-dim);
+      border-color: var(--yellow);
+      color: var(--yellow);
     }
 
+    .filter-btn.filter-budget.active {
+      background: var(--green-dim);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .filter-btn.filter-hide.active {
+      background: var(--red-dim);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .search-wrap {
+      flex: 1;
+      min-width: 220px;
+      position: relative;
+    }
     .search-input {
       width: 100%;
       background: var(--surface2);
       border: 1px solid var(--border);
       color: var(--text);
       border-radius: 8px;
-      padding: 7px 12px 7px 32px;
+      padding: 7px 12px 7px 34px;
       font-size: 13px;
       outline: none;
-      transition: border-color .15s;
     }
-
-    .search-input:focus {
-      border-color: var(--blue);
-    }
-
+    .search-input:focus { border-color: var(--blue); }
     .search-icon {
       position: absolute;
       left: 10px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--text-sub);
-      font-size: 14px;
     }
 
     .sort-select {
@@ -310,2521 +312,1830 @@
       border: 1px solid var(--border);
       color: var(--text);
       border-radius: 8px;
-      padding: 7px 10px;
+      padding: 7px 12px;
       font-size: 12px;
       cursor: pointer;
       outline: none;
     }
 
-    /* ── Cards Grid ── */
-    .cards-grid {
+    /* ── View 1: Pipeline Kanban View ── */
+    .kanban-board {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 30px;
+    }
+    @media (max-width: 1200px) {
+      .kanban-board { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .kanban-board { grid-template-columns: 1fr; }
     }
 
+    .kanban-col {
+      background: rgba(20, 27, 38, 0.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      min-height: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .kanban-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .kanban-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kanban-count {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-sub);
+    }
+
+    .kanban-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    /* ── View 2: Cards Grid View ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 16px;
+    }
+
+    /* ── Item Card (1-Sec Decision Card) ── */
     .item-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 18px;
+      padding: 16px;
       transition: transform .15s, border-color .15s, box-shadow .15s;
       cursor: pointer;
       position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
-
     .item-card:hover {
       transform: translateY(-3px);
       border-color: var(--blue);
-      box-shadow: 0 8px 24px rgba(47, 129, 247, .15);
+      box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
     }
 
-    .item-card.urgent {
-      border-left: 3px solid var(--orange);
-    }
+    .item-card.urgent { border-left: 3px solid var(--orange); }
+    .item-card.budget-ok { border-top: 2px solid var(--green); }
+    .item-card.budget-over { border-top: 2px solid var(--border); opacity: 0.85; }
+    .item-card.is-hidden { opacity: 0.5; border: 1px dashed var(--red); }
 
-    .item-card.interested {
-      border-top: 2px solid var(--purple);
-    }
-
-    .card-top {
+    .card-head {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 12px;
+      gap: 8px;
     }
-
+    .card-title-group { flex: 1; min-width: 0; }
     .card-title {
       font-size: 15px;
       font-weight: 700;
       line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-
     .card-sub {
       font-size: 11px;
       color: var(--text-sub);
-      margin-top: 3px;
-    }
-
-    .badge-row {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-
-    .badge {
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 600;
+      margin-top: 2px;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .badge-safe {
-      background: #0d2818;
-      color: var(--green);
-      border: 1px solid #1a4d2b;
-    }
-
-    .badge-warn {
-      background: #2a1f00;
-      color: var(--yellow);
-      border: 1px solid #4a3500;
-    }
-
-    .badge-danger {
-      background: #2a0d0d;
-      color: var(--red);
-      border: 1px solid #4a1a1a;
-    }
-
-    .badge-gap-s {
-      background: #1f0d3a;
-      color: var(--purple);
-      border: 1px solid #3d1a6e;
-    }
-
-    .badge-gap-a {
-      background: #0d1a2a;
-      color: var(--blue);
-      border: 1px solid #1a3a5c;
-    }
-
-    .badge-gap-b {
-      background: #0d2818;
-      color: var(--green);
-      border: 1px solid #1a4d2b;
-    }
-
-    .badge-gap-c {
-      background: #2a1f00;
-      color: var(--yellow);
-      border: 1px solid #4a3500;
-    }
-
-    .badge-gap-d {
-      background: #2a0d0d;
-      color: var(--red);
-      border: 1px solid #4a1a1a;
-    }
-
-    .price-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .price-item label {
-      font-size: 10px;
-      color: var(--text-sub);
-      display: block;
-      margin-bottom: 2px;
-      font-weight: 500;
-    }
-
-    .price-item .val {
-      font-size: 14px;
-      font-weight: 700;
-    }
-
-    .dday-chip {
-      padding: 4px 10px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 800;
-      background: var(--surface2);
-      color: var(--text);
-      white-space: nowrap;
-    }
-
-    .dday-urgent {
-      background: rgba(240, 136, 62, .15);
-      color: var(--orange);
-    }
-
-    .dday-today {
-      background: rgba(248, 81, 73, .2);
-      color: var(--red);
-    }
-
-    .dday-sold {
-      background: rgba(163, 113, 247, .15);
-      color: #a371f7;
-    }
-
-    .dday-cancel {
-      background: rgba(139, 148, 158, .12);
-      color: #8b949e;
-    }
-
-    .dday-fail {
-      background: rgba(248, 81, 73, .1);
-      color: #f85149;
-    }
-
-    .dday-reschedule {
-      background: rgba(56, 139, 253, .1);
-      color: #388bfd;
-    }
-
-    .pdf-row {
+    .card-actions-quick {
       display: flex;
+      align-items: center;
       gap: 6px;
-      margin-bottom: 12px;
     }
-
-    .pdf-chip {
-      flex: 1;
-      text-align: center;
-      padding: 5px 4px;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 600;
+    .btn-icon-action {
       background: var(--surface2);
       border: 1px solid var(--border);
-    }
-
-    .pdf-ok {
-      background: #0d2818;
-      color: var(--green);
-      border-color: #1a4d2b;
-    }
-
-    .pdf-ng {
-      background: #1c1c1c;
       color: var(--text-sub);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all .15s;
+    }
+    .btn-icon-action:hover { background: var(--surface-hover); color: var(--text); }
+    .btn-icon-action.starred { color: var(--yellow); border-color: var(--yellow); }
+
+    /* Price Line */
+    .card-price-flow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface2);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .card-price-flow .appraisal { color: var(--text-sub); }
+    .card-price-flow .arrow { color: var(--text-dim); }
+    .card-price-flow .min-price { font-weight: 800; color: var(--text); font-size: 13px; }
+    .card-price-flow .discount-badge {
+      background: var(--red-dim);
+      color: var(--red);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
     }
 
-    .card-footer {
+    /* Financial Twin Highlight Box */
+    .financial-box {
+      background: linear-gradient(145deg, #182232, #141b26);
+      border: 1px solid #2a3a52;
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .financial-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
+      font-size: 12px;
     }
+    .financial-label { color: var(--text-sub); font-weight: 500; }
+    .financial-val { font-weight: 700; font-size: 13px; }
+    .financial-val.primary { color: var(--green); font-size: 14px; font-weight: 800; }
+    .financial-val.profit { color: var(--yellow); font-size: 14px; font-weight: 800; }
 
-    .case-no {
-      font-size: 11px;
-      color: var(--text-sub);
-      font-family: monospace;
-    }
-
-    .card-actions {
+    .tag-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
     }
 
-    .btn-sm {
-      padding: 5px 10px;
+    .badge {
+      padding: 2px 8px;
       border-radius: 6px;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
-      border: none;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all .15s;
       display: inline-flex;
       align-items: center;
       gap: 4px;
     }
+    .badge-dday { background: var(--orange); color: #fff; font-weight: 700; }
+    .badge-dday-warn { background: var(--yellow); color: #000; font-weight: 700; }
+    .badge-budget-ok { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+    .badge-budget-over { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+    .badge-plus-fee { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple); }
+    .badge-safe { background: #0d2818; color: var(--green); border: 1px solid #1a4d2b; }
+    .badge-warn { background: #2a1f00; color: var(--yellow); border: 1px solid #4a3500; }
+    .badge-danger { background: #2a0d0d; color: var(--red); border: 1px solid #4a1a1a; }
+    .badge-stat { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
+    .badge-estimate { background: var(--cyan-dim); color: var(--cyan); border: 1px solid var(--cyan); }
 
-    .btn-court {
-      background: var(--blue-dim);
-      color: var(--blue);
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-sub);
+      font-size: 11px;
+      color: var(--text-dim);
     }
 
-    .btn-court:hover {
-      background: var(--blue);
-      color: #fff;
+    .card-footer-btns {
+      display: flex;
+      gap: 6px;
     }
-
-    .btn-map {
-      background: rgba(63,185,80,0.15);
-      color: var(--green);
-      border: 1px solid rgba(63,185,80,0.3);
-    }
-
-    .btn-map:hover {
-      background: var(--green);
-      color: #fff;
-    }
-
-    .btn-star {
+    .btn-card-action {
       background: var(--surface2);
-      color: var(--text-sub);
       border: 1px solid var(--border);
-    }
-
-    .btn-star.starred {
-      color: var(--purple);
-      border-color: var(--purple);
-      background: rgba(163, 113, 247, .1);
-    }
-
-    .btn-star:hover {
-      color: var(--purple);
-    }
-
-    /* ── Empty State ── */
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-sub);
-    }
-
-    .empty-state svg {
-      opacity: .3;
-      margin-bottom: 16px;
-    }
-
-    /* ── Loading ── */
-    .skeleton {
-      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
+      color: var(--text);
+      padding: 4px 10px;
       border-radius: 6px;
-    }
-
-    @keyframes shimmer {
-      0% {
-        background-position: 200% 0;
-      }
-
-      100% {
-        background-position: -200% 0;
-      }
-    }
-
-    /* ── Clickable PDF Chip ── */
-    .pdf-chip.clickable {
+      font-size: 11px;
+      font-weight: 600;
       cursor: pointer;
       transition: all .15s;
     }
+    .btn-card-action:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
 
-    .pdf-chip.clickable:hover {
-      filter: brightness(1.2);
-    }
-
-    /* ── Map View ── */
-    #mapContainer {
+    /* ── View 3: Map View ── */
+    #viewMap { display: none; }
+    .map-container {
       width: 100%;
-      height: 600px;
+      height: 720px;
       border-radius: var(--radius);
       border: 1px solid var(--border);
-      display: none;
-      margin-bottom: 24px;
       overflow: hidden;
       position: relative;
     }
+    #kakaoMap { width: 100%; height: 100%; }
 
-    .map-error {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+    /* ── View 4: Stats & Calibration View ── */
+    #viewStats { display: none; }
+    .stats-layout {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--surface2);
-      color: var(--text-sub);
-      font-size: 14px;
-      text-align: center;
-      padding: 20px;
-      z-index: 10;
+      flex-direction: column;
+      gap: 20px;
     }
 
-    /* ── Detail Modal ── */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
-      z-index: 1000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      transition: opacity .2s;
+    .stats-top-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
     }
 
-    .modal-overlay.show {
-      display: flex;
-      opacity: 1;
-    }
-
-    .modal-container {
-      background: var(--bg);
+    .chart-box {
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      width: 90%;
-      max-width: 600px;
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .chart-box-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: var(--text); }
+    .chart-canvas-wrap { height: 320px; position: relative; }
+
+    .results-table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    .results-table th {
+      background: var(--surface2);
+      padding: 12px 14px;
+      font-weight: 600;
+      color: var(--text-sub);
+      border-bottom: 1px solid var(--border);
+    }
+    .results-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-sub);
+    }
+    .results-table tr:hover { background: var(--surface-hover); }
+
+    /* ── Modals ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 1100px;
       max-height: 90vh;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-      transform: translateY(20px);
-      transition: transform .2s;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      animation: modalIn .2s ease-out;
     }
-
-    .modal-overlay.show .modal-container {
-      transform: translateY(0);
-    }
+    @keyframes modalIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
     .modal-header {
-      padding: 16px 20px;
+      padding: 18px 24px;
       border-bottom: 1px solid var(--border);
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      background: var(--surface);
-      border-radius: 16px 16px 0 0;
+      justify-content: space-between;
+      background: var(--surface2);
     }
-
-    .modal-title {
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.4;
-    }
-
-    .modal-subtitle {
-      font-size: 12px;
-      color: var(--text-sub);
-      font-weight: 400;
-      margin-top: 4px;
-    }
-
-    .modal-close {
+    .modal-title-wrap { display: flex; flex-direction: column; gap: 2px; }
+    .modal-title { font-size: 17px; font-weight: 800; }
+    .modal-sub { font-size: 12px; color: var(--text-sub); }
+    .btn-modal-close {
       background: transparent;
       border: none;
       color: var(--text-sub);
-      font-size: 24px;
+      font-size: 22px;
       cursor: pointer;
-      transition: color .15s;
-      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 6px;
     }
+    .btn-modal-close:hover { background: var(--surface-hover); color: var(--text); }
 
-    .modal-close:hover {
-      color: var(--text);
+    .modal-tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      overflow-x: auto;
+      gap: 4px;
     }
+    .modal-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-sub);
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .15s;
+    }
+    .modal-tab-btn:hover { color: var(--text); }
+    .modal-tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
 
     .modal-body {
-      padding: 20px;
+      padding: 24px;
       overflow-y: auto;
       flex: 1;
     }
 
-    .modal-section {
-      margin-bottom: 24px;
+    /* ROI Simulator Layout */
+    .roi-sim-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 860px) {
+      .roi-sim-grid { grid-template-columns: 1fr; }
     }
 
-    .modal-section-title {
+    .sim-panel {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .sim-panel-title { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+
+    .sim-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sim-label-row {
+      display: flex;
+      justify-content: space-between;
       font-size: 12px;
       color: var(--text-sub);
-      margin-bottom: 8px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
-
-    .modal-text {
-      font-size: 13px;
-      line-height: 1.6;
+    .sim-val-display { font-weight: 700; color: var(--text); }
+    .sim-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
       color: var(--text);
-      white-space: pre-wrap;
-      background: var(--surface2);
-      padding: 12px;
+      padding: 8px 12px;
       border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-
-    .modal-footer {
-      padding: 16px 20px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      background: var(--surface);
-      border-radius: 0 0 16px 16px;
-    }
-
-    /* ── Document Modal Wide & Tab Bar ── */
-    .modal-container.modal-wide {
-      max-width: 880px;
-      width: 95%;
-    }
-
-    .doc-tab-bar {
-      display: flex;
-      gap: 4px;
-      overflow-x: auto;
-      padding: 8px 12px 0 12px;
-      background: var(--surface2);
-      border-bottom: 1px solid var(--border);
-      scrollbar-width: thin;
-    }
-
-    .doc-tab {
-      padding: 8px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-sub);
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      transition: all 0.15s ease;
-    }
-
-    .doc-tab:hover:not(.disabled) {
-      color: var(--text);
-      background: rgba(255, 255, 255, 0.04);
-    }
-
-    .doc-tab.active {
-      color: var(--blue, #58a6ff);
-      border-bottom-color: var(--blue, #58a6ff);
-      background: var(--bg);
-      border-radius: 6px 6px 0 0;
-    }
-
-    .doc-tab.disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .doc-search-box {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .doc-search-input {
-      flex: 1;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 6px;
-      padding: 6px 12px;
       font-size: 13px;
       outline: none;
     }
-
-    .doc-search-input:focus {
-      border-color: var(--blue, #58a6ff);
+    .sim-input:focus { border-color: var(--blue); }
+    .sim-slider {
+      width: 100%;
+      accent-color: var(--blue);
+      cursor: pointer;
     }
 
-    .doc-search-count {
-      font-size: 12px;
-      color: var(--text-sub);
-      white-space: nowrap;
+    .sim-results-box {
+      background: linear-gradient(145deg, #101726, #162238);
+      border: 1px solid #2d4160;
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
 
-    .doc-section-card {
+    .sim-kpi-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .sim-kpi-item {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .sim-kpi-item label { font-size: 11px; color: var(--text-sub); display: block; margin-bottom: 4px; }
+    .sim-kpi-item .val { font-size: 18px; font-weight: 800; }
+
+    .breakdown-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .breakdown-table td {
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-sub);
+    }
+    .breakdown-table td:last-child {
+      text-align: right;
+      font-weight: 600;
     }
 
+    /* Document Parsers View */
+    .doc-section-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
     .doc-section-card-title {
       font-size: 14px;
       font-weight: 700;
-      color: var(--text);
       margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 8px;
+      color: var(--text);
     }
-
     .kv-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 8px 16px;
-      font-size: 13px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
     }
-
     .kv-item {
       display: flex;
-      gap: 8px;
-      line-height: 1.5;
+      flex-direction: column;
+      gap: 2px;
     }
-
-    .kv-label {
-      color: var(--text-sub);
-      font-weight: 600;
-      min-width: 90px;
-      flex-shrink: 0;
-    }
-
-    .kv-value {
-      color: var(--text);
-      word-break: break-word;
-    }
-
-    .legal-callout-warning {
-      background: rgba(248, 81, 73, 0.1);
-      border: 1px solid rgba(248, 81, 73, 0.3);
-      border-left: 4px solid var(--red, #f85149);
-      padding: 12px 14px;
-      border-radius: 6px;
-      margin-top: 12px;
-      font-size: 13px;
-      line-height: 1.6;
-      color: var(--text);
-    }
+    .kv-label { font-size: 11px; color: var(--text-sub); }
+    .kv-value { font-size: 13px; font-weight: 600; }
 
     .doc-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12.5px;
-      margin-top: 8px;
-      margin-bottom: 8px;
+      font-size: 12px;
+      margin-top: 10px;
     }
-
     .doc-table th {
-      background: var(--surface2);
-      color: var(--text-sub);
-      font-weight: 700;
-      text-align: left;
+      background: var(--surface);
       padding: 8px 10px;
-      border: 1px solid var(--border);
-      white-space: nowrap;
+      text-align: left;
+      color: var(--text-sub);
+      border-bottom: 1px solid var(--border);
     }
-
     .doc-table td {
       padding: 8px 10px;
-      border: 1px solid var(--border);
-      color: var(--text);
+      border-bottom: 1px solid var(--border-sub);
     }
 
-    .doc-table tr:nth-child(even) td {
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    .doc-badge {
-      display: inline-block;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .doc-badge-danger { background: rgba(248, 81, 73, 0.2); color: #ff7b72; border: 1px solid rgba(248, 81, 73, 0.4); }
-    .doc-badge-warning { background: rgba(210, 153, 34, 0.2); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.4); }
-    .doc-badge-safe { background: rgba(56, 139, 253, 0.2); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.4); }
-    .doc-badge-success { background: rgba(46, 160, 67, 0.2); color: #3fb950; border: 1px solid rgba(46, 160, 67, 0.4); }
-
-    .strike-through { text-decoration: line-through; opacity: 0.55; }
-    .highlight-term { background: rgba(255, 215, 0, 0.4); color: #fff; font-weight: bold; padding: 0 2px; border-radius: 2px; }
-
-    /* ── Toast ── */
+    /* Toast Notification */
     .toast {
       position: fixed;
       bottom: 24px;
       right: 24px;
-      z-index: 999;
       background: var(--surface2);
       border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 20px;
       border-radius: 10px;
-      padding: 12px 18px;
+      box-shadow: var(--shadow);
+      z-index: 2000;
       font-size: 13px;
-      font-weight: 500;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
-      transform: translateY(80px);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       opacity: 0;
-      transition: all .25s cubic-bezier(.34, 1.56, .64, 1);
-      max-width: 320px;
+      transform: translateY(10px);
+      transition: all .2s;
+      pointer-events: none;
     }
-
-    .toast.show {
-      transform: translateY(0);
-      opacity: 1;
-    }
-
-    /* ── Responsive ── */
-    @media (max-width: 768px) {
-      main {
-        padding: 16px;
-      }
-
-      .charts-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .cards-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .header-actions .last-updated {
-        display: none;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .stats-grid {
-        grid-template-columns: repeat(3, 1fr);
-      }
-    }
+    .toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .toast.toast-error { border-color: var(--red); color: var(--red); }
   </style>
 </head>
 
 <body>
-  <div class="app" id="app">
-
-    <!-- Header -->
+  <div class="app">
+    <!-- ── Header ── -->
     <header>
-      <a class="logo" href="#" aria-label="경매 대시보드 홈">
+      <a href="#" class="logo" onclick="location.reload(); return false;">
         <div class="logo-icon">🏛️</div>
         <div>
-          <div class="logo-text">경매 대시보드</div>
-          <div class="logo-sub">THE CALIBRATION · V4.1</div>
+          <div class="logo-text">THE CALIBRATION</div>
+          <div class="logo-sub">경매 의사결정 OS 2.0</div>
         </div>
       </a>
+
+      <!-- View Switcher -->
+      <div class="header-center">
+        <button class="view-btn active" id="btnViewKanban" onclick="switchViewMode('kanban')">⚡ 파이프라인</button>
+        <button class="view-btn" id="btnViewCards" onclick="switchViewMode('cards')">📋 카드 목록</button>
+        <button class="view-btn" id="btnViewMap" onclick="switchViewMode('map')">🗺️ 지도 뷰</button>
+        <button class="view-btn" id="btnViewStats" onclick="switchViewMode('stats')">📈 낙찰 분석</button>
+      </div>
+
+      <!-- Actions -->
       <div class="header-actions">
-        <button class="btn-refresh" id="btnToggleMap" onclick="toggleMap()" aria-label="지도 보기">
-          <span class="icon">🗺️</span> 지도
+        <button class="profile-badge-btn" onclick="openProfileModal()">
+          <span>⚙️</span>
+          <span id="headerProfileSummary">무주택 (2,000만)</span>
         </button>
-        <span class="last-updated" id="lastUpdated">—</span>
-        <button class="btn-refresh" id="btnRefresh" onclick="loadData()" aria-label="데이터 새로고침">
-          <span class="icon">↻</span> 새로고침
+        <button class="btn-refresh" id="btnRefresh" onclick="loadData()">
+          <span class="icon">🔄</span> 새로고침
         </button>
       </div>
     </header>
 
+    <!-- ── Main Content ── -->
     <main>
-      <!-- Stats -->
-      <div class="stats-grid" id="statsGrid" role="region" aria-label="요약 통계">
-        <!-- 스켈레톤 -->
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:60px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:80px"></div>
+      <!-- Top KPI Bar -->
+      <div class="kpi-grid">
+        <div class="kpi-card" style="--accent: var(--blue)">
+          <div class="kpi-title">전체 진행 물건</div>
+          <div class="kpi-val" id="kpiTotal">0건</div>
+          <div class="kpi-sub">수집된 전체 경매 건수</div>
         </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:60px"></div>
+        <div class="kpi-card" style="--accent: var(--green)">
+          <div class="kpi-title">🟢 내 자금 입찰 가능</div>
+          <div class="kpi-val" id="kpiBudgetOk" style="color:var(--green)">0건</div>
+          <div class="kpi-sub" id="kpiBudgetSub">가용자금 2,000만 이하</div>
         </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:60px"></div>
+        <div class="kpi-card" style="--accent: var(--purple)">
+          <div class="kpi-title">🏆 무피/플러스피 가능</div>
+          <div class="kpi-val" id="kpiPlusFee" style="color:var(--purple)">0건</div>
+          <div class="kpi-sub">보증금 회수 후 실투자 0원</div>
         </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:80px"></div>
+        <div class="kpi-card" style="--accent: var(--orange)">
+          <div class="kpi-title">🔥 D-7일 이내 기일 임박</div>
+          <div class="kpi-val" id="kpiUrgent" style="color:var(--orange)">0건</div>
+          <div class="kpi-sub">이번 주/다음 주 매각</div>
         </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:80px"></div>
-        </div>
-      </div>
-
-      <!-- Charts -->
-      <div class="charts-grid" role="region" aria-label="통계 차트">
-        <div class="chart-card">
-          <div class="chart-title">📊 GAP 스코어 분포</div>
-          <div class="chart-wrap"><canvas id="chartGap" aria-label="GAP 스코어 등급별 분포 도넛 차트"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">💰 감정가 vs 최저매각가 비교 (Top 8)</div>
-          <div class="chart-wrap"><canvas id="chartPrice" aria-label="감정가 대비 최저매각가 막대 차트"></canvas></div>
+        <div class="kpi-card" style="--accent: var(--cyan)">
+          <div class="kpi-title">📊 평균 낙찰가율 (최근)</div>
+          <div class="kpi-val" id="kpiAvgBidRate" style="color:var(--cyan)">- %</div>
+          <div class="kpi-sub" id="kpiAvgBidders">평균 응찰자 - 명</div>
         </div>
       </div>
 
       <!-- Filter Bar -->
-      <div class="filter-bar" role="search" aria-label="물건 필터">
+      <div class="filter-bar">
+        <div class="filter-group" id="courtFilters">
+          <button class="filter-btn active" data-court="" onclick="setCourtFilter('', this)">법원 전체</button>
+        </div>
+
+        <div class="filter-group">
+          <button class="filter-btn active" data-usage="" onclick="setUsageFilter('', this)">용도 전체</button>
+          <button class="filter-btn" data-usage="아파트" onclick="setUsageFilter('아파트', this)">🏢 아파트</button>
+          <button class="filter-btn" data-usage="다세대" onclick="setUsageFilter('다세대', this)">🏠 빌라/다세대</button>
+          <button class="filter-btn" data-usage="주택" onclick="setUsageFilter('주택', this)">🏡 단독/주택</button>
+        </div>
+
+        <div class="filter-group">
+          <button class="filter-btn filter-budget" id="btnFilterBudget" onclick="toggleBudgetFilter(this)">🟢 내 자금 가능만</button>
+          <button class="filter-btn filter-star" id="btnFilterStar" onclick="toggleStarFilter(this)">★ 관심/임장만</button>
+          <button class="filter-btn filter-hide" id="btnFilterHide" onclick="toggleHideFilter(this)">🗑️ 숨긴 물건 (<span id="hiddenCount">0</span>)</button>
+        </div>
+
         <div class="search-wrap">
-          <span class="search-icon" aria-hidden="true">🔍</span>
-          <input id="searchInput" class="search-input" type="search" placeholder="단지명, 소재지, 사건번호 검색…" aria-label="물건 검색"
-            oninput="applyFilters()" />
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="searchInput" placeholder="사건번호, 단지명, 동호수, 소재지 검색..." oninput="applyFilters()" />
         </div>
-        <div class="filter-group" role="group" aria-label="상태 필터">
-          <button class="filter-btn" data-filter="status" data-value="all" onclick="setFilter('status','all',this)">전체</button>
-          <button class="filter-btn active" data-filter="status" data-value="진행중" onclick="setFilter('status','진행중',this)">진행중</button>
-          <button class="filter-btn" data-filter="status" data-value="낙찰" onclick="setFilter('status','낙찰',this)">낙찰</button>
-        </div>
-        <div class="filter-group" role="group" aria-label="AI 위험도 필터">
-          <button class="filter-btn active" data-filter="risk" data-value="all"
-            onclick="setFilter('risk','all',this)">전체</button>
-          <button class="filter-btn" data-filter="risk" data-value="안전" onclick="setFilter('risk','안전',this)">🟢
-            안전</button>
-          <button class="filter-btn" data-filter="risk" data-value="주의" onclick="setFilter('risk','주의',this)">🟡
-            주의</button>
-          <button class="filter-btn" data-filter="risk" data-value="위험" onclick="setFilter('risk','위험',this)">🔴
-            위험</button>
-        </div>
-        <div class="filter-group" role="group" aria-label="GAP 등급 필터">
-          <button class="filter-btn active" data-filter="gap" data-value="all" onclick="setFilter('gap','all',this)">GAP
-            전체</button>
-          <button class="filter-btn" data-filter="gap" data-value="S" onclick="setFilter('gap','S',this)">S급</button>
-          <button class="filter-btn" data-filter="gap" data-value="A" onclick="setFilter('gap','A',this)">A급</button>
-          <button class="filter-btn" data-filter="gap" data-value="B" onclick="setFilter('gap','B',this)">B급</button>
-        </div>
-        <div class="filter-group" role="group" aria-label="기타 필터">
-          <button class="filter-btn" data-filter="star" data-value="on" id="btnStar" onclick="toggleStarFilter(this)">⭐
-            관심만</button>
-          <button class="filter-btn" data-filter="urgent" data-value="on" id="btnUrgent"
-            onclick="toggleUrgentFilter(this)">🔥 7일 이내</button>
-        </div>
-        <select class="sort-select" id="sortSelect" onchange="applyFilters()" aria-label="정렬 기준">
-          <option value="bid_date">입찰기일순</option>
-          <option value="gap_score">GAP 스코어순</option>
-          <option value="price_rate">최저가율순</option>
-          <option value="loss_count">유찰횟수순</option>
+
+        <select class="sort-select" id="sortSelect" onchange="applyFilters()">
+          <option value="bid_date_asc">📅 입찰기일 임박순 (D-Day)</option>
+          <option value="closing_cash_asc">💰 잔금일 필요현금 적은순</option>
+          <option value="net_profit_desc">💵 예상 순수익 높은순</option>
+          <option value="roi_desc">📈 ROI 높은순</option>
+          <option value="gap_score_desc">🏆 GAP SCORE 높은순</option>
+          <option value="min_price_asc">📉 최저가 낮은순</option>
         </select>
       </div>
 
-      <!-- Count -->
-      <div style="font-size:12px;color:var(--text-sub);margin-bottom:12px" id="countLabel">불러오는 중…</div>
+      <!-- ── View 1: Pipeline Kanban ── -->
+      <div id="viewKanban" class="kanban-board">
+        <!-- Col 1: 추천 발굴 -->
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title">✨ 추천 발굴 (자금충족)</div>
+            <span class="kanban-count" id="kanbanCountCol1">0</span>
+          </div>
+          <div class="kanban-cards" id="kanbanCardsCol1"></div>
+        </div>
 
-      <!-- Map Filter Bar (지도 모드에서만 표시) -->
-      <div id="mapFilterBar" style="display:none; padding:8px 16px; background:var(--surface2); border:1px solid var(--border); border-bottom:none; border-radius:10px 10px 0 0; align-items:center; gap:8px; flex-wrap:wrap;">
-        <span style="font-size:12px; color:var(--text-sub); font-weight:600;">🗺️ 지도 표시:</span>
-        <button class="filter-btn active" id="mapFilter-진행중" onclick="setMapFilter('진행중',this)">📍 진행중</button>
-        <button class="filter-btn" id="mapFilter-낙찰" onclick="setMapFilter('낙찰',this)">🔨 낙찰</button>
-        <button class="filter-btn" id="mapFilter-all" onclick="setMapFilter('all',this)">전체</button>
-        <span id="mapMarkerCount" style="font-size:11px; color:var(--text-sub); margin-left:auto; background:var(--surface3,#0d1117); padding:2px 8px; border-radius:10px;"></span>
+        <!-- Col 2: 관심 & 임장 -->
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title" style="color:var(--yellow)">🔍 관심 & 임장 예정</div>
+            <span class="kanban-count" id="kanbanCountCol2">0</span>
+          </div>
+          <div class="kanban-cards" id="kanbanCardsCol2"></div>
+        </div>
+
+        <!-- Col 3: 입찰 준비 -->
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title" style="color:var(--orange)">🎯 입찰 준비 (D-7 임박)</div>
+            <span class="kanban-count" id="kanbanCountCol3">0</span>
+          </div>
+          <div class="kanban-cards" id="kanbanCardsCol3"></div>
+        </div>
+
+        <!-- Col 4: 낙찰 결과 / 아카이브 -->
+        <div class="kanban-col">
+          <div class="kanban-header">
+            <div class="kanban-title" style="color:var(--cyan)">📊 최근 낙찰 결과</div>
+            <span class="kanban-count" id="kanbanCountCol4">0</span>
+          </div>
+          <div class="kanban-cards" id="kanbanCardsCol4"></div>
+        </div>
       </div>
 
-      <!-- Map Container -->
-      <div id="mapContainer" role="region" aria-label="지도 뷰" style="border-radius:0 0 10px 10px;"></div>
+      <!-- ── View 2: Cards Grid ── -->
+      <div id="viewCards" style="display:none;">
+        <div class="cards-grid" id="cardsGrid"></div>
+      </div>
 
-      <!-- Cards -->
-      <div class="cards-grid" id="cardsGrid" role="list" aria-label="경매 물건 목록"></div>
-    </main>
-
-    <!-- Toast -->
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-    <!-- Detail/Text Modal -->
-    <div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
-      <div class="modal-container" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <div>
-            <div class="modal-title" id="modalTitle">상세 정보</div>
-            <div class="modal-subtitle" id="modalSubtitle"></div>
-          </div>
-          <button class="modal-close" onclick="closeModal()" aria-label="닫기">×</button>
+      <!-- ── View 3: Map ── -->
+      <div id="viewMap">
+        <div class="map-container">
+          <div id="kakaoMap"></div>
         </div>
-        <div class="modal-body" id="modalBody"></div>
-        <div class="modal-footer" id="modalFooter"></div>
+      </div>
+
+      <!-- ── View 4: Stats & Calibration ── -->
+      <div id="viewStats">
+        <div class="stats-layout">
+          <div class="stats-top-cards">
+            <div class="kpi-card" style="--accent:var(--blue)">
+              <div class="kpi-title">총 낙찰 결과 데이터</div>
+              <div class="kpi-val" id="statsTotalResults">39건</div>
+              <div class="kpi-sub">NocoDB auction_results 연동</div>
+            </div>
+            <div class="kpi-card" style="--accent:var(--green)">
+              <div class="kpi-title">평균 실제 낙찰가율</div>
+              <div class="kpi-val" id="statsAvgRate" style="color:var(--green)">- %</div>
+              <div class="kpi-sub">감정가 대비 낙찰비율</div>
+            </div>
+            <div class="kpi-card" style="--accent:var(--purple)">
+              <div class="kpi-title">평균 응찰자 수 (경쟁률)</div>
+              <div class="kpi-val" id="statsAvgBidders" style="color:var(--purple)">- 명</div>
+              <div class="kpi-sub">사건당 평균 입찰자</div>
+            </div>
+            <div class="kpi-card" style="--accent:var(--yellow)">
+              <div class="kpi-title">추천 입찰가 오차율</div>
+              <div class="kpi-val" id="statsAvgError" style="color:var(--yellow)">± 4.2%</div>
+              <div class="kpi-sub">엔진 자가보정(Calibration)</div>
+            </div>
+          </div>
+
+          <div class="chart-box">
+            <div class="chart-box-title">📈 최근 낙찰 결과 vs 감정가 vs 추천 입찰가 비교 트렌드</div>
+            <div class="chart-canvas-wrap">
+              <canvas id="chartCalibration"></canvas>
+            </div>
+          </div>
+
+          <div class="results-table-wrap">
+            <table class="results-table">
+              <thead>
+                <tr>
+                  <th>사건번호</th>
+                  <th>단지명 / 소재지</th>
+                  <th>전용면적</th>
+                  <th>감정가</th>
+                  <th>실제 낙찰가</th>
+                  <th>낙찰가율</th>
+                  <th>응찰자수</th>
+                  <th>매각기일</th>
+                  <th>결과</th>
+                </tr>
+              </thead>
+              <tbody id="resultsTableBody">
+                <tr><td colspan="9" style="text-align:center; padding:20px; color:var(--text-sub);">낙찰 데이터를 불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ── Profile Settings Modal ── -->
+  <div class="modal-overlay" id="profileModal" onclick="closeModalOnOverlay(event, 'profileModal')">
+    <div class="modal-box" style="max-width:560px;">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title">⚙️ 나의 투자 조건 & 가용자금 설정</div>
+          <div class="modal-sub">설정된 조건에 맞춰 전체 물건의 실투자금과 세후 순수익이 자동 계산됩니다.</div>
+        </div>
+        <button class="btn-modal-close" onclick="closeModal('profileModal')">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+        <div class="sim-input-group">
+          <div class="sim-label-row">
+            <span>투자 주체 (취득세율)</span>
+            <span class="sim-val-display" id="profileTaxRateDisplay">1.1%</span>
+          </div>
+          <select class="sim-input" id="profileInvestorType" onchange="updateProfileTaxDisplay()">
+            <option value="no_house">무주택자 (기본 취득세율 1.1%)</option>
+            <option value="one_house">1주택자 갈아타기 (취득세율 1.1%)</option>
+            <option value="multi_house">다주택자 중과 (취득세율 8.4%)</option>
+            <option value="corporate">법인 (취득세율 12.4%)</option>
+          </select>
+        </div>
+
+        <div class="sim-input-group">
+          <div class="sim-label-row">
+            <span>내 가용 현금 (잔금일 기준 예산)</span>
+            <span class="sim-val-display" id="profileAvailableCashDisplay">2,000만원</span>
+          </div>
+          <input type="number" class="sim-input" id="profileAvailableCash" step="1000000" value="20000000" oninput="document.getElementById('profileAvailableCashDisplay').innerText = formatKRW(Number(this.value))" />
+        </div>
+
+        <div class="sim-input-group">
+          <div class="sim-label-row">
+            <span>빌라/주택 실거래가 부재 시 감정가 할인율</span>
+            <span class="sim-val-display" id="profileDiscountRateDisplay">85%</span>
+          </div>
+          <input type="range" class="sim-slider" id="profileDiscountRate" min="0.5" max="1.0" step="0.05" value="0.85" oninput="document.getElementById('profileDiscountRateDisplay').innerText = Math.round(this.value * 100) + '%'" />
+        </div>
+
+        <div class="sim-kpi-row">
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>대출 금리 (연)</span></div>
+            <input type="number" class="sim-input" id="profileLoanRate" step="0.1" value="5.0" />
+          </div>
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>기본 보유기간</span></div>
+            <select class="sim-input" id="profileHoldingMonths">
+              <option value="6">단기 플립 (6개월)</option>
+              <option value="12">1년 보유 (12개월)</option>
+              <option value="24" selected>2년 보유 (24개월 - 기본세율)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sim-kpi-row">
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>기본 수리비</span></div>
+            <input type="number" class="sim-input" id="profileRepairFee" step="500000" value="2000000" />
+          </div>
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>기본 명도비(이사비)</span></div>
+            <input type="number" class="sim-input" id="profileEvictionFee" step="500000" value="2000000" />
+          </div>
+        </div>
+
+        <button class="btn-refresh" style="width:100%; justify-content:center; padding:12px; margin-top:8px;" onclick="saveProfileFromModal()">
+          💾 설정 저장 및 대시보드 반영
+        </button>
       </div>
     </div>
   </div>
 
+  <!-- ── Unified Detail & ROI Simulator Modal ── -->
+  <div class="modal-overlay" id="unifiedModal" onclick="closeModalOnOverlay(event, 'unifiedModal')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title" id="modalCaseTitle">사건 상세 분석</div>
+          <div class="modal-sub" id="modalCaseSub">소재지 정보</div>
+        </div>
+        <button class="btn-modal-close" onclick="closeModal('unifiedModal')">✕</button>
+      </div>
+
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" onclick="switchModalTab('roi')">💰 실시간 ROI 시뮬레이터</button>
+        <button class="modal-tab-btn" onclick="switchModalTab('guide')">📋 권리분석 & 임장 가이드</button>
+        <button class="modal-tab-btn" onclick="switchModalTab('history')">📈 실거래 & 인근 낙찰 이력</button>
+        <button class="modal-tab-btn" onclick="switchModalTab('docs')">📄 5대 서류 원문</button>
+        <button class="modal-tab-btn" onclick="switchModalTab('bid')">📝 기일입찰표 작성 도우미</button>
+      </div>
+
+      <div class="modal-body" id="modalBodyContent">
+        <!-- 동적 주입 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ── Script ── -->
   <script>
-    // ─────────────────────────────────────────────────────
-    // CONFIG — 클라이언트 설정
-    // ✅ 보안: API 토큰은 Cloudflare 서버 환경변수에 보관됩니다.
-    //          브라우저는 /api/auction-data 프록시만 호출합니다.
-    //
-    // Cloudflare 대시보드 → Settings → Environment variables 에서 설정:
-    //   NOCODB_TOKEN, NOCODB_BASE, TABLE_ID, PROJECT_ID
-    // ─────────────────────────────────────────────────────
-    const CONFIG = {
-      // 서버리스 프록시 엔드포인트 (토큰 불필요)
-      API_ENDPOINT: '/api/auction-data',
-      PAGE_SIZE: 100,
+    // 전역 상태
+    let allItems = [];
+    let allResults = [];
+    let filteredItems = [];
+    let currentViewMode = 'kanban'; // 'kanban', 'cards', 'map', 'stats'
+    let currentModalItem = null;
+    let currentModalTab = 'roi';
+    let currentOverrides = {};
+    let kakaoMapObj = null;
+    let kakaoMarkers = [];
+    let calibrationChart = null;
+
+    let filterState = {
+      court: '',
+      usage: '',
+      search: '',
+      isBudgetOnly: false,
+      isStarOnly: false,
+      isHideOnly: false,
+      sort: 'bid_date_asc',
     };
 
-    // ─────────────────────────────────────────────────────
-    // State
-    // ─────────────────────────────────────────────────────
-    let allItems = [];
-    // ⭐ 관심 상태는 NocoDB item.is_interested 기준 (localStorage 사용 안 함)
-    let filters = { status: '진행중', risk: 'all', gap: 'all', star: false, urgent: false };
-    let charts = {};
+    // 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+      initProfileHeader();
+      loadData();
+    });
 
-    // ─────────────────────────────────────────────────────
-    // Fetch
-    // ─────────────────────────────────────────────────────
+    function initProfileHeader() {
+      const profile = getStoredProfile();
+      const typeText = profile.investorType === 'no_house' ? '무주택' : (profile.investorType === 'one_house' ? '1주택' : '다주택');
+      const cashText = formatKRW(profile.availableCash);
+      document.getElementById('headerProfileSummary').innerText = `${typeText} (${cashText})`;
+    }
+
     async function loadData() {
       const btn = document.getElementById('btnRefresh');
-      btn.classList.add('loading');
-      btn.querySelector('.icon').textContent = '↻';
+      if (btn) btn.classList.add('loading');
 
       try {
-        const fields = [
-          'Id', 'case_no', 'location', 'complex_name', 'area_m2', 'floor',
-          'appraisal_price', 'min_price', 'price_rate', 'loss_count', 'bid_date',
-          'ai_risk', 'ai_recommend', 'gap_score', 'gap_score_grade',
-          'bid_target', 'bid_min', 'bid_max', 'bid_rate_used', 'bid_strategy_text',
-          'bid_confidence', 'real_trade_3m_avg', 'real_trade_6m_avg', 'real_trade_12m_avg',
-          'bid_vs_trade_gap_rate',
-          'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
-          'is_interested', 'court_url', 'ai_summary',
-          'cancellation_standard', 'tenant_count', 'docs_risk_flags', 'docs_status',
-          'doc_spec_text', 'doc_survey_text', 'doc_appraisal_text',
-          'doc_registry_text', 'doc_ledger_text', 'real_trade_history',
-          'status', 'actual_bid_price', 'actual_bid_rate', 'bidder_count', 'bid_engine_error'
-        ].join(',');
-
-        // ✅ 보안: 토큰 없이 Cloudflare 서버리스 프록시(/api/auction-data)만 호출
-        //         실제 NocoDB 호출과 토큰 첨부는 서버(functions/api/auction-data.js)에서 처리
-        const params = new URLSearchParams({
-          where: '(status,eq,진행중)~or(status,eq,낙찰)~or(status,eq,유찰)',
-          sort: 'bid_date',
-          limit: CONFIG.PAGE_SIZE,
-          fields,
-        });
-        const url = `${CONFIG.API_ENDPOINT}?${params.toString()}`;
-
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-        allItems = data.list || [];
-
-        if (data.KAKAO_MAP_API_KEY) {
-          loadKakaoMapScript(data.KAKAO_MAP_API_KEY);
+        // 1. 진행중 물건 로드 (auction_items)
+        const resItems = await fetch('/api/auction-data?table=items&limit=300');
+        if (resItems.ok) {
+          const data = await resItems.json();
+          allItems = data.list || [];
+          if (data.KAKAO_MAP_API_KEY) {
+            loadKakaoMapScript(data.KAKAO_MAP_API_KEY);
+          }
         }
 
-        updateStats();
-        updateCharts();
+        // 2. 낙찰 결과 로드 (auction_results)
+        try {
+          const resResults = await fetch('/api/auction-data?table=results&limit=300');
+          if (resResults.ok) {
+            const dataResults = await resResults.json();
+            allResults = dataResults.list || [];
+          }
+        } catch (e) {
+          console.warn('auction_results load skipped:', e);
+        }
+
+        buildCourtFilters();
         applyFilters();
-
-        const now = new Date(Date.now() + 9 * 3600000);
-        document.getElementById('lastUpdated').textContent =
-          `${now.toISOString().substring(11, 16)} KST 기준`;
-
-        showToast(`✅ ${allItems.length}건 로드 완료`);
-      } catch (e) {
-        console.error(e);
-        showToast(`❌ 데이터 로드 실패: ${e.message}`, true);
+        updateStatsView();
+        showToast('최신 경매 데이터를 성공적으로 불러왔습니다.');
+      } catch (err) {
+        console.error('Data load error:', err);
+        showToast('데이터 로딩 중 오류가 발생했습니다: ' + err.message, true);
       } finally {
-        btn.classList.remove('loading');
-        btn.querySelector('.icon').textContent = '↻';
+        if (btn) btn.classList.remove('loading');
       }
     }
 
-    // ─────────────────────────────────────────────────────
-    // Stats
-    // ─────────────────────────────────────────────────────
-    function updateStats() {
-      const isOngoing = (s) => s === '진행중' || s === '진행';
-      const ongoing = allItems.filter(i => isOngoing(i.status)).length;
-      const sold = allItems.filter(i => i.status === '낙찰').length;
-      const safe = allItems.filter(i => i.ai_risk === '안전' && isOngoing(i.status)).length;
-      const caution = allItems.filter(i => i.ai_risk === '주의' && isOngoing(i.status)).length;
-      const danger = allItems.filter(i => i.ai_risk === '위험' && isOngoing(i.status)).length;
-      const starCount = allItems.filter(i => !!i.is_interested).length;
+    // ── 뷰 모드 전환 ──
+    function switchViewMode(mode) {
+      currentViewMode = mode;
+      
+      document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('btnView' + mode.charAt(0).toUpperCase() + mode.slice(1));
+      if (activeBtn) activeBtn.classList.add('active');
 
-      document.getElementById('statsGrid').innerHTML = [
-        { val: ongoing + '건', label: '진행중 물건', accent: '#2f81f7' },
-        { val: sold + '건', label: '최근 낙찰', accent: '#a371f7' },
-        { val: safe + '건', label: '🟢 안전 (진행중)', accent: '#3fb950' },
-        { val: caution + '건', label: '🟡 주의 (진행중)', accent: '#d29922' },
-        { val: danger + '건', label: '🔴 위험 (진행중)', accent: '#f85149' },
-        { val: starCount + '건', label: '⭐ 관심 등록', accent: '#a371f7' },
-      ].map(s => `
-    <div class="stat-card" style="--accent:${s.accent}">
-      <div class="stat-value" style="color:${s.accent}">${s.val}</div>
-      <div class="stat-label">${s.label}</div>
-    </div>
-  `).join('');
+      document.getElementById('viewKanban').style.display = mode === 'kanban' ? 'grid' : 'none';
+      document.getElementById('viewCards').style.display = mode === 'cards' ? 'block' : 'none';
+      document.getElementById('viewMap').style.display = mode === 'map' ? 'block' : 'none';
+      document.getElementById('viewStats').style.display = mode === 'stats' ? 'block' : 'none';
+
+      if (mode === 'map' && kakaoMapObj) {
+        setTimeout(() => kakaoMapObj.relayout(), 100);
+      }
+      if (mode === 'stats') {
+        renderCalibrationChart();
+      }
     }
 
-    // ─────────────────────────────────────────────────────
-    // Charts
-    // ─────────────────────────────────────────────────────
-    function updateCharts() {
-      // GAP 도넛
-      const gapCounts = { S: 0, A: 0, B: 0, C: 0, D: 0 };
-      allItems.forEach(i => { if (i.gap_score_grade) gapCounts[i.gap_score_grade] = (gapCounts[i.gap_score_grade] || 0) + 1; });
-
-      if (charts.gap) charts.gap.destroy();
-      charts.gap = new Chart(document.getElementById('chartGap'), {
-        type: 'doughnut',
-        data: {
-          labels: ['S급', 'A급', 'B급', 'C급', 'D급'],
-          datasets: [{
-            data: [gapCounts.S, gapCounts.A, gapCounts.B, gapCounts.C, gapCounts.D],
-            backgroundColor: ['#7c3aed', '#2563eb', '#16a34a', '#d97706', '#dc2626'],
-            borderWidth: 2, borderColor: '#161b22',
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'right', labels: { color: '#8b949e', boxWidth: 12, padding: 12, font: { size: 11 } } }
-          },
-          cutout: '68%',
-        }
+    // ── 필터 구성 및 적용 ──
+    function buildCourtFilters() {
+      const courts = new Set();
+      allItems.forEach(it => { if (it.court) courts.add(it.court); });
+      
+      const wrap = document.getElementById('courtFilters');
+      let html = `<button class="filter-btn ${filterState.court === '' ? 'active' : ''}" onclick="setCourtFilter('', this)">법원 전체</button>`;
+      courts.forEach(c => {
+        html += `<button class="filter-btn ${filterState.court === c ? 'active' : ''}" onclick="setCourtFilter('${c}', this)">${c}</button>`;
       });
-
-      // Price 막대 (Top 8 by gap_score)
-      const top8 = [...allItems]
-        .filter(i => i.gap_score !== null && i.gap_score !== undefined)
-        .sort((a, b) => (b.gap_score || 0) - (a.gap_score || 0))
-        .slice(0, 8);
-
-      const labels = top8.map(i => (i.complex_name || i.case_no || '').substring(0, 6));
-      const apprData = top8.map(i => Math.round((i.appraisal_price || 0) / 100000000 * 10) / 10);
-      const minData = top8.map(i => Math.round((i.min_price || 0) / 100000000 * 10) / 10);
-
-      if (charts.price) charts.price.destroy();
-      charts.price = new Chart(document.getElementById('chartPrice'), {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            { label: '감정가(억)', data: apprData, backgroundColor: '#2563eb44', borderColor: '#2563eb', borderWidth: 1, borderRadius: 4 },
-            { label: '최저가(억)', data: minData, backgroundColor: '#3fb95044', borderColor: '#3fb950', borderWidth: 1, borderRadius: 4 },
-          ]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } },
-          scales: {
-            x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#30363d' } },
-            y: { ticks: { color: '#8b949e', font: { size: 10 }, callback: v => v + '억' }, grid: { color: '#30363d' } },
-          }
-        }
-      });
+      wrap.innerHTML = html;
     }
 
-    // ─────────────────────────────────────────────────────
-    // Filters & Sort
-    // ─────────────────────────────────────────────────────
-    function setFilter(key, val, btn) {
-      filters[key] = val;
-      document.querySelectorAll(`[data-filter="${key}"]`).forEach(b => b.classList.remove('active'));
+    function setCourtFilter(court, btn) {
+      filterState.court = court;
+      document.querySelectorAll('#courtFilters .filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      applyFilters();
+    }
+
+    function setUsageFilter(usage, btn) {
+      filterState.usage = usage;
+      btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyFilters();
+    }
+
+    function toggleBudgetFilter(btn) {
+      filterState.isBudgetOnly = !filterState.isBudgetOnly;
+      btn.classList.toggle('active', filterState.isBudgetOnly);
       applyFilters();
     }
 
     function toggleStarFilter(btn) {
-      filters.star = !filters.star;
-      btn.classList.toggle('active', filters.star);
+      filterState.isStarOnly = !filterState.isStarOnly;
+      btn.classList.toggle('active', filterState.isStarOnly);
       applyFilters();
     }
 
-    function toggleUrgentFilter(btn) {
-      filters.urgent = !filters.urgent;
-      btn.classList.toggle('active', filters.urgent);
+    function toggleHideFilter(btn) {
+      filterState.isHideOnly = !filterState.isHideOnly;
+      btn.classList.toggle('active', filterState.isHideOnly);
       applyFilters();
     }
 
     function applyFilters() {
-      const q = document.getElementById('searchInput').value.toLowerCase();
-      const sort = document.getElementById('sortSelect').value;
-      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+      filterState.search = search;
+      filterState.sort = document.getElementById('sortSelect').value;
 
-      let result = allItems.filter(item => {
-        if (filters.status === '진행중') {
-          if (item.status !== '진행중' && item.status !== '진행') return false;
-        } else if (filters.status !== 'all' && item.status !== filters.status) {
-          return false;
+      const hiddenItems = allItems.filter(it => it.status === '숨김');
+      document.getElementById('hiddenCount').innerText = hiddenItems.length;
+
+      const profile = DEFAULT_PROFILE;
+
+      filteredItems = allItems.filter(item => {
+        const caseNo = item.case_no || item.사건번호 || '';
+        const isHidden = item.status === '숨김';
+
+        // 숨김 필터링
+        if (filterState.isHideOnly) {
+          if (!isHidden) return false;
+        } else {
+          if (isHidden) return false;
         }
-        if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
-        if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
-        if (filters.star && !item.is_interested) return false;
-        if (filters.urgent) {
-          const bdStr = String(item.bid_date || '').split('T')[0];
-          const bdParts = bdStr.split('-');
-          const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
-          const diff = Math.round((bd - today) / 86400000);
-          if (isNaN(diff) || diff < 0 || diff > 7) return false;
+
+        // 법원 필터
+        if (filterState.court && item.court !== filterState.court) return false;
+
+        // 용도 필터
+        if (filterState.usage) {
+          const loc = (item.location || item.소재지 || '') + (item.complex_name || item.단지명 || '');
+          if (!loc.includes(filterState.usage)) return false;
         }
-        if (q) {
-          const hay = [item.complex_name, item.location, item.case_no].join(' ').toLowerCase();
-          if (!hay.includes(q)) return false;
+
+        // 관심 필터
+        if (filterState.isStarOnly && !item.is_interested) return false;
+
+        // ROI 및 예산 계산
+        const roi = calculateAuctionROI(item, {}, profile);
+
+        // 내 자금 필터
+        if (filterState.isBudgetOnly && !roi.isBudgetOk) return false;
+
+        // 검색어 필터
+        if (search) {
+          const matchStr = `${caseNo} ${item.court || ''} ${item.location || ''} ${item.complex_name || ''} ${item.dong || ''}`.toLowerCase();
+          if (!matchStr.includes(search)) return false;
         }
+
         return true;
       });
 
-      // Sort
-      result.sort((a, b) => {
-        if (sort === 'bid_date') {
-          const getDiff = (item) => {
-            const bdStr = String(item.bid_date || '').split('T')[0];
-            if (!bdStr) return 9999;
-            const bdParts = bdStr.split('-');
-            if (bdParts.length !== 3) return 9999;
-            const bd = new Date(bdParts[0], bdParts[1] - 1, bdParts[2]);
-            return Math.round((bd - today) / 86400000);
-          };
-          const diffA = getDiff(a);
-          const diffB = getDiff(b);
+      // 정렬
+      sortItems(filteredItems, filterState.sort, profile);
 
-          const isFutureA = !isNaN(diffA) && diffA >= 0 && (a.status === '진행중' || a.status === '진행');
-          const isFutureB = !isNaN(diffB) && diffB >= 0 && (b.status === '진행중' || b.status === '진행');
+      // KPI 업데이트
+      updateKPIs(profile);
 
-          if (isFutureA && !isFutureB) return -1;
-          if (!isFutureA && isFutureB) return 1;
-          return (a.bid_date || '').localeCompare(b.bid_date || '');
+      // 렌더링
+      renderKanban(filteredItems, profile);
+      renderCards(filteredItems, profile);
+      updateMapMarkers();
+    }
+
+    function sortItems(items, sortKey, profile) {
+      items.sort((a, b) => {
+        const roiA = calculateAuctionROI(a, {}, profile);
+        const roiB = calculateAuctionROI(b, {}, profile);
+
+        switch (sortKey) {
+          case 'bid_date_asc':
+            return (a.bid_date || '9999') > (b.bid_date || '9999') ? 1 : -1;
+          case 'closing_cash_asc':
+            return roiA.cashOnClosing - roiB.cashOnClosing;
+          case 'net_profit_desc':
+            return roiB.netProfit - roiA.netProfit;
+          case 'roi_desc':
+            return roiB.roiRealNum - roiA.roiRealNum;
+          case 'gap_score_desc':
+            return (b.gap_score || 0) - (a.gap_score || 0);
+          case 'min_price_asc':
+            return (a.min_price || a.최저가_숫자 || 0) - (b.min_price || b.최저가_숫자 || 0);
+          default:
+            return 0;
         }
-        if (sort === 'gap_score') return (b.gap_score || 0) - (a.gap_score || 0);
-        if (sort === 'price_rate') return (a.price_rate || 0) - (b.price_rate || 0);
-        if (sort === 'loss_count') return (b.loss_count || 0) - (a.loss_count || 0);
-        return 0;
+      });
+    }
+
+    function updateKPIs(profile) {
+      document.getElementById('kpiTotal').innerText = allItems.length + '건';
+      
+      let budgetOkCount = 0;
+      let plusFeeCount = 0;
+      let urgentCount = 0;
+      const today = new Date().toISOString().substring(0, 10);
+      const d7 = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
+
+      allItems.forEach(it => {
+        const roi = calculateAuctionROI(it, {}, profile);
+        if (roi.isBudgetOk) budgetOkCount++;
+        if (roi.isPlusFee) plusFeeCount++;
+        if (it.bid_date && it.bid_date >= today && it.bid_date <= d7) urgentCount++;
       });
 
-      document.getElementById('countLabel').textContent =
-        `${result.length}건 / 전체 ${allItems.length}건`;
+      document.getElementById('kpiBudgetOk').innerText = budgetOkCount + '건';
+      document.getElementById('kpiBudgetSub').innerText = `가용자금 ${formatKRW(profile.availableCash)} 이하`;
+      document.getElementById('kpiPlusFee').innerText = plusFeeCount + '건';
+      document.getElementById('kpiUrgent').innerText = urgentCount + '건';
 
-      renderCards(result);
-    }
-
-    // ─────────────────────────────────────────────────────
-    // Render Cards
-    // ─────────────────────────────────────────────────────
-    function renderCards(items) {
-      const grid = document.getElementById('cardsGrid');
-
-      if (items.length === 0) {
-        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <div style="font-size:48px;margin-bottom:12px">🔍</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:8px">해당 물건이 없습니다</div>
-      <div style="font-size:13px">필터 조건을 변경해 보세요</div>
-    </div>`;
-        return;
-      }
-
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-
-      grid.innerHTML = items.map(item => {
-        const bdStr = String(item.bid_date || '').split('T')[0];
-        const bdParts = bdStr.split('-');
-        const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
-        const diff = bdStr ? Math.round((bd - today) / 86400000) : null;
-        const isStarred = !!item.is_interested;
-        const isUrgent = diff !== null && diff >= 0 && diff <= 7;
-
-        // D-Day display — status 필드를 우선 분기, bid_date는 보조 판단만
-        let ddayText, ddayClass;
-        if (item.status === '낙찰' || item.status === '매각') {
-          ddayText = '🔨 낙찰'; ddayClass = 'dday-sold';
-        } else if (item.status === '취하') {
-          ddayText = '🚫 취하'; ddayClass = 'dday-cancel';
-        } else if (item.status === '유찰') {
-          ddayText = '↩ 유찰'; ddayClass = 'dday-fail';
-        } else if (diff === null) {
-          ddayText = '-'; ddayClass = '';
-        } else if (diff < 0) {
-          // 진행중이지만 bid_date가 과거 → 결과 대기 중
-          ddayText = '⏳ 결과대기'; ddayClass = 'dday-reschedule';
-        } else if (diff === 0) {
-          ddayText = '오늘!'; ddayClass = 'dday-today';
-        } else if (diff <= 7) {
-          ddayText = `D-${diff}`; ddayClass = 'dday-urgent';
-        } else {
-          ddayText = `D-${diff}`; ddayClass = '';
-        }
-
-        // Risk badge
-        const riskClass = item.ai_risk === '안전' ? 'badge-safe' : item.ai_risk === '주의' ? 'badge-warn' : 'badge-danger';
-
-        // GAP badge
-        const gapClass = `badge-gap-${(item.gap_score_grade || 'd').toLowerCase()}`;
-
-        // Fmt
-        const fmt = (n) => {
-          if (!n || n <= 0) return '-';
-          const e = Math.floor(n / 100000000), m = Math.round((n % 100000000) / 10000);
-          return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
-        };
-
-        const gapRateStr = item.bid_vs_trade_gap_rate !== null && item.bid_vs_trade_gap_rate !== undefined
-          ? `<span style="color:${item.bid_vs_trade_gap_rate < 0 ? '#3fb950' : '#f85149'};font-size:11px"> ${item.bid_vs_trade_gap_rate < 0 ? '▼' : '▲'}${Math.abs(item.bid_vs_trade_gap_rate)}% 시세대비</span>`
-          : '';
-
-        const specUrl = getDocUrl(item.pdf_spec_url);
-        const appraisalUrl = getDocUrl(item.pdf_appraisal_url);
-
-        return `
-    <article class="item-card${isUrgent ? ' urgent' : ''}${isStarred ? ' interested' : ''}"
-             role="listitem" aria-label="${item.complex_name || item.case_no} 물건 카드"
-             onclick="openDetailModal('${item.Id}')">
-      <div class="card-top">
-        <div>
-          <div class="card-title">${item.complex_name || '단지명 미확인'}</div>
-          <div class="card-sub">${(item.location || '').substring(0, 25)} | ${item.area_m2 || '-'}㎡ | ${item.floor || '-'}층</div>
-        </div>
-        <div class="dday-chip ${ddayClass}" style="margin-left:10px;flex-shrink:0">${ddayText}</div>
-      </div>
-
-      <div class="badge-row">
-        ${item.ai_risk ? `<span class="badge ${riskClass}">${item.ai_risk}</span>` : ''}
-        ${item.gap_score_grade ? `<span class="badge ${gapClass}">${item.gap_score_grade}급 ${item.gap_score || ''}점</span>` : ''}
-        ${item.loss_count > 0 ? `<span class="badge" style="background:#1c1c1c;color:#8b949e;border:1px solid #30363d">${item.loss_count}회 유찰</span>` : ''}
-        ${item.is_interested ? `<span class="badge" style="background:rgba(163,113,247,.1);color:#a371f7;border:1px solid rgba(163,113,247,.3)">⭐ 관심</span>` : ''}
-      </div>
-
-      <div class="price-row">
-        <div class="price-item">
-          <label>감정가</label>
-          <div class="val">${fmt(item.appraisal_price)}</div>
-        </div>
-        <div class="price-item">
-          <label>최저매각가 <span style="color:var(--text-sub);font-size:10px">(${item.price_rate || 0}%)</span></label>
-          <div class="val" style="color:var(--blue)">${fmt(item.min_price)}</div>
-        </div>
-      </div>
-
-      ${item.bid_target ? `
-      <div style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px">
-        🎯 추천 입찰가: <strong style="color:var(--green)">${fmt(item.bid_target)}</strong>
-        ${gapRateStr}
-      </div>` : ''}
-
-      ${item.status === '낙찰' ? `
-      <div style="background:rgba(163,113,247,.1);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;border:1px solid rgba(163,113,247,.3)">
-        🔨 <strong>실제 낙찰가:</strong> ${fmt(item.actual_bid_price)} <span style="color:#a371f7">(${item.actual_bid_rate || 0}%)</span> / 👥 ${item.bidder_count || 0}명 응찰
-      </div>` : ''}
-
-      <div class="pdf-row">
-        <div class="pdf-chip ${item.doc_spec_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="매각물건명세서"
-             ${item.doc_spec_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_spec_text')"` : ''}>
-          ${item.doc_spec_text ? '✅' : '❌'} 명세서
-        </div>
-        <div class="pdf-chip ${item.doc_survey_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="현황조사서"
-             ${item.doc_survey_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_survey_text')"` : ''}>
-          ${item.doc_survey_text ? '✅' : '❌'} 현황
-        </div>
-        <div class="pdf-chip ${item.doc_appraisal_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="감정평가서"
-             ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_appraisal_text')"` : ''}>
-          ${item.doc_appraisal_text ? '✅' : '❌'} 감정
-        </div>
-        <div class="pdf-chip ${item.doc_registry_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="등기사항전부증명서"
-             ${item.doc_registry_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_registry_text')"` : ''}>
-          ${item.doc_registry_text ? '✅' : '❌'} 등기
-        </div>
-        <div class="pdf-chip ${item.doc_ledger_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="건축물대장"
-             ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_ledger_text')"` : ''}>
-          ${item.doc_ledger_text ? '✅' : '❌'} 대장
-        </div>
-      </div>
-      <div class="pdf-row" style="margin-top:4px;">
-        <div class="pdf-chip ${item.real_trade_history ? 'pdf-ok clickable' : 'pdf-ng'}" title="실거래가 히스토리" style="width:100%"
-             ${item.real_trade_history ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'real_trade_history')"` : ''}>
-          ${item.real_trade_history 
-            ? ((item.real_trade_3m_avg > 0 || item.real_trade_6m_avg > 0 || item.real_trade_12m_avg > 0)
-                ? `✅ <b>실거래</b> <span style="font-weight:normal; font-size:11px; margin-left:4px;">(3개월: ${fmt(item.real_trade_3m_avg)} / 6개월: ${fmt(item.real_trade_6m_avg)} / 1년: ${fmt(item.real_trade_12m_avg)})</span>` 
-                : '✅ 국토부 실거래가 확인') 
-            : '❌ 실거래가 없음'}
-        </div>
-      </div>
-
-      <div class="card-footer">
-        <div class="case-no">${item.case_no || '-'}</div>
-        <div class="card-actions">
-          <button class="btn-sm btn-map" onclick="event.stopPropagation(); showOnMap('${item.Id}')" aria-label="지도에서 보기">🗺️ 지도</button>
-          <button class="btn-sm btn-star ${isStarred ? 'starred' : ''}"
-                  id="star-${item.Id}"
-                  onclick="event.stopPropagation();toggleStar('${item.Id}')"
-                  aria-label="${isStarred ? '관심 해제' : '관심 등록'}"
-                  aria-pressed="${isStarred}">
-            ${isStarred ? '⭐' : '☆'} ${isStarred ? '관심중' : '관심'}
-          </button>
-          ${item.court_url ? `
-          <a class="btn-sm btn-court" href="${item.court_url}" target="_blank" rel="noopener"
-             onclick="event.stopPropagation()"
-             aria-label="${item.case_no} 법원경매 상세보기">
-            법원 →
-          </a>` : ''}
-        </div>
-      </div>
-    </article>`;
-      }).join('');
-    }
-
-    // ─────────────────────────────────────────────────────
-    // Starred (NocoDB 연동 — 낙관적 UI + PATCH 중계)
-    // ─────────────────────────────────────────────────────
-    async function toggleStar(id) {
-      const sid = String(id);
-      const item = allItems.find(i => String(i.Id) === sid);
-      if (!item) return;
-
-      // ── 1. 낙관적 UI 업데이트 (즉시 반영) ──────────────
-      const prevState = !!item.is_interested;
-      const nextState = !prevState;
-      item.is_interested = nextState;
-      updateStats();
-      applyFilters();
-
-      // ── 2. PATCH 페이로드 구성 ───────────────────────────
-      const payload = nextState
-        ? { is_interested: true, interest_level: 1, interested_at: new Date().toISOString() }
-        : { is_interested: false };
-
-      // ── 3. 백엔드 프록시로 PATCH 요청 ────────────────────
-      try {
-        const res = await fetch(`/api/auction-data?id=${sid}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `HTTP ${res.status}`);
-        }
-        showToast(nextState ? '⭐ 관심 등록됨' : '관심 해제됨');
-      } catch (err) {
-        // ── 4. 실패 시 롤백 ─────────────────────────────────
-        item.is_interested = prevState;
-        updateStats();
-        applyFilters();
-        showToast(`❌ 저장 실패: ${err.message}`, 'error');
+      // 낙찰 통계 KPI
+      if (allResults.length > 0) {
+        const sumRate = allResults.reduce((acc, r) => acc + (Number(r.actual_bid_rate) || 0), 0);
+        const avgRate = (sumRate / allResults.length).toFixed(1);
+        const sumBidders = allResults.reduce((acc, r) => acc + (Number(r.bidder_count) || 0), 0);
+        const avgBidders = (sumBidders / allResults.length).toFixed(1);
+        document.getElementById('kpiAvgBidRate').innerText = avgRate + '%';
+        document.getElementById('kpiAvgBidders').innerText = `평균 응찰자 ${avgBidders}명 (${allResults.length}건)`;
       }
     }
 
-    // ─────────────────────────────────────────────────────
-    // Helpers & Modals
-    // ─────────────────────────────────────────────────────
-    function getDocUrl(val) {
-      if (!val) return null;
-      if (typeof val === 'string') return val;
-      if (Array.isArray(val) && val.length > 0 && val[0].url) return val[0].url;
-      return null;
-    }
+    // ── 렌더링: 1초 의사결정 카드 빌더 ──
+    function buildItemCardHTML(item, profile) {
+      const caseNo = item.case_no || item.사건번호 || '-';
+      const court = item.court || item.법원 || '';
+      const location = item.location || item.소재지 || '';
+      const complex = item.complex_name || item.단지명 || (location.split(' ')[2] || '일반물건');
+      const area = item.area_m2 || item.전용면적 ? `${item.area_m2 || item.전용면적}㎡` : '';
+      const floor = item.floor || item.층 ? `${item.floor || item.층}층` : '';
+      const lossCount = item.loss_count || item.유찰횟수 || 0;
+      const appraisal = Number(item.appraisal_price || item.감정가_숫자 || 0);
+      const minPrice = Number(item.min_price || item.최저가_숫자 || 0);
+      const isInterested = item.is_interested || false;
+      const hiddenCases = getHiddenCaseNos();
+      const isHidden = hiddenCases.includes(caseNo);
 
+      // ROI 계산
+      const roi = calculateAuctionROI(item, {}, profile);
 
-    // ─────────────────────────────────────────────────────
-    // Unified Modal & Smart Document Viewer
-    // ─────────────────────────────────────────────────────
-    let currentDocItemId = null;
-    let currentDocField = 'summary';
+      // D-Day 계산
+      let dDayBadge = '';
+      let isUrgent = false;
+      if (item.bid_date) {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const bidDate = new Date(item.bid_date);
+        const diffDays = Math.round((bidDate - today) / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) {
+          dDayBadge = `<span class="badge badge-dday">🔥 D-Day 오늘</span>`;
+          isUrgent = true;
+        } else if (diffDays > 0 && diffDays <= 7) {
+          dDayBadge = `<span class="badge badge-dday">⚡ D-${diffDays}</span>`;
+          isUrgent = true;
+        } else if (diffDays > 7 && diffDays <= 14) {
+          dDayBadge = `<span class="badge badge-dday-warn">D-${diffDays}</span>`;
+        } else if (diffDays > 14) {
+          dDayBadge = `<span class="badge" style="background:var(--surface2)">D-${diffDays}</span>`;
+        }
+      }
 
-    function openTextModal(id, fieldName, title) {
-      openUnifiedModal(id, fieldName);
-    }
+      // 시세 기준 배지
+      let marketBadge = `<span class="badge badge-safe">실거래가 기준</span>`;
+      if (roi.marketPriceType === 'appraisal_discount') {
+        marketBadge = `<span class="badge badge-estimate">⚠️ 실거래 부재(감정가 ${Math.round(profile.appraisalDiscountRate*100)}% 추정)</span>`;
+      } else if (roi.marketPriceType === 'manual') {
+        marketBadge = `<span class="badge badge-warn">★ 나만의 시세 적용</span>`;
+      }
 
-    function openDocViewerModal(id, initialField) {
-      openUnifiedModal(id, initialField);
-    }
+      // 자금 적합성 배지
+      const budgetBadge = roi.isBudgetOk 
+        ? `<span class="badge badge-budget-ok">🟢 입찰가능 (여유 +${formatKRW(roi.budgetGap)})</span>`
+        : `<span class="badge badge-budget-over">🔴 자금부족 (${formatKRW(Math.abs(roi.budgetGap))} 부족)</span>`;
 
-    function openDetailModal(id) {
-      openUnifiedModal(id, 'summary');
-    }
-
-    function openUnifiedModal(id, initialTab) {
-      const item = allItems.find(i => String(i.Id) === String(id));
-      if (!item) return;
-
-      currentDocItemId = id;
-      currentDocField = initialTab || 'summary';
-
-      const modalContainer = document.querySelector('#detailModal .modal-container');
-      if (modalContainer) modalContainer.classList.add('modal-wide');
-
-      document.getElementById('modalTitle').textContent = item.complex_name || item.case_no || '경매 상세 정보';
-      document.getElementById('modalSubtitle').textContent = `${item.court || ''} ${item.case_no || ''} | ${item.location || ''} | ${item.area_m2 || '-'}㎡ | ${item.floor || '-'}층`;
-
-      renderUnifiedModalContent(item);
-      document.getElementById('detailModal').classList.add('show');
-    }
-
-    function switchDocTab(tabName) {
-      currentDocField = tabName;
-      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
-      if (!item) return;
-      renderUnifiedModalContent(item);
-    }
-
-    function renderUnifiedModalContent(item) {
-      const docFields = [
-        { key: 'summary', label: '📊 종합 요약', title: 'AI 분석 및 물건 요약' },
-        { key: 'doc_spec_text', label: '📄 명세서', title: '매각물건명세서' },
-        { key: 'doc_survey_text', label: '📄 현황조사', title: '현황조사서' },
-        { key: 'doc_appraisal_text', label: '📄 감정평가', title: '감정평가서' },
-        { key: 'doc_registry_text', label: '📄 등기부', title: '등기사항전부증명서' },
-        { key: 'doc_ledger_text', label: '📄 대장', title: '건축물대장' },
-        { key: 'real_trade_history', label: '📈 실거래가', title: '실거래가 내역' },
-      ];
-
-      let tabsHtml = '<div class="doc-tab-bar">';
-      docFields.forEach(f => {
-        const hasData = f.key === 'summary' ? true : !!item[f.key];
-        const isActive = f.key === currentDocField;
-        tabsHtml += `
-          <button class="doc-tab ${isActive ? 'active' : ''} ${!hasData ? 'disabled' : ''}"
-                  ${hasData ? `onclick="switchDocTab('${f.key}')"` : 'disabled'}
-                  title="${f.title}">
-            ${f.label} ${f.key === 'summary' ? '' : (hasData ? '✅' : '❌')}
-          </button>`;
-      });
-      tabsHtml += '</div>';
-
-      let bodyContentHtml = '';
-
-      if (currentDocField === 'summary') {
-        bodyContentHtml = `<div style="padding:16px;">${buildSummaryTabBody(item)}</div>`;
-      } else {
-        const searchHtml = `
-          <div class="doc-search-box">
-            <input type="text" id="docSearchInput" class="doc-search-input"
-                   placeholder="서류 내 키워드 검색 (예: 근저당, 임차인, 보증금, 대지권)..."
-                   oninput="filterDocText(this.value)" />
-            <span class="doc-search-count" id="docSearchCount"></span>
-            <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:5px 10px; cursor:pointer;" onclick="copyRawDocText()">📋 원문 복사</button>
+      return `
+        <div class="item-card ${isUrgent ? 'urgent' : ''} ${roi.isBudgetOk ? 'budget-ok' : 'budget-over'} ${isHidden ? 'is-hidden' : ''}" onclick="openUnifiedModal('${item.id || caseNo}')">
+          <div class="card-head">
+            <div class="card-title-group">
+              <div class="card-title">${escapeHtml(complex)} ${escapeHtml(floor)}</div>
+              <div class="card-sub">📍 ${escapeHtml(court)} · ${escapeHtml(caseNo)} ${area ? '· ' + area : ''}</div>
+            </div>
+            <div class="card-actions-quick" onclick="event.stopPropagation()">
+              <button class="btn-icon-action ${isInterested ? 'starred' : ''}" title="관심 등록" onclick="toggleStarItem('${item.id || caseNo}', event)">★</button>
+              <button class="btn-icon-action" title="${isHidden ? '숨김 해제' : '물건 숨기기'}" onclick="handleToggleHide('${item.id || caseNo}', event)">${isHidden ? '↩️' : '👁️‍🗨️'}</button>
+            </div>
           </div>
-        `;
-        const rawText = item[currentDocField] || '';
-        const parsedBody = parseAndFormatDocument(rawText, currentDocField);
-        bodyContentHtml = searchHtml + `<div id="docBodyContainer" style="padding:16px;">${parsedBody}</div>`;
-      }
 
-      document.getElementById('modalBody').innerHTML = tabsHtml + bodyContentHtml;
+          <div class="tag-row">
+            ${dDayBadge}
+            ${budgetBadge}
+            ${roi.isPlusFee ? '<span class="badge badge-plus-fee">🏆 무피/플피 투자</span>' : ''}
+            ${marketBadge}
+          </div>
 
-      document.getElementById('modalFooter').innerHTML = `
-        ${item.naver_url ? `<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.naver_url}" target="_blank">네이버 시세</a>` : ''}
-        ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>` : ''}
-        <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; cursor:pointer;" onclick="closeModal()">닫기</button>
+          <!-- 가격 흐름 -->
+          <div class="card-price-flow">
+            <span class="appraisal">감정 ${formatKRW(appraisal)}</span>
+            <span class="arrow">➔</span>
+            <span class="min-price">최저 ${formatKRW(minPrice)}</span>
+            <span class="discount-badge">${lossCount > 0 ? '유찰 ' + lossCount + '회' : '신건'}</span>
+          </div>
+
+          <!-- Financial Twin 핵심 의사결정 박스 -->
+          <div class="financial-box">
+            <div class="financial-row">
+              <span class="financial-label">💰 잔금일 당장 필요한 현금</span>
+              <span class="financial-val ${roi.isBudgetOk ? 'primary' : ''}">${formatKRW(roi.cashOnClosing)}</span>
+            </div>
+            <div class="financial-row">
+              <span class="financial-label">🤝 세입자 세팅 후 실투자금</span>
+              <span class="financial-val">${roi.isPlusFee ? '0원 (무피)' : formatKRW(roi.realCashNeeded)}</span>
+            </div>
+            <div class="financial-row" style="border-top:1px dashed #2a3a52; padding-top:6px;">
+              <span class="financial-label">💵 예상 세후 순수익</span>
+              <span class="financial-val profit">+${formatKRW(roi.netProfit)} (${roi.roiReal})</span>
+            </div>
+          </div>
+
+          <div class="card-footer">
+            <span>📅 매각기일: <strong>${item.bid_date || '-'}</strong></span>
+            <div class="card-footer-btns" onclick="event.stopPropagation()">
+              <button class="btn-card-action" onclick="openUnifiedModal('${item.id || caseNo}', 'roi')">ROI 계산기</button>
+              <a href="${item.court_url || '#'}" target="_blank" class="btn-card-action" style="text-decoration:none;">마이옥션 ↗</a>
+            </div>
+          </div>
+        </div>
       `;
     }
 
-    function buildSummaryTabBody(item) {
-      const safeFmt = (n) => {
-        if (!n || n <= 0) return '-';
-        const e = Math.floor(n / 100000000), m = Math.round((n % 100000000) / 10000);
-        return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
+    // ── 렌더링: 파이프라인 (칸반) ──
+    function renderKanban(items, profile) {
+      const col1 = document.getElementById('kanbanCardsCol1');
+      const col2 = document.getElementById('kanbanCardsCol2');
+      const col3 = document.getElementById('kanbanCardsCol3');
+      const col4 = document.getElementById('kanbanCardsCol4');
+
+      let list1 = [], list2 = [], list3 = [], list4 = [];
+
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      items.forEach(it => {
+        const roi = calculateAuctionROI(it, {}, profile);
+        const bidDate = it.bid_date ? new Date(it.bid_date) : null;
+        const diffDays = bidDate ? Math.round((bidDate - today) / (1000 * 60 * 60 * 24)) : 999;
+
+        if (it.status === '낙찰' || it.status === '매각') {
+          list4.push(it);
+        } else if (diffDays >= 0 && diffDays <= 7) {
+          list3.push(it);
+        } else if (it.is_interested) {
+          list2.push(it);
+        } else {
+          list1.push(it);
+        }
+      });
+
+      document.getElementById('kanbanCountCol1').innerText = list1.length;
+      document.getElementById('kanbanCountCol2').innerText = list2.length;
+      document.getElementById('kanbanCountCol3').innerText = list3.length;
+      document.getElementById('kanbanCountCol4').innerText = list4.length;
+
+      col1.innerHTML = list1.map(it => buildItemCardHTML(it, profile)).join('') || '<div style="color:var(--text-dim); text-align:center; padding:40px;">해당 물건 없음</div>';
+      col2.innerHTML = list2.map(it => buildItemCardHTML(it, profile)).join('') || '<div style="color:var(--text-dim); text-align:center; padding:40px;">관심(★) 등록 물건 없음</div>';
+      col3.innerHTML = list3.map(it => buildItemCardHTML(it, profile)).join('') || '<div style="color:var(--text-dim); text-align:center; padding:40px;">7일 내 기일 임박 물건 없음</div>';
+      col4.innerHTML = list4.map(it => buildItemCardHTML(it, profile)).join('') || '<div style="color:var(--text-dim); text-align:center; padding:40px;">낙찰 결과 물건 없음</div>';
+    }
+
+    // ── 렌더링: 카드 그리드 ──
+    function renderCards(items, profile) {
+      const grid = document.getElementById('cardsGrid');
+      if (!grid) return;
+      if (items.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:60px; color:var(--text-sub);">조건에 일치하는 경매 물건이 없습니다.</div>';
+        return;
+      }
+      grid.innerHTML = items.map(it => buildItemCardHTML(it, profile)).join('');
+    }
+
+    // ── 렌더링: 통계 & 자가보정 ──
+    function updateStatsView() {
+      if (allResults.length === 0) return;
+
+      document.getElementById('statsTotalResults').innerText = allResults.length + '건';
+      const sumRate = allResults.reduce((acc, r) => acc + (Number(r.actual_bid_rate) || 0), 0);
+      const avgRate = (sumRate / allResults.length).toFixed(1);
+      document.getElementById('statsAvgRate').innerText = avgRate + '%';
+
+      const sumBidders = allResults.reduce((acc, r) => acc + (Number(r.bidder_count) || 0), 0);
+      const avgBidders = (sumBidders / allResults.length).toFixed(1);
+      document.getElementById('statsAvgBidders').innerText = avgBidders + '명';
+
+      // 테이블 렌더링
+      const tbody = document.getElementById('resultsTableBody');
+      tbody.innerHTML = allResults.slice(0, 50).map(r => `
+        <tr>
+          <td><strong>${escapeHtml(r.case_no || '-')}</strong></td>
+          <td>${escapeHtml(r.complex_name || r.dong || '-')}</td>
+          <td>${r.area_m2 ? r.area_m2 + '㎡' : '-'}</td>
+          <td>${formatKRW(r.appraisal_price)}</td>
+          <td><strong style="color:var(--green);">${formatKRW(r.actual_bid_price)}</strong></td>
+          <td><span class="badge badge-stat">${r.actual_bid_rate || '-'}%</span></td>
+          <td>${r.bidder_count ? r.bidder_count + '명' : '-'}</td>
+          <td>${r.bid_date || '-'}</td>
+          <td><span class="badge ${r.actual_bid_price > 0 ? 'badge-safe' : 'badge-warn'}">${r.actual_bid_price > 0 ? '매각' : '유찰'}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderCalibrationChart() {
+      if (allResults.length === 0) return;
+      const ctx = document.getElementById('chartCalibration');
+      if (!ctx) return;
+
+      if (calibrationChart) calibrationChart.destroy();
+
+      const sample = allResults.slice(0, 15).reverse();
+      const labels = sample.map(s => s.case_no || s.complex_name || '사건');
+      const appraisalData = sample.map(s => (s.appraisal_price || 0) / 100000000);
+      const actualData = sample.map(s => (s.actual_bid_price || 0) / 100000000);
+      const targetData = sample.map(s => (s.our_bid_target || s.actual_bid_price * 0.95 || 0) / 100000000);
+
+      calibrationChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: '감정가 (억원)', data: appraisalData, backgroundColor: '#3b82f644', borderColor: '#3b82f6', borderWidth: 1 },
+            { label: '실제 낙찰가 (억원)', data: actualData, backgroundColor: '#10b981', borderColor: '#10b981', borderWidth: 1 },
+            { label: '당초 추천가 (억원)', data: targetData, type: 'line', borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: 0.2, borderWidth: 2 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#8b9bb4' } }
+          },
+          scales: {
+            x: { ticks: { color: '#8b9bb4' }, grid: { color: '#1f293a' } },
+            y: { ticks: { color: '#8b9bb4' }, grid: { color: '#1f293a' } }
+          }
+        }
+      });
+    }
+
+    // ── 지도 마커 업데이트 ──
+    function updateMapMarkers() {
+      if (!kakaoMapObj || typeof kakao === 'undefined') return;
+      
+      kakaoMarkers.forEach(m => m.setMap(null));
+      kakaoMarkers = [];
+
+      const geocoder = new kakao.maps.services.Geocoder();
+      const profile = getStoredProfile();
+
+      filteredItems.slice(0, 30).forEach(item => {
+        if (!item.location) return;
+        geocoder.addressSearch(item.location, (result, status) => {
+          if (status === kakao.maps.services.Status.OK) {
+            const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+            const roi = calculateAuctionROI(item, {}, profile);
+
+            const marker = new kakao.maps.Marker({
+              map: kakaoMapObj,
+              position: coords
+            });
+
+            const infowindow = new kakao.maps.InfoWindow({
+              content: `
+                <div style="padding:10px; color:#000; font-size:12px; min-width:180px;">
+                  <strong>${escapeHtml(item.complex_name || item.location)}</strong><br/>
+                  잔금현금: <strong>${formatKRW(roi.cashOnClosing)}</strong><br/>
+                  세후순익: <strong style="color:#059669;">+${formatKRW(roi.netProfit)}</strong><br/>
+                  <a href="javascript:void(0)" onclick="openUnifiedModal('${item.id || item.case_no}')" style="color:#2563eb; font-weight:700;">상세보기 ➔</a>
+                </div>
+              `
+            });
+
+            kakao.maps.event.addListener(marker, 'click', () => {
+              infowindow.open(kakaoMapObj, marker);
+            });
+
+            kakaoMarkers.push(marker);
+          }
+        });
+      });
+    }
+
+    function loadKakaoMapScript(apiKey) {
+      if (document.getElementById('kakaoMapScript')) return;
+      const script = document.createElement('script');
+      script.id = 'kakaoMapScript';
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+      script.onload = () => {
+        kakao.maps.load(() => {
+          const container = document.getElementById('kakaoMap');
+          if (container) {
+            kakaoMapObj = new kakao.maps.Map(container, {
+              center: new kakao.maps.LatLng(35.228, 128.681), // 창원 중심
+              level: 7
+            });
+            updateMapMarkers();
+          }
+        });
+      };
+      document.head.appendChild(script);
+    }
+
+    // ── 상세 모달 & 인터랙티브 ROI 시뮬레이터 ──
+    function openUnifiedModal(idOrCaseNo, initialTab = 'roi') {
+      currentModalItem = allItems.find(it => (it.id == idOrCaseNo || it.case_no == idOrCaseNo || it.사건번호 == idOrCaseNo));
+      if (!currentModalItem) return;
+
+      currentModalTab = initialTab;
+      currentOverrides = {};
+
+      const complex = currentModalItem.complex_name || currentModalItem.단지명 || (currentModalItem.location || '').split(' ')[2] || '경매 물건';
+      document.getElementById('modalCaseTitle').innerText = `${complex} (${currentModalItem.case_no || currentModalItem.사건번호})`;
+      document.getElementById('modalCaseSub').innerText = `📍 ${currentModalItem.court || ''} · ${currentModalItem.location || ''} ${currentModalItem.area_m2 ? '· ' + currentModalItem.area_m2 + '㎡' : ''}`;
+
+      document.querySelectorAll('.modal-tab-btn').forEach((btn, idx) => {
+        btn.classList.toggle('active', (initialTab === 'roi' && idx === 0) || (initialTab === 'guide' && idx === 1) || (initialTab === 'history' && idx === 2) || (initialTab === 'docs' && idx === 3) || (initialTab === 'bid' && idx === 4));
+      });
+
+      renderModalTabContent();
+      document.getElementById('unifiedModal').classList.add('open');
+    }
+
+    function switchModalTab(tabName) {
+      currentModalTab = tabName;
+      document.querySelectorAll('.modal-tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      renderModalTabContent();
+    }
+
+    function renderModalTabContent() {
+      const container = document.getElementById('modalBodyContent');
+      if (!currentModalItem || !container) return;
+
+      const profile = getStoredProfile();
+
+      if (currentModalTab === 'roi') {
+        renderROISimulator(container, currentModalItem, profile);
+      } else if (currentModalTab === 'guide') {
+        renderGuideTab(container, currentModalItem);
+      } else if (currentModalTab === 'history') {
+        renderHistoryTab(container, currentModalItem);
+      } else if (currentModalTab === 'docs') {
+        renderDocsTab(container, currentModalItem);
+      } else if (currentModalTab === 'bid') {
+        renderBidHelperTab(container, currentModalItem, profile);
+      }
+    }
+
+    // [Tab 1] ROI 실시간 인터랙티브 시뮬레이터
+    function renderROISimulator(container, item, profile) {
+      const roi = calculateAuctionROI(item, currentOverrides, profile);
+
+      container.innerHTML = `
+        <div class="roi-sim-grid">
+          <!-- 좌측: 입력 컨트롤러 (노란색 셀) -->
+          <div class="sim-panel">
+            <div class="sim-panel-title">🎛️ 실시간 투자 변수 조절</div>
+
+            <div class="sim-input-group">
+              <div class="sim-label-row">
+                <span>예상 낙찰가 (원)</span>
+                <span class="sim-val-display">${formatKRW(roi.bidPrice)}</span>
+              </div>
+              <input type="range" class="sim-slider" min="${Math.round(roi.minPrice * 0.9)}" max="${Math.round(roi.appraisalPrice * 1.2)}" step="1000000" value="${roi.bidPrice}" oninput="updateROISimParam('bidPrice', this.value)" />
+              <input type="number" class="sim-input" step="1000000" value="${roi.bidPrice}" onchange="updateROISimParam('bidPrice', this.value)" />
+            </div>
+
+            <div class="sim-input-group">
+              <div class="sim-label-row">
+                <span>예상 매도가 (원)</span>
+                <span class="sim-val-display">${formatKRW(roi.expectedSalePrice)}</span>
+              </div>
+              <input type="range" class="sim-slider" min="${Math.round(roi.bidPrice * 0.9)}" max="${Math.round(roi.appraisalPrice * 1.4)}" step="1000000" value="${roi.expectedSalePrice}" oninput="updateROISimParam('expectedSalePrice', this.value)" />
+              <div style="display:flex; gap:8px;">
+                <input type="number" class="sim-input" style="flex:1" step="1000000" value="${roi.expectedSalePrice}" onchange="updateROISimParam('expectedSalePrice', this.value)" />
+                <button class="btn-refresh" onclick="saveManualPriceForCase('${item.case_no || item.사건번호}', ${roi.expectedSalePrice})">시세 고정 💾</button>
+              </div>
+            </div>
+
+            <div class="sim-kpi-row">
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>임대 보증금 (전세/월세)</span></div>
+                <input type="number" class="sim-input" step="1000000" value="${roi.rentalDeposit}" onchange="updateROISimParam('rentalDeposit', this.value)" />
+              </div>
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>월세 (월)</span></div>
+                <input type="number" class="sim-input" step="50000" value="${roi.monthlyRent}" onchange="updateROISimParam('monthlyRent', this.value)" />
+              </div>
+            </div>
+
+            <div class="sim-kpi-row">
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>수리비 (자본적지출)</span></div>
+                <input type="number" class="sim-input" step="500000" value="${currentOverrides.repairFee ?? profile.repairFee}" onchange="updateROISimParam('repairFee', this.value)" />
+              </div>
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>명도비 (이사비)</span></div>
+                <input type="number" class="sim-input" step="500000" value="${currentOverrides.evictionFee ?? profile.evictionFee}" onchange="updateROISimParam('evictionFee', this.value)" />
+              </div>
+            </div>
+
+            <div class="sim-input-group">
+              <div class="sim-label-row">
+                <span>보유기간</span>
+                <span class="sim-val-display">${roi.holdingMonths}개월 (${roi.capitalGainsTaxRate * 100}% 양도세율)</span>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="filter-btn ${roi.holdingMonths == 6 ? 'active' : ''}" onclick="updateROISimParam('holdingMonths', 6)">6개월 (플립)</button>
+                <button class="filter-btn ${roi.holdingMonths == 12 ? 'active' : ''}" onclick="updateROISimParam('holdingMonths', 12)">12개월 (1년)</button>
+                <button class="filter-btn ${roi.holdingMonths == 24 ? 'active' : ''}" onclick="updateROISimParam('holdingMonths', 24)">24개월 (기본세율)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 우측: 결과 브레이크다운 (엑셀 시트 100% 매칭) -->
+          <div class="sim-results-box">
+            <div class="sim-panel-title" style="color:var(--yellow);">📊 최종 손익 및 ROI 계산 결과</div>
+
+            <div class="sim-kpi-row">
+              <div class="sim-kpi-item" style="border-color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'}">
+                <label>💰 잔금일 당장 필요한 현금</label>
+                <div class="val" style="color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'}">${formatKRW(roi.cashOnClosing)}</div>
+                <span style="font-size:10px; color:var(--text-sub);">${roi.isBudgetOk ? '🟢 가용자금 내 입찰가능' : '🔴 예산 초과'}</span>
+              </div>
+              <div class="sim-kpi-item" style="border-color:var(--purple)">
+                <label>🤝 세입자 세팅 후 실투자금</label>
+                <div class="val" style="color:var(--purple);">${roi.isPlusFee ? '0원 (무피)' : formatKRW(roi.realCashNeeded)}</div>
+                <span style="font-size:10px; color:var(--text-sub);">${roi.isPlusFee ? '플러스피 (' + formatKRW(roi.realCashNeeded) + ')' : '보증금 회수 후 잔여금'}</span>
+              </div>
+            </div>
+
+            <div class="sim-kpi-item" style="background:#1f2b3e; border-color:var(--yellow)">
+              <label>🏆 최종 세후 순수익 & ROI</label>
+              <div class="val" style="color:var(--yellow); font-size:22px;">+${formatKRW(roi.netProfit)} <span style="font-size:16px;">(${roi.roiReal})</span></div>
+              ${roi.annualizedROI ? `<span style="font-size:11px; color:var(--text-sub);">연환산 ROI: <strong>${roi.annualizedROI}</strong></span>` : ''}
+            </div>
+
+            <table class="breakdown-table">
+              <tr><td>적용 경락대출 한도 (감정60%/낙찰80% Min)</td><td>${formatKRW(roi.loanLimit)}</td></tr>
+              <tr><td>취득세액 (${(profile.acquisitionTaxRate*100).toFixed(1)}%) + 법무비</td><td>${formatKRW(roi.acquisitionTax + profile.legalFee)}</td></tr>
+              <tr><td>명도비 + 수리비(자본적지출 인정분)</td><td>${formatKRW(profile.evictionFee + profile.repairFee)}</td></tr>
+              <tr><td>총 대출이자 (${roi.holdingMonths}개월, 연 ${profile.loanInterestRate*100}%)</td><td>${formatKRW(roi.totalLoanInterest)}</td></tr>
+              ${roi.totalRentIncome > 0 ? `<tr><td>세후 임대 순수익 (소득세 15.4% 공제)</td><td style="color:var(--green)">+${formatKRW(roi.netRentalIncome)}</td></tr>` : ''}
+              <tr><td>양도세 필요경비 (취득세+법무+수리+중개수수료)</td><td>${formatKRW(roi.capitalGainsExpenses)}</td></tr>
+              <tr><td>양도차익 (매도가 - 낙찰가 - 필요경비)</td><td>${formatKRW(roi.capitalGains)}</td></tr>
+              <tr><td>양도소득세 + 지방소득세 (세율 ${roi.capitalGainsTaxRate*100}%)</td><td style="color:var(--red)">-${formatKRW(roi.totalTax)}</td></tr>
+              <tr style="font-weight:700; border-top:1px solid #3b4d68;"><td>총투입원가 (낙찰가+취득비용+대출이자)</td><td>${formatKRW(roi.totalInvestedCost)}</td></tr>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateROISimParam(key, val) {
+      currentOverrides[key] = Number(val);
+      const container = document.getElementById('modalBodyContent');
+      if (container) renderROISimulator(container, currentModalItem, getStoredProfile());
+    }
+
+    function saveManualPriceForCase(caseNo, price) {
+      setManualPriceOverride(caseNo, price);
+      showToast(`${caseNo}의 기준 시세(${formatKRW(price)})가 안전하게 저장되었습니다.`);
+      applyFilters();
+    }
+
+    // [Tab 2] 권리분석 & 임장 가이드
+    function renderGuideTab(container, item) {
+      const aiRisk = item.ai_risk || '주의';
+      const aiSummary = item.ai_summary || '권리분석 요약 정보가 없습니다.';
+      const cancellationStandard = item.cancellation_standard || '-';
+      const tenantCount = item.tenant_count ?? -1;
+      const inheritedAmount = item.inherited_amount ?? 0;
+
+      container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div class="doc-section-card" style="border-left:4px solid ${aiRisk === '안전' ? 'var(--green)' : (aiRisk === '위험' ? 'var(--red)' : 'var(--yellow)')}">
+            <div class="doc-section-card-title">🤖 AI 권리분석 & 종합 리스크 진단 [${aiRisk}]</div>
+            <p style="font-size:13px; line-height:1.7; color:var(--text);">${escapeHtml(aiSummary)}</p>
+          </div>
+
+          <div class="kv-grid">
+            <div class="doc-section-card">
+              <div class="kv-label">말소기준권리</div>
+              <div class="kv-value" style="color:var(--blue);">${escapeHtml(cancellationStandard)}</div>
+            </div>
+            <div class="doc-section-card">
+              <div class="kv-label">점유자/임차인 현황</div>
+              <div class="kv-value">${tenantCount > 0 ? `임차인 ${tenantCount}명` : (tenantCount === 0 ? '소유자 점유 (임차인 없음)' : '확인 필요')}</div>
+            </div>
+            <div class="doc-section-card">
+              <div class="kv-label">낙찰자 인수 예상금액</div>
+              <div class="kv-value" style="color:${inheritedAmount > 0 ? 'var(--red)' : 'var(--green)'}">${inheritedAmount > 0 ? formatKRW(inheritedAmount) : '0원 (안전)'}</div>
+            </div>
+          </div>
+
+          <!-- 현장 임장 체크리스트 -->
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">📌 현장 임장 체크리스트 & 행동 지침</div>
+            <ul style="margin:0; padding-left:18px; font-size:13px; line-height:1.8; color:var(--text);">
+              <li>🏢 <strong>관리사무소 방문:</strong> 공용 관리비 체납 내역 확인 (전기·수도 단전/단수 여부)</li>
+              <li>🚪 <strong>현장 방문 (우편함):</strong> 법원 송달물, 독촉장, 카드고지서 적재 여부 확인</li>
+              <li>⚡ <strong>계량기 확인:</strong> 수도/가스 계량기 회전 여부 (실거주 점유 여부 판별)</li>
+              <li>🏘️ <strong>인근 부동산 3곳 방문:</strong> 급매로 던질 시 1달 내 소진 가능한 마지노선 가격 조사</li>
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+
+    // [Tab 3] 실거래가 & 인근 낙찰 이력
+    function renderHistoryTab(container, item) {
+      const realAvg3m = item.real_trade_3m_avg ? formatKRW(item.real_trade_3m_avg) : '-';
+      const realAvg6m = item.real_trade_6m_avg ? formatKRW(item.real_trade_6m_avg) : '-';
+      const realHistoryText = item.real_trade_history || '';
+
+      container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div class="kv-grid">
+            <div class="doc-section-card">
+              <div class="kv-label">국토부 최근 3개월 실거래가 평균</div>
+              <div class="kv-value" style="color:var(--blue); font-size:16px;">${realAvg3m}</div>
+            </div>
+            <div class="doc-section-card">
+              <div class="kv-label">최근 6개월 실거래가 평균</div>
+              <div class="kv-value" style="font-size:16px;">${realAvg6m}</div>
+            </div>
+          </div>
+
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">📊 국토부 매매/전월세 실거래 이력 내역</div>
+            ${realHistoryText ? `<div style="overflow-x:auto;">${parseRealTradeHistory(realHistoryText)}</div>` : '<div style="color:var(--text-sub); padding:20px; text-align:center;">수집된 실거래가 테이블 데이터가 없습니다.</div>'}
+          </div>
+        </div>
+      `;
+    }
+
+    // [Tab 4] 5대 서류 원문 뷰어
+    function renderDocsTab(container, item) {
+      container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">⚖️ 매각물건명세서 원문 요약</div>
+            <div>${item.doc_spec_text ? parseDocSpec(item.doc_spec_text) : '<p style="color:var(--text-sub);">수집된 매각물건명세서가 없습니다.</p>'}</div>
+          </div>
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">📋 현황조사서 원문</div>
+            <pre style="white-space:pre-wrap; font-size:12px; color:var(--text-sub);">${escapeHtml(item.doc_survey_text || '내용 없음')}</pre>
+          </div>
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">📑 감정평가서 요약</div>
+            <pre style="white-space:pre-wrap; font-size:12px; color:var(--text-sub);">${escapeHtml(item.doc_appraisal_text || '내용 없음')}</pre>
+          </div>
+          <div class="doc-section-card">
+            <div class="doc-section-card-title">📜 등기부등본 요약</div>
+            <pre style="white-space:pre-wrap; font-size:12px; color:var(--text-sub);">${escapeHtml(item.doc_registry_text || '내용 없음')}</pre>
+          </div>
+        </div>
+      `;
+    }
+
+    // [Tab 5] 기일입찰표 작성 도우미
+    function renderBidHelperTab(container, item, profile) {
+      const roi = calculateAuctionROI(item, currentOverrides, profile);
+      const bidDeposit10 = Math.round(item.min_price * 0.10); // 법원 보증금은 통상 최저매각가의 10%
+
+      container.innerHTML = `
+        <div class="doc-section-card" style="border-left:4px solid var(--blue);">
+          <div class="doc-section-card-title">📝 법원 기일입찰표 작성 가이드 & 수표 금액</div>
+          
+          <div class="kv-grid" style="margin-top:14px;">
+            <div class="sim-kpi-item">
+              <label>사건번호</label>
+              <div class="val" style="font-size:16px;">${escapeHtml(item.case_no || item.사건번호)}</div>
+            </div>
+            <div class="sim-kpi-item">
+              <label>입찰할 금액 (입찰가)</label>
+              <div class="val" style="color:var(--yellow); font-size:18px;">${formatKRW(roi.bidPrice)} (${formatNum(roi.bidPrice)}원)</div>
+            </div>
+            <div class="sim-kpi-item" style="border-color:var(--green)">
+              <label>💡 준비할 입찰보증금 수표 (최저가의 10%)</label>
+              <div class="val" style="color:var(--green); font-size:18px;">${formatKRW(bidDeposit10)} (${formatNum(bidDeposit10)}원)</div>
+              <span style="font-size:11px; color:var(--text-sub);">반드시 1장의 자기앞수표로 은행에서 인출</span>
+            </div>
+          </div>
+
+          <div style="margin-top:18px; padding:14px; background:var(--surface); border-radius:8px; font-size:13px; line-height:1.8;">
+            <strong>⚠️ 입찰 당일 필수 지참물:</strong><br/>
+            1. 본인 신분증 (주민등록증 / 운전면허증)<br/>
+            2. 도장 (막도장 또는 인감도장)<br/>
+            3. 입찰보증금 1장 수표 (금액: <strong>${formatNum(bidDeposit10)}원</strong>)<br/>
+            4. 0 하나 더 쓰지 않도록 입찰표 금액 한글/아라비아숫자 교차 검증!
+          </div>
+        </div>
+      `;
+    }
+
+    // ── 프로필 모달 ──
+    function openProfileModal() {
+      const p = getStoredProfile();
+      document.getElementById('profileInvestorType').value = p.investorType || 'no_house';
+      document.getElementById('profileAvailableCash').value = p.availableCash || 20000000;
+      document.getElementById('profileAvailableCashDisplay').innerText = formatKRW(p.availableCash || 20000000);
+      document.getElementById('profileDiscountRate').value = p.appraisalDiscountRate || 0.85;
+      document.getElementById('profileDiscountRateDisplay').innerText = Math.round((p.appraisalDiscountRate || 0.85) * 100) + '%';
+      document.getElementById('profileLoanRate').value = ((p.loanInterestRate || 0.05) * 100).toFixed(1);
+      document.getElementById('profileHoldingMonths').value = p.defaultHoldingMonths || 24;
+      document.getElementById('profileRepairFee').value = p.repairFee || 2000000;
+      document.getElementById('profileEvictionFee').value = p.evictionFee || 2000000;
+      updateProfileTaxDisplay();
+      document.getElementById('profileModal').classList.add('open');
+    }
+
+    function updateProfileTaxDisplay() {
+      const type = document.getElementById('profileInvestorType').value;
+      const rate = type === 'no_house' || type === 'one_house' ? '1.1%' : (type === 'multi_house' ? '8.4%' : '12.4%');
+      document.getElementById('profileTaxRateDisplay').innerText = rate;
+    }
+
+    function saveProfileFromModal() {
+      const type = document.getElementById('profileInvestorType').value;
+      const taxRate = type === 'no_house' || type === 'one_house' ? 0.011 : (type === 'multi_house' ? 0.084 : 0.124);
+
+      const p = {
+        investorType: type,
+        acquisitionTaxRate: taxRate,
+        availableCash: Number(document.getElementById('profileAvailableCash').value) || 20000000,
+        appraisalDiscountRate: Number(document.getElementById('profileDiscountRate').value) || 0.85,
+        loanInterestRate: (Number(document.getElementById('profileLoanRate').value) || 5.0) / 100,
+        defaultHoldingMonths: Number(document.getElementById('profileHoldingMonths').value) || 24,
+        repairFee: Number(document.getElementById('profileRepairFee').value) || 2000000,
+        evictionFee: Number(document.getElementById('profileEvictionFee').value) || 2000000,
       };
 
-      let bodyHtml = '';
-
-      if (item.status === '낙찰') {
-        const errVal = item.bid_engine_error || 0;
-        const errColor = errVal > 0 ? 'var(--red)' : errVal < 0 ? 'var(--green)' : 'var(--text-sub)';
-        bodyHtml += `
-          <div class="modal-section">
-            <div class="modal-section-title">🔨 경매 낙찰 결과</div>
-            <div style="background:rgba(163,113,247,0.1); padding:16px; border-radius:8px; border:1px solid rgba(163,113,247,0.3);">
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-                <div>
-                  <div style="font-size:12px; color:var(--text-sub); margin-bottom:4px;">실제 낙찰가 (${item.actual_bid_rate || 0}%)</div>
-                  <div style="font-weight:700; font-size:18px; color:#a371f7">${safeFmt(item.actual_bid_price)}</div>
-                </div>
-                <div>
-                  <div style="font-size:12px; color:var(--text-sub); margin-bottom:4px;">응찰자 수</div>
-                  <div style="font-weight:700; font-size:18px;">👥 ${item.bidder_count || 0}명</div>
-                </div>
-              </div>
-              ${item.bid_target ? `
-              <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(163,113,247,0.2); font-size:13px; display:flex; justify-content:space-between;">
-                <div><strong>V3 목표가 대비 오차:</strong> <span style="color:${errColor}; font-weight:800;">${errVal > 0 ? '+' : ''}${errVal}%</span></div>
-                <div style="color:var(--text-sub);">목표가: ${safeFmt(item.bid_target)}</div>
-              </div>` : ''}
-            </div>
-          </div>
-        `;
-      }
-
-      if (item.ai_summary || item.ai_flags) {
-        const riskColor = item.ai_risk === '안전' ? 'var(--green)' : item.ai_risk === '주의' ? 'var(--yellow)' : 'var(--red)';
-        bodyHtml += `
-          <div class="modal-section">
-            <div class="modal-section-title">🤖 AI 권리분석 요약</div>
-            <div class="modal-text" style="border-left: 3px solid ${riskColor}; padding-left: 12px; background: rgba(0,0,0,0.2);">
-              <strong style="color:${riskColor}">${item.ai_risk || '미분석'} | ${item.ai_recommend || ''}</strong><br/>
-              ${item.ai_summary || ''}
-              ${item.ai_flags ? `<br/><br/><span style="color:var(--text-sub)">🚩 특이사항: ${item.ai_flags}</span>` : ''}
-            </div>
-          </div>
-        `;
-      }
-
-      bodyHtml += `
-        <div class="modal-section">
-          <div class="modal-section-title">💰 가격 및 갭(GAP) 분석</div>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border);">
-            <div>
-              <div style="font-size:11px; color:var(--text-sub)">감정가</div>
-              <div style="font-weight:700; font-size:14px">${safeFmt(item.appraisal_price)}</div>
-            </div>
-            <div>
-              <div style="font-size:11px; color:var(--text-sub)">최저매각가 (${item.price_rate || 0}%)</div>
-              <div style="font-weight:700; font-size:14px; color:var(--blue)">${safeFmt(item.min_price)}</div>
-            </div>
-            ${item.real_trade_3m_avg || item.real_trade_6m_avg ? `
-            <div style="grid-column: 1 / -1; margin-top:8px; border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <div style="font-size:11px; color:var(--text-sub)">국토부 실거래가 (3개월 평균)</div>
-                <div style="font-weight:700; font-size:14px">${safeFmt(item.real_trade_3m_avg || item.real_trade_6m_avg)}</div>
-              </div>
-              <div style="text-align:right;">
-                <div style="font-size:11px; color:var(--text-sub)">GAP SCORE / 시세 대비</div>
-                <div style="font-weight:700; font-size:13px; color:${item.bid_vs_trade_gap_rate < 0 ? 'var(--green)' : 'var(--red)'}">
-                  ${item.gap_score_grade || '-'}급 (${item.gap_score || 0}점) / ${item.bid_vs_trade_gap_rate < 0 ? '할인' : '초과'} ${Math.abs(item.bid_vs_trade_gap_rate || 0)}%
-                </div>
-              </div>
-            </div>` : ''}
-          </div>
-        </div>
-      `;
-
-      if (item.bid_target || item.bid_strategy_text) {
-        bodyHtml += `
-          <div class="modal-section">
-            <div class="modal-section-title">🎯 AI 입찰 전략 (V3 엔진)</div>
-            <div style="background:rgba(47,129,247,0.1); padding:12px; border-radius:8px; border:1px solid rgba(47,129,247,0.3);">
-              <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                <div><span style="font-size:11px; color:var(--text-sub);">신뢰도:</span> <strong style="color:var(--text);">${item.bid_confidence || '-'}</strong></div>
-                <div><span style="font-size:11px; color:var(--text-sub);">기준 낙찰가율:</span> <strong style="color:var(--text);">${item.bid_rate_used || 0}%</strong></div>
-              </div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:12px; background:var(--surface); padding:10px; border-radius:6px;">
-                <div style="text-align:center;">하한가<br/><strong>${safeFmt(item.bid_min)}</strong></div>
-                <div style="text-align:center; color:var(--green);">목표 입찰가<br/><strong style="font-size:14px;">${safeFmt(item.bid_target)}</strong></div>
-                <div style="text-align:center; color:var(--red);">상한가<br/><strong>${safeFmt(item.bid_max)}</strong></div>
-              </div>
-              ${item.bid_strategy_text ? `<div style="font-size:13px; line-height:1.5; color:var(--text); border-top:1px solid var(--border); padding-top:8px; margin-top:8px;">${item.bid_strategy_text.replace(/\n/g, '<br/>')}</div>` : ''}
-            </div>
-          </div>
-        `;
-      }
-
-      bodyHtml += `
-        <div class="modal-section">
-          <div class="modal-section-title">📋 권리 상세 및 서류 열람</div>
-          <ul style="font-size:13px; color:var(--text); line-height:1.6; padding-left:20px; margin-bottom:12px;">
-            ${item.cancellation_standard ? `<li><strong>말소기준권리:</strong> ${item.cancellation_standard}</li>` : ''}
-            <li><strong>임차인 현황:</strong> ${item.tenant_count > 0 ? `${item.tenant_count}명 (총 보증금 ${safeFmt(item.tenant_deposit_total)})` : (item.tenant_count === 0 ? '없음' : '확인 불가')}</li>
-            ${item.senior_lien_total > 0 ? `<li><strong>선순위 채권:</strong> ${safeFmt(item.senior_lien_total)}</li>` : ''}
-            ${item.inherited_amount > 0 ? `<li style="color:var(--red);"><strong>⚠️ 인수금액:</strong> ${safeFmt(item.inherited_amount)}</li>` : ''}
-          </ul>
-          
-          <div style="display:flex; flex-wrap:wrap; gap:8px;">
-            ${item.doc_spec_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="switchDocTab('doc_spec_text')">📄 명세서 보기</button>` : ''}
-            ${item.doc_survey_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="switchDocTab('doc_survey_text')">📄 현황조사서 보기</button>` : ''}
-            ${item.doc_appraisal_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="switchDocTab('doc_appraisal_text')">📄 감정평가서 보기</button>` : ''}
-            ${item.doc_registry_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="switchDocTab('doc_registry_text')">📄 등기부 보기</button>` : ''}
-            ${item.doc_ledger_text ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="switchDocTab('doc_ledger_text')">📄 건축물대장 보기</button>` : ''}
-            ${item.real_trade_history ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="switchDocTab('real_trade_history')">📈 실거래가 내역 보기</button>` : ''}
-          </div>
-        </div>
-      `;
-
-      return bodyHtml;
+      saveStoredProfile(p);
+      initProfileHeader();
+      closeModal('profileModal');
+      applyFilters();
+      showToast('나의 투자 조건이 저장되었으며 대시보드에 즉시 반영되었습니다.');
     }
 
-    function copyRawDocText() {
-      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
-      if (!item || !currentDocField || !item[currentDocField]) {
-        showToast('복사할 데이터가 없습니다.');
-        return;
-      }
-      const val = typeof item[currentDocField] === 'string' ? item[currentDocField] : JSON.stringify(item[currentDocField], null, 2);
-      navigator.clipboard.writeText(val).then(() => {
-        showToast('📋 서류 원문이 클립보드에 복사되었습니다.');
-      });
-    }
+    // ── 액션 유틸 ──
+    async function toggleStarItem(idOrCaseNo, e) {
+      if (e) e.stopPropagation();
+      const item = allItems.find(it => (it.id == idOrCaseNo || it.case_no == idOrCaseNo || it.사건번호 == idOrCaseNo));
+      if (!item) return;
 
-    function filterDocText(query) {
-      const container = document.getElementById('docBodyContainer');
-      const countEl = document.getElementById('docSearchCount');
-      if (!container) return;
+      item.is_interested = !item.is_interested;
+      applyFilters();
 
-      if (!query || query.trim().length === 0) {
-        if (countEl) countEl.textContent = '';
-        const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
-        if (item) {
-          container.innerHTML = parseAndFormatDocument(item[currentDocField] || '', currentDocField);
+      try {
+        if (item.id) {
+          await fetch(`/api/auction-data?id=${item.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_interested: item.is_interested })
+          });
         }
-        return;
+      } catch (err) {
+        console.warn('Failed to persist star to NocoDB:', err);
       }
+      showToast(item.is_interested ? '관심 및 임장 목록에 추가되었습니다.' : '관심 목록에서 해제되었습니다.');
+    }
 
-      const q = query.trim();
-      const regex = new RegExp(`(${escapeRegExp(q)})`, 'gi');
-      let matches = 0;
+    async function handleToggleHide(idOrCaseNo, e) {
+      if (e) e.stopPropagation();
+      const item = allItems.find(it => (it.id == idOrCaseNo || it.case_no == idOrCaseNo || it.사건번호 == idOrCaseNo));
+      if (!item) return;
 
-      function highlightNode(node) {
-        if (node.nodeType === 3) {
-          const val = node.nodeValue;
-          if (regex.test(val)) {
-            const count = (val.match(regex) || []).length;
-            matches += count;
-            const span = document.createElement('span');
-            span.innerHTML = val.replace(regex, '<mark class="highlight-term">$1</mark>');
-            node.parentNode.replaceChild(span, node);
-          }
-        } else if (node.nodeType === 1 && node.childNodes && !/^(script|style|textarea|input)$/i.test(node.tagName)) {
-          Array.from(node.childNodes).forEach(highlightNode);
+      const newStatus = item.status === '숨김' ? '진행중' : '숨김';
+      item.status = newStatus;
+      applyFilters();
+
+      try {
+        if (item.id) {
+          await fetch(`/api/auction-data?id=${item.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+          });
         }
+      } catch (err) {
+        console.warn('Failed to persist status to NAS NocoDB:', err);
       }
-
-      highlightNode(container);
-      if (countEl) countEl.textContent = matches > 0 ? `🔍 ${matches}개 발견` : '검색 결과 없음';
+      showToast(newStatus === '숨김' ? `${item.case_no || ''} 물건을 숨겼습니다 (NAS 동기화).` : `${item.case_no || ''} 물건을 다시 복원했습니다.`);
     }
 
-    function escapeRegExp(string) {
-      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
     }
 
-    // ─────────────────────────────────────────────────────
-    // Document Specific Smart Parsers
-    // ─────────────────────────────────────────────────────
-    function parseAndFormatDocument(text, fieldName) {
-      if (!text) return '<div style="text-align:center; padding:40px; color:var(--text-sub);">등록된 서류 내용이 없습니다.</div>';
-
-      if (fieldName === 'real_trade_history') {
-        return parseRealTradeHistory(text);
-      }
-      if (fieldName === 'doc_spec_text') {
-        return parseDocSpec(text);
-      }
-      if (fieldName === 'doc_survey_text') {
-        return parseDocSurvey(text);
-      }
-      if (fieldName === 'doc_appraisal_text') {
-        return parseDocAppraisal(text);
-      }
-      if (fieldName === 'doc_registry_text') {
-        return parseDocRegistry(text);
-      }
-      if (fieldName === 'doc_ledger_text') {
-        return parseDocLedger(text);
-      }
-
-      return `<div class="doc-section-card"><div class="modal-text">${escapeHtml(String(text)).replace(/\n/g, '<br/>')}</div></div>`;
+    function closeModalOnOverlay(e, id) {
+      if (e.target.id === id) closeModal(id);
     }
 
-    function highlightKeywords(htmlStr) {
-      if (!htmlStr) return '';
-      let str = htmlStr;
-      
-      const dangerTerms = ['대항력', '선순위', '선순위임차인', '위반건축물', '가등기', '가처분', '유치권', '지상권', '경매개시결정', '압류', '가압류'];
-      dangerTerms.forEach(t => {
-        const re = new RegExp(`(${t})`, 'g');
-        str = str.replace(re, '<span class="doc-badge doc-badge-danger">$1</span>');
-      });
-
-      const warnTerms = ['주거 임차인', '임차인', '전입일자', '전입신고', '확정일자', '배당요구', '근저당권', '근저당'];
-      warnTerms.forEach(t => {
-        const re = new RegExp(`(${t})`, 'g');
-        str = str.replace(re, '<span class="doc-badge doc-badge-warning">$1</span>');
-      });
-
-      const safeTerms = ['말소기준권리', '소멸', '대지권 유', '낙찰자인수없음', '전산이기'];
-      safeTerms.forEach(t => {
-        const re = new RegExp(`(${t})`, 'g');
-        str = str.replace(re, '<span class="doc-badge doc-badge-success">$1</span>');
-      });
-
-      return str;
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      if (!t) return;
+      t.innerText = msg;
+      t.className = 'toast show' + (isError ? ' toast-error' : '');
+      setTimeout(() => { t.className = 'toast'; }, 3000);
     }
 
     function escapeHtml(str) {
-      if (typeof str !== 'string') return String(str);
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // ─────────────────────────────────────────────────────
-    // SVG Chart Floating HTML Tooltip Handlers
-    // ─────────────────────────────────────────────────────
-    function showChartTooltip(e, date, floor, priceStr) {
-      let tt = document.getElementById('chartTooltip');
-      if (!tt) {
-        tt = document.createElement('div');
-        tt.id = 'chartTooltip';
-        tt.style.cssText = `
-          position: fixed;
-          z-index: 99999;
-          pointer-events: none;
-          background: rgba(13, 17, 23, 0.94);
-          border: 1px solid var(--blue, #58a6ff);
-          border-radius: 8px;
-          padding: 8px 12px;
-          font-size: 12px;
-          color: #ffffff;
-          box-shadow: 0 6px 20px rgba(0,0,0,0.6);
-          backdrop-filter: blur(6px);
-          transition: opacity 0.1s ease, transform 0.05s ease;
-          opacity: 0;
-        `;
-        document.body.appendChild(tt);
-      }
-      tt.innerHTML = `
-        <div style="font-weight:700; color:var(--blue); margin-bottom:3px;">📅 ${date}</div>
-        <div>🏢 ${floor}층 | <strong style="color:#3fb950;">💰 ${priceStr}</strong></div>
-      `;
-      tt.style.left = (e.clientX + 14) + 'px';
-      tt.style.top = (e.clientY - 42) + 'px';
-      tt.style.opacity = '1';
-    }
-
-    function moveChartTooltip(e) {
-      const tt = document.getElementById('chartTooltip');
-      if (tt && tt.style.opacity === '1') {
-        tt.style.left = (e.clientX + 14) + 'px';
-        tt.style.top = (e.clientY - 42) + 'px';
-      }
-    }
-
-    function hideChartTooltip() {
-      const tt = document.getElementById('chartTooltip');
-      if (tt) {
-        tt.style.opacity = '0';
-      }
-    }
-
+    // ── 문서 파서 ──
     function parseDocSpec(rawText) {
-      let html = '';
-      const text = String(rawText);
-
+      const text = String(rawText || '');
       const caseMatch = text.match(/사건\s*([0-9가-힣]+타경[0-9]+[^\n]*)/);
       const dateMatch = text.match(/작성\s*일자\s*([0-9\.\s]+)/);
-      const judgeMatch = text.match(/담임법관[^\n]*\s*([가-힣]+)/);
       const topPriorityMatch = text.match(/최선순위\s*설정\s*([0-9\.\s]+[^\n]*)/);
       const dividendMatch = text.match(/배당요구종기\s*([0-9\.\s]+)/);
 
-      html += `
-        <div class="doc-section-card">
-          <div class="doc-section-card-title">⚖️ 매각물건명세서 기본정보</div>
-          <div class="kv-grid">
-            <div class="kv-item"><span class="kv-label">사건번호</span><span class="kv-value">${caseMatch ? caseMatch[1] : '-'}</span></div>
-            <div class="kv-item"><span class="kv-label">작성일자</span><span class="kv-value">${dateMatch ? dateMatch[1] : '-'}</span></div>
-            <div class="kv-item"><span class="kv-label">담당법관</span><span class="kv-value">${judgeMatch ? judgeMatch[1] : '-'}</span></div>
-            <div class="kv-item"><span class="kv-label">최선순위 설정</span><span class="kv-value"><strong style="color:var(--blue);">${topPriorityMatch ? topPriorityMatch[1] : '-'}</strong></span></div>
-            <div class="kv-item"><span class="kv-label">배당요구종기</span><span class="kv-value"><strong style="color:var(--yellow);">${dividendMatch ? dividendMatch[1] : '-'}</strong></span></div>
-          </div>
+      return `
+        <div class="kv-grid">
+          <div class="kv-item"><span class="kv-label">사건번호</span><span class="kv-value">${caseMatch ? caseMatch[1] : '-'}</span></div>
+          <div class="kv-item"><span class="kv-label">작성일자</span><span class="kv-value">${dateMatch ? dateMatch[1] : '-'}</span></div>
+          <div class="kv-item"><span class="kv-label">최선순위 설정</span><span class="kv-value" style="color:var(--blue);">${topPriorityMatch ? topPriorityMatch[1] : '-'}</span></div>
+          <div class="kv-item"><span class="kv-label">배당요구종기</span><span class="kv-value" style="color:var(--yellow);">${dividendMatch ? dividendMatch[1] : '-'}</span></div>
         </div>
       `;
-
-      // Extract Note Blocks (비고, 등기권리, 비고란)
-      const noteItems = [];
-
-      // 1. <비고> ...
-      const bigoMatch = text.match(/<비고>([\s\S]*?)(?=※|등기된 부동산|매각에 따라|사건\s*[\n\r]|사건\s*[0-9]+타경|$)/i);
-      if (bigoMatch && bigoMatch[1].trim()) {
-        const cleanBigo = bigoMatch[1].trim().replace(/\n+/g, ' ');
-        noteItems.push(`<strong><비고>:</strong> ${escapeHtml(cleanBigo)}`);
-      }
-
-      // 2. 등기된 부동산 권리 / 임차권등기
-      const regRightsMatch = text.match(/등기된 부동산에 관한 권리[^\n]*[\n\r]+([^\n]+)/i);
-      if (regRightsMatch && regRightsMatch[1].trim() && !regRightsMatch[1].includes('매각에 따라')) {
-        noteItems.push(`<strong>소멸하지 않는 등기 권리:</strong> <span class="doc-badge doc-badge-danger">${escapeHtml(regRightsMatch[1].trim())}</span>`);
-      }
-
-      // 3. 비고란 (대항력 있는 임차인 등)
-      const bigoRanMatch = text.match(/비고란[\s\S]*?([^\n]+(?:\n[^\n]+)?)(?=사건|$)/i);
-      if (bigoRanMatch && bigoRanMatch[1].trim()) {
-        const cleanBigoRan = bigoRanMatch[1].trim().replace(/\n+/g, ' ');
-        if (!cleanBigoRan.includes('<비고>')) {
-          noteItems.push(`<strong>비고란:</strong> <span class="doc-badge doc-badge-warning">${escapeHtml(cleanBigoRan)}</span>`);
-        }
-      }
-
-      if (noteItems.length > 0) {
-        html += `
-          <div class="doc-section-card" style="border-left:4px solid var(--red);">
-            <div class="doc-section-card-title">📌 명세서 비고 및 중요 권리 사항</div>
-            <ul style="margin:0; padding-left:18px; line-height:1.8; font-size:13px; color:var(--text);">
-              ${noteItems.map(item => `<li>${highlightKeywords(item)}</li>`).join('')}
-            </ul>
-          </div>
-        `;
-      }
-
-      // 4. Big Warning Callout
-      const bigWarningMatch = text.match(/※\s*최선순위 설정일자보다 대항요건을[^\n]*(\n[^\n]*){0,4}/g);
-      if (bigWarningMatch && bigWarningMatch[0]) {
-        html += `
-          <div class="legal-callout-warning">
-            <strong>⚠️ [매수인 인수 가능성 주의사항]</strong><br/>
-            ${escapeHtml(bigWarningMatch[0].replace(/\s+/g, ' '))}
-          </div>
-        `;
-      }
-
-      // 5. Tenant Section Parsing (Vertical & Horizontal Table Rows)
-      let tenantBlock = '';
-      const startIdx = text.search(/점유자[\s\S]*?배당\s*요구여부|부동산의 점유자와/);
-      const endIdx = text.search(/부동산의\s*표시|\[물건\s*1\]|감정평가액/);
-      if (startIdx !== -1) {
-        tenantBlock = endIdx !== -1 && endIdx > startIdx ? text.substring(startIdx, endIdx) : text.substring(startIdx, startIdx + 1500);
-      }
-
-      if (tenantBlock) {
-        const tenants = parseTenantBlock(tenantBlock);
-
-        if (tenants.length > 0) {
-          html += `
-            <div class="doc-section-card">
-              <div class="doc-section-card-title">👥 점유자 및 임차인 관계 현황 (${tenants.length}명)</div>
-              <div style="overflow-x:auto;">
-                <table class="doc-table">
-                  <thead>
-                    <tr>
-                      <th>점유자</th><th>점유부분</th><th>정보출처</th><th>구분 / 권원</th><th>임대차기간</th><th>보증금</th><th>차임</th><th>전입일자</th><th>확정일자</th><th>배당요구일</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-          `;
-
-          tenants.forEach(t => {
-            html += `
-              <tr>
-                <td><strong>${escapeHtml(t.name)}</strong></td>
-                <td>${escapeHtml(t.portion)}</td>
-                <td>${escapeHtml(t.source)}</td>
-                <td><span class="doc-badge doc-badge-warning">${escapeHtml(t.type)}</span></td>
-                <td>${escapeHtml(t.period)}</td>
-                <td><strong style="color:var(--green);">${escapeHtml(t.deposit)}</strong></td>
-                <td>${escapeHtml(t.rent)}</td>
-                <td>${escapeHtml(t.moveInDate)}</td>
-                <td>${escapeHtml(t.fixDate)}</td>
-                <td>${escapeHtml(t.dividendDate)}</td>
-              </tr>
-            `;
-          });
-
-          html += `</tbody></table></div></div>`;
-        }
-      }
-
-      const roundMatches = text.match(/([0-9]회)\s*([0-9\.]+)\s*([0-9,]+)\s*([0-9,]+)/g);
-      if (roundMatches && roundMatches.length > 0) {
-        html += `
-          <div class="doc-section-card">
-            <div class="doc-section-card-title">📅 회차별 기일 및 최저매각가격 정보</div>
-            <table class="doc-table">
-              <thead><tr><th>회차</th><th>매각기일</th><th>최저매각가격</th><th>매수신청보증금</th></tr></thead>
-              <tbody>
-        `;
-        roundMatches.forEach(r => {
-          const parts = r.split(/\s+/);
-          if (parts.length >= 4) {
-            html += `<tr><td><strong>${parts[0]}</strong></td><td>${parts[1]}</td><td style="color:var(--blue); font-weight:700;">${Number(parts[2].replace(/,/g,'')).toLocaleString()}원</td><td>${Number(parts[3].replace(/,/g,'')).toLocaleString()}원</td></tr>`;
-          }
-        });
-        html += `</tbody></table></div>`;
-      }
-
-      html += `
-        <div class="doc-section-card">
-          <div class="doc-section-card-title">📜 명세서 전문</div>
-          <div style="font-size:12.5px; line-height:1.6; white-space:pre-wrap; color:var(--text-sub); font-family:monospace;">${highlightKeywords(escapeHtml(text))}</div>
-        </div>
-      `;
-
-      return html;
-    }
-
-    function parseTenantBlock(rawBlock) {
-      // 1. Strip everything before header end (배당요구일자)
-      let dataText = rawBlock;
-      const headerMatch = rawBlock.match(/\(배당요구일자\)|배당요구일자|배당\s*요구여부/);
-      if (headerMatch) {
-        dataText = rawBlock.substring(rawBlock.indexOf(headerMatch[0]) + headerMatch[0].length);
-      }
-
-      // 2. Stop at '부동산의 표시' or '[물건 1]' or '감정평가액'
-      const stopIdx = dataText.search(/부동산의\s*표시|\[물건\s*\d+\]|감정평가액/);
-      if (stopIdx !== -1) {
-        dataText = dataText.substring(0, stopIdx);
-      }
-
-      const nonNameWords = new Set([
-        '점유자', '성명', '점유', '부분', '점유부분', '정보출처', '구분', '권원', '점유의', '임대차기간',
-        '전부', '일부', '미상', '없음', '주거', '상가', '임차인', '임차권자', '주택임차권자', '주택임차권',
-        '임차권', '주택임', '차권자', '자', '권리신고', '현황조사', '등기사항전', '부증명서', '등기사항전부증명서',
-        '등기사항', '전산이기', '소멸', '인수', '말소기준', '근저당', '가압류', '압류', '경매개시', '임차권등기',
-        '대항력', '배당요구', '전입신고', '확정일자', '사업자등록', '도로명주소', '철근콘크리트조', '박공지붕',
-        '스라브지붕', '아파트', '공동주택', '부동산', '건물', '토지'
-      ]);
-
-      const lines = dataText.split('\n')
-        .map(l => l.trim())
-        .filter(l => l.length > 0 && !l.startsWith('※') && !l.includes('대항요건') && !l.includes('인수되게'));
-
-      if (lines.length === 0) return [];
-
-      // Check horizontal table (multi-column space/tab separated)
-      const horizontalRows = lines.filter(l => l.split(/\s{2,}|\t/).length >= 3);
-      if (horizontalRows.length > 0) {
-        return horizontalRows.map(l => {
-          const cols = l.split(/\s{2,}|\t/);
-          return {
-            name: cols[0] || '-',
-            portion: cols[1] || '-',
-            source: cols[2] || '-',
-            type: cols[3] || cols[4] || '-',
-            period: cols[5] || '-',
-            deposit: cols[6] || '-',
-            rent: cols[7] || '-',
-            moveInDate: cols[8] || '-',
-            fixDate: cols[9] || '-',
-            dividendDate: cols[10] || '-'
-          };
-        });
-      }
-
-      // Vertical token stream parsing
-      const isNameToken = (t) => (/^[가-힣]{2,4}$/.test(t) && !nonNameWords.has(t) && !/\d/.test(t)) || t === '미상';
-
-      const tenantGroups = [];
-      let currentTokens = [];
-
-      lines.forEach(line => {
-        if (isNameToken(line)) {
-          if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
-            tenantGroups.push(currentTokens);
-          }
-          currentTokens = [line];
-        } else {
-          if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
-            currentTokens.push(line);
-          }
-        }
-      });
-      if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
-        tenantGroups.push(currentTokens);
-      }
-
-      const results = [];
-      tenantGroups.forEach(tokens => {
-        if (!tokens || tokens.length === 0) return;
-        const name = tokens[0];
-        if (nonNameWords.has(name) || name.includes('부동산') || name.includes('타경')) return;
-
-        let portion = '-', source = '-', type = '-', period = '-', deposit = '-', rent = '-', moveInDate = '-', fixDate = '-', dividendDate = '-';
-        const unassigned = [];
-
-        tokens.slice(1).forEach(tok => {
-          if (tok === '전부' || tok === '일부') portion = tok;
-          else if (tok.includes('등기사항') || tok.includes('부증명서') || tok.includes('권리신고') || tok.includes('현황조사')) {
-            source = source === '-' ? tok : (source + tok);
-          }
-          else if (tok.includes('주거') || tok.includes('임차') || tok.includes('자') || tok.includes('상가')) {
-            type = type === '-' ? tok : (type + (tok.length === 1 ? '' : ' ') + tok);
-          }
-          else if (tok.includes('~')) period = tok;
-          else if (tok.includes('원') || tok.includes('만') || tok.includes('억')) {
-            if (deposit === '-') deposit = tok;
-            else if (rent === '-') rent = tok;
-          }
-          else if (/\d{4}\.\s*\d{1,2}\.\s*\d{1,2}/.test(tok) || /\d{4}-\d{1,2}-\d{1,2}/.test(tok)) {
-            if (moveInDate === '-') moveInDate = tok;
-            else if (fixDate === '-') fixDate = tok;
-            else if (dividendDate === '-') dividendDate = tok;
-          }
-          else if (tok === '없음' || tok === '미상') {
-            if (deposit === '-') deposit = tok;
-            else if (rent === '-') rent = tok;
-            else if (dividendDate === '-') dividendDate = tok;
-          }
-          else {
-            unassigned.push(tok);
-          }
-        });
-
-        if (unassigned.length > 0 && type === '-') type = unassigned.join(' ');
-
-        results.push({
-          name,
-          portion,
-          source: source.replace('등기사항전부증명서', '등기사항전부증명서'),
-          type: type.trim(),
-          period,
-          deposit,
-          rent,
-          moveInDate,
-          fixDate,
-          dividendDate
-        });
-      });
-
-      return results;
-    }
-
-    function parseDocSurvey(rawText) {
-      let html = '';
-      const text = String(rawText);
-
-      const caseMatch = text.match(/사건번호\s*([0-9가-힣]+타경[0-9]+[^\n]*)/);
-      const dateMatch = text.match(/조사일시\s*([^\n]+)/);
-
-      html += `
-        <div class="doc-section-card">
-          <div class="doc-section-card-title">📋 현황조사서 기본정보</div>
-          <div class="kv-grid">
-            <div class="kv-item"><span class="kv-label">사건번호</span><span class="kv-value">${caseMatch ? caseMatch[1] : '-'}</span></div>
-            <div class="kv-item"><span class="kv-label">조사일시</span><span class="kv-value">${dateMatch ? dateMatch[1] : '-'}</span></div>
-          </div>
-        </div>
-      `;
-
-      const sections = text.split(/(?=ㆍ|\b[1-9]\.\s*부동산의)/);
-      sections.forEach(sec => {
-        if (!sec.trim()) return;
-        const lines = sec.trim().split('\n');
-        const title = lines[0].replace(/^ㆍ/, '').trim();
-        const contentLines = lines.slice(1).join('\n');
-
-        html += `
-          <div class="doc-section-card">
-            <div class="doc-section-card-title">📌 ${escapeHtml(title)}</div>
-            <div style="font-size:13px; line-height:1.6;">${highlightKeywords(escapeHtml(contentLines).replace(/\n/g, '<br/>'))}</div>
-          </div>
-        `;
-      });
-
-      return html;
-    }
-
-    function parseDocAppraisal(rawText) {
-      let html = '';
-      const text = String(rawText);
-
-      const priceMatch = text.match(/감정평가액[^\n]*?([0-9,]+만?원|\\[0-9,]+)/) || text.match(/75,000,000/);
-      const dateMatch = text.match(/기준시점[^\n]*?([0-9\.\s년월일]+)/);
-
-      html += `
-        <div class="doc-section-card" style="border-top: 3px solid var(--blue);">
-          <div class="doc-section-card-title">🏢 감정평가 요약</div>
-          <div class="kv-grid">
-            <div class="kv-item"><span class="kv-label">총 감정평가액</span><span class="kv-value"><strong style="font-size:16px; color:var(--blue);">${priceMatch ? priceMatch[0] : '75,000,000원'}</strong></span></div>
-            <div class="kv-item"><span class="kv-label">기준시점</span><span class="kv-value">${dateMatch ? dateMatch[1] : '2025.11.12'}</span></div>
-            <div class="kv-item"><span class="kv-label">감정평가기관</span><span class="kv-value">김해감정평가사사무소</span></div>
-          </div>
-        </div>
-      `;
-
-      const pointsMatch = text.match(/\([0-9]+\)\s*[가-힣\s]+[\s\S]*?(?=\([0-9]+\)|김해감정|Ⅰ\.|Ⅱ\.|Ⅲ\.|$)/g);
-      if (pointsMatch && pointsMatch.length > 0) {
-        html += `
-          <div class="doc-section-card">
-            <div class="doc-section-card-title">🗺️ 구분건물 감정평가요항표</div>
-            <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
-        `;
-        pointsMatch.forEach(pt => {
-          const ptText = pt.trim();
-          if (ptText.length > 5) {
-            html += `
-              <div style="background:var(--surface2); padding:10px 14px; border-radius:6px; border:1px solid var(--border); font-size:13px; line-height:1.5;">
-                ${highlightKeywords(escapeHtml(ptText).replace(/\n/g, '<br/>'))}
-              </div>
-            `;
-          }
-        });
-        html += `</div></div>`;
-      }
-
-      html += `
-        <div class="doc-section-card">
-          <div class="doc-section-card-title">📜 감정평가서 전문</div>
-          <div style="font-size:12.5px; line-height:1.6; white-space:pre-wrap; color:var(--text-sub); font-family:monospace;">${highlightKeywords(escapeHtml(text))}</div>
-        </div>
-      `;
-
-      return html;
-    }
-
-    function parseDocRegistry(rawText) {
-      if (!rawText) return '<div class="doc-section-card">등기사항전부증명서 데이터가 없습니다.</div>';
-
-      let html = '';
-      const fullText = String(rawText);
-
-      // Clean page noise, headers, disclaimers
-      let text = fullText
-        .replace(/M\s*Y\s*A\s*U\s*C\s*T\s*I\s*O\s*N/gi, '')
-        .replace(/열\s*람\s*용/g, '')
-        .replace(/열람일시\s*:[^\n]*/g, '')
-        .replace(/관할등기소[^\n]*/g, '')
-        .replace(/본 등기사항증명서는[^\n]*/g, '')
-        .replace(/실선으로 그어진[^\n]*/g, '')
-        .replace(/기록사항 없는[^\n]*/g, '')
-        .replace(/증명서는 컬러[^\n]*/g, '')
-        .replace(/Powered by TCPDF[^\n]*/gi, '')
-        .replace(/\b\d+\/\d+\b/g, '');
-
-      // 1. Separate Summary Section
-      let summaryText = '';
-      let mainText = text;
-      const summaryIdx = text.search(/주요\s*등기사항\s*요약/);
-      if (summaryIdx !== -1) {
-        summaryText = text.substring(summaryIdx).trim();
-        mainText = text.substring(0, summaryIdx).trim();
-
-        html += `
-          <div class="doc-section-card" style="border: 2px solid var(--blue); background: rgba(56, 139, 253, 0.06);">
-            <div class="doc-section-card-title">⭐ 주요 등기사항 요약 (말소되지 않은 유효 권리)</div>
-            <div style="font-size:13px; line-height:1.65; white-space:pre-wrap; color:var(--text);">${highlightKeywords(escapeHtml(summaryText))}</div>
-          </div>
-        `;
-      }
-
-      // 2. Split mainText into 표제부(1동), 표제부(전유), 갑구, 을구
-      const sectionMatches = mainText.split(/(?=【\s*(?:표\s*제\s*부|갑\s*구|을\s*구)\s*】)/);
-
-      sectionMatches.forEach(sec => {
-        const secText = sec.trim();
-        if (!secText) return;
-
-        let title = '📋 등기사항 정보';
-        let subTitle = '';
-        let borderColor = 'var(--border)';
-
-        if (secText.includes('【 표 제 부 】') || secText.includes('표제부')) {
-          if (secText.includes('1동의 건물의 표시')) {
-            title = '🏢 【 표 제 부 】 (1동의 건물의 표시)';
-            subTitle = '1동 건물 전체 층수, 소재지번, 구조 및 연면적';
-          } else if (secText.includes('전유부분')) {
-            title = '🏠 【 표 제 부 】 (전유부분 건물의 표시 & 대지권 비율)';
-            subTitle = '해당 호수 전유면적 및 토지 대지권 비율';
-          } else {
-            title = '📐 【 표 제 부 】 (건물 및 대지권 표시)';
-          }
-          borderColor = 'var(--blue)';
-        } else if (secText.includes('【 갑 구 】') || secText.includes('갑구')) {
-          title = '👤 【 갑 구 】 (소유권에 관한 사항 - 소유자 / 압류 / 가압류 / 경매)';
-          subTitle = '소유권 변동 역사, 압류, 가압류, 임의/강제 경매개시결정';
-          borderColor = 'var(--red)';
-        } else if (secText.includes('【 을 구 】') || secText.includes('을 구') || secText.includes('을구')) {
-          title = '🏦 【 을 구 】 (소유권 이외의 권리 - 근저당권 / 전세권 / 임차권)';
-          subTitle = '근저당권 채권최고액, 채권자, 전세권 및 주택임차권등기 설정 내역';
-          borderColor = 'var(--green)';
-        }
-
-        html += `
-          <div class="doc-section-card" style="border-top: 3px solid ${borderColor};">
-            <div class="doc-section-card-title">${title}</div>
-            ${subTitle ? `<div style="font-size:12px; color:var(--text-sub); margin-bottom:10px;">${subTitle}</div>` : ''}
-            <div style="font-size:12.5px; line-height:1.65; white-space:pre-wrap; font-family:monospace; color:var(--text);">${highlightKeywords(escapeHtml(secText))}</div>
-          </div>
-        `;
-      });
-
-      return html;
-    }
-
-    function parseDocLedger(rawText) {
-      const text = String(rawText);
-      let html = `
-        <div class="doc-section-card">
-          <div class="doc-section-card-title">🏢 건축물대장 정보</div>
-          <div style="font-size:13px; line-height:1.6;">${highlightKeywords(escapeHtml(text).replace(/\n/g, '<br/>'))}</div>
-        </div>
-      `;
-      return html;
     }
 
     function parseRealTradeHistory(rawText) {
-      if (typeof rawText === 'object' || (typeof rawText === 'string' && rawText.trim().startsWith('['))) {
-        try {
-          const arr = typeof rawText === 'string' ? JSON.parse(rawText) : rawText;
-          if (Array.isArray(arr) && arr.length > 0) {
-            return renderTradeTableFromArray(arr);
-          }
-        } catch(e) {}
-      }
+      const lines = String(rawText || '').split('\n').filter(l => l.trim());
+      if (lines.length === 0) return '<p style="color:var(--text-sub)">실거래가 내역 없음</p>';
 
-      const lines = String(rawText).trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      if (lines.length === 0) return '<div class="doc-section-card">실거래가 데이터가 없습니다.</div>';
+      let rows = lines.map(line => {
+        const cols = line.split('\t');
+        return `<tr>${cols.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`;
+      }).join('');
 
-      const rows = [];
-      lines.forEach(l => {
-        if (l.includes('계약일') && l.includes('거래금액')) return;
-        const cols = l.split(/\t|\s{2,}/);
-        if (cols.length >= 4) {
-          rows.push({
-            date: cols[0] || '-',
-            type: cols[1] || '매매',
-            name: cols[2] || '-',
-            floor: cols[3] || '-',
-            area: cols[4] || '-',
-            price: cols[5] || '-',
-            year: cols[6] || '-'
-          });
-        }
-      });
-
-      if (rows.length === 0) {
-        return `<div class="doc-section-card"><div style="font-size:13px; white-space:pre-wrap;">${escapeHtml(String(rawText))}</div></div>`;
-      }
-
-      return renderTradeTableFromArray(rows);
+      return `<table class="doc-table"><tbody>${rows}</tbody></table>`;
     }
-
-    function renderTradeTableFromArray(rows) {
-      let sumPrice = 0, count = 0;
-      let maxP = 0, minP = Infinity;
-      const validPoints = [];
-
-      rows.forEach(r => {
-        const p = parseInt(String(r.price).replace(/,/g, ''), 10);
-        if (!isNaN(p) && p > 0) {
-          sumPrice += p;
-          count++;
-          if (p > maxP) maxP = p;
-          if (p < minP) minP = p;
-          validPoints.push({
-            date: r.date,
-            price: p,
-            floor: r.floor,
-            name: r.name,
-            area: r.area
-          });
-        }
-      });
-
-      if (minP === Infinity) minP = 0;
-      const avgPrice = count > 0 ? Math.round(sumPrice / count) : 0;
-      const fmtPrice = (val) => {
-        const n = parseInt(String(val).replace(/,/g, ''), 10);
-        if (isNaN(n)) return val;
-        const e = Math.floor(n / 10000), m = n % 10000;
-        return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만원`;
-      };
-
-      // Generate SVG Line Chart if at least 2 data points exist
-      let chartSvgHtml = '';
-      if (validPoints.length >= 2) {
-        const sorted = [...validPoints].sort((a, b) => new Date(a.date.replace(/\./g, '-')) - new Date(b.date.replace(/\./g, '-')));
-
-        const width = 780;
-        const height = 180;
-        const padding = 35;
-        const chartW = width - padding * 2;
-        const chartH = height - padding * 2;
-
-        const rangeP = maxP - minP || 1;
-        const minVal = Math.max(0, minP - rangeP * 0.1);
-        const maxVal = maxP + rangeP * 0.1;
-        const valRange = maxVal - minVal;
-
-        const points = sorted.map((pt, idx) => {
-          const x = padding + (idx / (sorted.length - 1)) * chartW;
-          const y = padding + chartH - ((pt.price - minVal) / valRange) * chartH;
-          return { x, y, pt };
-        });
-
-        const polylinePoints = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-        const areaPoints = `${padding},${height - padding} ${polylinePoints} ${width - padding},${height - padding}`;
-
-        chartSvgHtml = `
-          <div style="margin-top:16px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:14px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--text-sub); margin-bottom:8px;">
-              <span>📈 <strong>실거래가 가격 추이</strong> (${sorted[0].date} ~ ${sorted[sorted.length-1].date})</span>
-              <span>최고가 <strong style="color:var(--red);">${fmtPrice(maxP)}</strong> / 최저가 <strong style="color:var(--blue);">${fmtPrice(minP)}</strong></span>
-            </div>
-            <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; overflow:visible; display:block;">
-              <defs>
-                <linearGradient id="tradeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#3fb950" stop-opacity="0.35"/>
-                  <stop offset="100%" stop-color="#3fb950" stop-opacity="0.0"/>
-                </linearGradient>
-              </defs>
-              <line x1="${padding}" y1="${padding}" x2="${width - padding}" y2="${padding}" stroke="var(--border)" stroke-dasharray="3,3" opacity="0.5"/>
-              <line x1="${padding}" y1="${height / 2}" x2="${width - padding}" y2="${height / 2}" stroke="var(--border)" stroke-dasharray="3,3" opacity="0.3"/>
-              <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="var(--border)"/>
-              
-              <polygon points="${areaPoints}" fill="url(#tradeGrad)" />
-              <polyline points="${polylinePoints}" fill="none" stroke="#3fb950" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-              
-              ${points.map(p => `
-                <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="#3fb950" stroke="var(--bg)" stroke-width="2" style="cursor:pointer; transition:r 0.15s ease;"
-                        onmouseenter="showChartTooltip(event, '${p.pt.date}', '${p.pt.floor}', '${fmtPrice(p.pt.price)}')"
-                        onmousemove="moveChartTooltip(event)"
-                        onmouseleave="hideChartTooltip()">
-                </circle>
-              `).join('')}
-            </svg>
-          </div>
-        `;
-      }
-
-      let html = `
-        <div class="doc-section-card" style="border-top:3px solid var(--green);">
-          <div class="doc-section-card-title">📈 국토부 실거래가 내역 요약 (${rows.length}건)</div>
-          <div class="kv-grid">
-            <div class="kv-item"><span class="kv-label">총 거래 건수</span><span class="kv-value"><strong>${rows.length}건</strong></span></div>
-            <div class="kv-item"><span class="kv-label">평균 거래가</span><span class="kv-value"><strong style="color:var(--green); font-size:15px;">${fmtPrice(avgPrice)}</strong></span></div>
-            <div class="kv-item"><span class="kv-label">최고 거래가</span><span class="kv-value"><strong style="color:var(--red);">${fmtPrice(maxP)}</strong></span></div>
-            <div class="kv-item"><span class="kv-label">최저 거래가</span><span class="kv-value"><strong style="color:var(--blue);">${fmtPrice(minP)}</strong></span></div>
-          </div>
-          ${chartSvgHtml}
-        </div>
-
-        <div class="doc-section-card">
-          <div class="doc-section-card-title">📊 실거래 상세 거래 리스트</div>
-          <div style="overflow-x:auto;">
-            <table class="doc-table">
-              <thead>
-                <tr><th>계약일</th><th>구분</th><th>단지/건물명</th><th>층</th><th>전용면적</th><th>거래금액</th><th>건축년도</th></tr>
-              </thead>
-              <tbody>
-      `;
-
-      rows.forEach(r => {
-        html += `
-          <tr>
-            <td>${escapeHtml(r.date)}</td>
-            <td><span class="doc-badge doc-badge-safe">${escapeHtml(r.type)}</span></td>
-            <td><strong>${escapeHtml(r.name)}</strong></td>
-            <td>${escapeHtml(r.floor)}층</td>
-            <td>${escapeHtml(r.area)}㎡</td>
-            <td><strong style="color:var(--green);">${fmtPrice(r.price)}</strong></td>
-            <td>${escapeHtml(r.year)}년</td>
-          </tr>
-        `;
-      });
-
-      html += `</tbody></table></div></div>`;
-      return html;
-    }
-
-    function closeModal(e) {
-      if (e && e.target.id !== 'detailModal' && !e.target.classList.contains('modal-close') && e.type === 'click') return;
-      document.getElementById('detailModal').classList.remove('show');
-    }
-
-    // Map feature
-    let isMapMode = false;
-    let mapInstance = null;
-    let mapMarkers = [];
-    let mapStatusFilter = '진행중'; // 기본: 진행중만 표시
-
-    function toggleMap() {
-      isMapMode = !isMapMode;
-      const btn = document.getElementById('btnToggleMap');
-      const mapContainer = document.getElementById('mapContainer');
-      const mapFilterBar = document.getElementById('mapFilterBar');
-      const cardsGrid = document.getElementById('cardsGrid');
-
-      if (isMapMode) {
-        btn.innerHTML = '<span class="icon">📄</span> 리스트로 돌아가기';
-        btn.classList.add('active');
-        cardsGrid.style.display = 'none';
-        mapFilterBar.style.display = 'flex';
-        mapContainer.style.display = 'block';
-        // 지도 열 때 기본 필터: 진행중
-        mapStatusFilter = '진행중';
-        document.querySelectorAll('[id^="mapFilter-"]').forEach(b => b.classList.remove('active'));
-        document.getElementById('mapFilter-진행중').classList.add('active');
-        initMap();
-      } else {
-        btn.innerHTML = '<span class="icon">🗺️</span> 지도 보기';
-        btn.classList.remove('active');
-        mapFilterBar.style.display = 'none';
-        mapContainer.style.display = 'none';
-        cardsGrid.style.display = 'grid';
-      }
-    }
-
-    function setMapFilter(val, btn) {
-      mapStatusFilter = val;
-      document.querySelectorAll('[id^="mapFilter-"]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      updateMapMarkers();
-    }
-
-    function initMap() {
-      if (!window.kakao || !window.kakao.maps) {
-        document.getElementById('mapContainer').innerHTML = '<div class="map-error">카카오맵 API 스크립트를 서버에서 불러오는 중입니다...<br/>잠시 후 다시 시도해주세요.</div>';
-        return;
-      }
-
-      if (!mapInstance) {
-        const container = document.getElementById('mapContainer');
-        const options = {
-          center: new kakao.maps.LatLng(37.566826, 126.9786567), // 기본: 서울시청
-          level: 10
-        };
-        mapInstance = new kakao.maps.Map(container, options);
-
-        const zoomControl = new kakao.maps.ZoomControl();
-        mapInstance.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
-      }
-
-      updateMapMarkers();
-    }
-
-    function updateMapMarkers() {
-      if (!mapInstance || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) return;
-
-      mapMarkers.forEach(m => m.setMap(null));
-      mapMarkers = [];
-
-      const q = document.getElementById('searchInput').value.toLowerCase();
-      const sort = document.getElementById('sortSelect').value;
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-
-      const result = allItems.filter(item => {
-        // 지도 전용 상태 필터
-        if (mapStatusFilter === '진행중' && item.status !== '진행중') return false;
-        if (mapStatusFilter === '낙찰' && item.status !== '낙찰') return false;
-
-        // 기존 필터 (risk, gap, star, urgent, 검색어)
-        if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
-        if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
-        if (filters.star && !item.is_interested) return false;
-        if (filters.urgent) {
-          const bdStr = String(item.bid_date || '').split('T')[0];
-          const bdParts = bdStr.split('-');
-          const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
-          const diff = Math.round((bd - today) / 86400000);
-          if (isNaN(diff) || diff < 0 || diff > 7) return false;
-        }
-        if (q) {
-          const hay = [item.complex_name, item.location, item.case_no].join(' ').toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        return true;
-      });
-
-      // 마커 수 카운터 업데이트
-      const countEl = document.getElementById('mapMarkerCount');
-      if (countEl) countEl.textContent = `${result.length}개 표시`;
-
-      const geocoder = new kakao.maps.services.Geocoder();
-      const bounds = new kakao.maps.LatLngBounds();
-      let added = 0;
-
-      result.forEach(item => {
-        if (!item.location) return;
-
-        geocoder.addressSearch(item.location, function (data, status) {
-          if (status === kakao.maps.services.Status.OK) {
-            const coords = new kakao.maps.LatLng(data[0].y, data[0].x);
-
-            let mColor = '#2f81f7';
-            if (item.ai_risk === '위험') mColor = '#f85149';
-            else if (item.ai_risk === '주의') mColor = '#d29922';
-            else if (item.ai_risk === '안전') mColor = '#3fb950';
-
-            const safeFmt = (n) => {
-              if (!n || n <= 0) return '-';
-              const e = Math.floor(n / 100000000), m = Math.round((n % 100000000) / 10000);
-              return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
-            };
-            const content = `<div style="position:relative;" 
-                onmouseenter="this.querySelector('.hover-info').style.display='block'" 
-                onmouseleave="this.querySelector('.hover-info').style.display='none'">
-              <div style="background:${mColor}; color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.5); border:2px solid #fff; cursor:pointer;" onclick="openDetailModal('${item.Id}')">${item.gap_score_grade || 'O'}</div>
-              <div class="hover-info" style="display:none; position:absolute; bottom:35px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:8px; font-size:12px; width:max-content; box-shadow:0 8px 24px rgba(0,0,0,0.4); z-index:100; pointer-events:none; white-space:nowrap; text-align:center;">
-                <strong style="display:block; margin-bottom:4px; font-size:13px; color:var(--blue);">${item.case_no}</strong>
-                ${item.complex_name || '단지명 미확인'} / ${item.floor || '-'}층<br/>
-                <span style="color:var(--text-sub)">최저</span> <strong>${safeFmt(item.min_price)}</strong>
-              </div>
-            </div>`;
-
-            const customOverlay = new kakao.maps.CustomOverlay({
-              position: coords,
-              content: content,
-              clickable: true
-            });
-
-            customOverlay.setMap(mapInstance);
-            mapMarkers.push(customOverlay);
-            bounds.extend(coords);
-            added++;
-
-            if (added === result.length || added > 0) {
-              mapInstance.setBounds(bounds);
-            }
-          }
-        });
-      });
-    }
-
-    // applyFilters 후 맵 마커 업데이트 연동
-    const originalApplyFilters = applyFilters;
-    applyFilters = function () {
-      originalApplyFilters();
-      if (isMapMode) updateMapMarkers();
-    };
-
-    function openCourt(url, caseNo) {
-      if (url) window.open(url, '_blank', 'noopener');
-    }
-
-    function showOnMap(id) {
-      if (!isMapMode) toggleMap();
-      const item = allItems.find(i => String(i.Id) === String(id));
-      if (item && item.location) {
-        // 약간의 지연 후 위치 이동 (지도가 처음 렌더링 될 시간을 확보)
-        setTimeout(() => {
-          if (!mapInstance || !window.kakao || !window.kakao.maps.services) return;
-          const geocoder = new kakao.maps.services.Geocoder();
-          geocoder.addressSearch(item.location, function (data, status) {
-            if (status === kakao.maps.services.Status.OK) {
-              const coords = new kakao.maps.LatLng(data[0].y, data[0].x);
-              mapInstance.setCenter(coords);
-              mapInstance.setLevel(3); // 확대
-            }
-          });
-        }, 300);
-      }
-    }
-
-    let kakaoMapScriptLoaded = false;
-    function loadKakaoMapScript(apiKey) {
-      if (kakaoMapScriptLoaded) return;
-      if (window.kakao && window.kakao.maps) return;
-      
-      kakaoMapScriptLoaded = true;
-      const script = document.createElement('script');
-      script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
-      document.head.appendChild(script);
-
-      script.onerror = () => {
-        const el = document.getElementById('mapContainer');
-        if(el) el.innerHTML = '<div class="map-error">카카오맵 API 로드 실패.<br/>도메인이 카카오 디벨로퍼스에 등록되지 않았거나 API 키가 잘못되었습니다.</div>';
-      };
-      script.onload = () => {
-        kakao.maps.load(() => {
-          if (isMapMode) {
-            initMap();
-          }
-        });
-      };
-    }
-
-    let toastTimer;
-    function showToast(msg, isError = false) {
-      const el = document.getElementById('toast');
-      el.textContent = msg;
-      el.style.borderColor = isError ? 'var(--red)' : 'var(--border)';
-      el.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
-    }
-
-    // ─────────────────────────────────────────────────────
-    // Init
-    // ─────────────────────────────────────────────────────
-    document.addEventListener('DOMContentLoaded', loadData);
   </script>
 </body>
-
 </html>

@@ -41,9 +41,19 @@ export async function onRequestGet({ request, env }) {
     );
   }
 
-  // ── 클라이언트 쿼리 파라미터를 투명하게 NocoDB에 전달 ──
+  // ── 테이블 분기 지원 (기본: auction_items, table=results -> auction_results, table=history -> auction_history) ──
   const incomingUrl = new URL(request.url);
   const params = incomingUrl.searchParams;
+  const tableParam = params.get('table');
+
+  let targetTableId = TABLE_ID;
+  if (tableParam === 'results') {
+    targetTableId = env.TABLE_RESULTS_ID || 'mprok558sdzbp7k';
+  } else if (tableParam === 'history') {
+    targetTableId = env.TABLE_HISTORY_ID || 'mxfyoppx5l9l0pq';
+  } else if (tableParam === 'items') {
+    targetTableId = TABLE_ID;
+  }
 
   // 허용된 파라미터만 전달 (보안: 임의 파라미터 차단)
   const allowed = ['where', 'sort', 'limit', 'fields', 'offset'];
@@ -53,7 +63,7 @@ export async function onRequestGet({ request, env }) {
   }
 
   const nocoUrl =
-    `${NOCODB_BASE}/api/v1/db/data/noco/${PROJECT_ID}/${TABLE_ID}` +
+    `${NOCODB_BASE}/api/v1/db/data/noco/${PROJECT_ID}/${targetTableId}` +
     (forwardedParams.toString() ? `?${forwardedParams.toString()}` : '');
 
   // ── NocoDB 호출 (토큰은 서버에서만 첨부) ──────────────
@@ -142,7 +152,7 @@ export async function onRequestPatch({ request, env }) {
   }
 
   // 허용 필드만 NocoDB에 전달 (보안: 임의 필드 차단)
-  const allowed = ['is_interested', 'interest_level', 'interested_at'];
+  const allowed = ['is_interested', 'interest_level', 'interested_at', 'status', 'memo', 'interest_memo'];
   const safeBody = {};
   for (const key of allowed) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
