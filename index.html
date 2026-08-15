@@ -1127,8 +1127,8 @@
         </div>
         <div class="chart-card">
           <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>📊 창원지법 권역별 실제 낙찰가율 & 경쟁률 (Calibration)</span>
-            <span style="font-size:11px; font-weight:normal; color:var(--text-sub);">실제 낙찰가율 vs 응찰자수</span>
+            <span>📊 유찰 횟수별 실전 낙찰가율 & 경쟁률 (Calibration)</span>
+            <span style="font-size:11px; font-weight:normal; color:var(--yellow);" id="calibSampleCount">실제 낙찰 데이터 35건 분석</span>
           </div>
           <div class="chart-wrap" style="position:relative; height:240px;">
             <canvas id="chartCalibration" aria-label="법원별 평균 낙찰가율 및 경쟁률 차트"></canvas>
@@ -1734,74 +1734,49 @@
         });
       }
 
-      // ── Chart 2: 창원지법 관할 권역별 실제 통계 (Calibration Bar + Line) ──
-      // 100% 사용자 NocoDB 원장 데이터(allResults + allItems)만으로 집계
-      function extractChangwonRegion(it) {
-        const loc = (it.location || "").replace(/경상남도|경남/g, "").trim();
-        const parts = loc.split(/\s+/);
-        if (parts[0] === "창원시" && parts[1]) {
-          return "창원 " + parts[1].replace("구", "");
-        } else if (parts[0]) {
-          return parts[0].replace(/시|군/g, "");
-        }
-        if (it.court) {
-          return it.court.replace(/지방법원|지원/g, "").trim();
-        }
-        if (it.complex_name) {
-          const cp = it.complex_name.trim().split(/\s+/);
-          return cp[0] || "창원";
-        }
-        return "창원";
-      }
+      // ── Chart 2: 유찰 횟수별 실전 낙찰가율 & 경쟁률 (100% NocoDB auction_results 기반) ──
+      const lossBins = {
+        "신건 (0회)": { totalRate: 0, totalBidders: 0, count: 0 },
+        "유찰 1회": { totalRate: 0, totalBidders: 0, count: 0 },
+        "유찰 2회": { totalRate: 0, totalBidders: 0, count: 0 },
+        "유찰 3회+": { totalRate: 0, totalBidders: 0, count: 0 },
+      };
 
-      const courtStats = {};
+      const sourceData = (allResults && allResults.length > 0) 
+        ? allResults 
+        : allItems.filter(i => i.status === "낙찰" || i.status === "매각" || Number(i.actual_bid_price) > 0);
 
-      // 1) allResults (실제 낙찰 결과 원장 테이블: mprok558sdzbp7k)
-      if (allResults && allResults.length > 0) {
-        allResults.forEach(r => {
-          const reg = extractChangwonRegion(r);
-          if (!courtStats[reg]) courtStats[reg] = { totalRate: 0, totalBidders: 0, count: 0 };
-          const rate = Number(r.actual_bid_rate || (r.appraisal_price && r.actual_bid_price ? (r.actual_bid_price / r.appraisal_price * 100) : 0));
-          const bidders = Number(r.bidder_count || 1);
-          if (rate > 0) {
-            courtStats[reg].totalRate += rate;
-            courtStats[reg].totalBidders += bidders;
-            courtStats[reg].count += 1;
-          }
-        });
-      }
+      let totalAnalyzedCount = 0;
 
-      // 2) allItems 중 낙찰 건 및 진행 물건들의 실제 권역별 최저가율 및 유찰 현황
-      allItems.forEach(i => {
-        const reg = extractChangwonRegion(i);
-        if (!courtStats[reg]) courtStats[reg] = { totalRate: 0, totalBidders: 0, count: 0 };
-        let rate = 0;
-        let bidders = 0;
-        if (i.actual_bid_rate && Number(i.actual_bid_rate) > 0) {
-          rate = Number(i.actual_bid_rate);
-          bidders = Number(i.bidder_count || 1);
-        } else if (i.price_rate && Number(i.price_rate) > 0) {
-          rate = Number(i.price_rate);
-          bidders = Number(i.loss_count || 0) + 1;
-        } else if (i.appraisal_price && i.min_price) {
-          rate = Math.round((Number(i.min_price) / Number(i.appraisal_price)) * 100);
-          bidders = Number(i.loss_count || 0) + 1;
+      sourceData.forEach(r => {
+        const loss = Number(r.loss_count) || 0;
+        let rate = Number(r.actual_bid_rate || 0);
+        if (!rate && r.appraisal_price && r.actual_bid_price) {
+          rate = (Number(r.actual_bid_price) / Number(r.appraisal_price)) * 100;
         }
+        const bidders = Number(r.bidder_count) || 1;
+
         if (rate > 0) {
-          courtStats[reg].totalRate += rate;
-          courtStats[reg].totalBidders += bidders;
-          courtStats[reg].count += 1;
+          let binKey = "신건 (0회)";
+          if (loss === 1) binKey = "유찰 1회";
+          else if (loss === 2) binKey = "유찰 2회";
+          else if (loss >= 3) binKey = "유찰 3회+";
+
+          lossBins[binKey].totalRate += rate;
+          lossBins[binKey].totalBidders += bidders;
+          lossBins[binKey].count += 1;
+          totalAnalyzedCount += 1;
         }
       });
 
-      const courtEntries = Object.entries(courtStats)
-        .filter(([k, v]) => v.count > 0 && k !== "기타")
-        .sort((a, b) => b[1].count - a[1].count)
-        .slice(0, 7);
+      const calibCountBadge = document.getElementById("calibSampleCount");
+      if (calibCountBadge) {
+        calibCountBadge.innerText = `실제 낙찰 데이터 ${totalAnalyzedCount}건 분석`;
+      }
 
-      const labels = courtEntries.map(e => e[0]);
-      const rateData = courtEntries.map(e => Math.round(e[1].totalRate / e[1].count));
-      const bidderData = courtEntries.map(e => (e[1].totalBidders / e[1].count).toFixed(1));
+      const labels = Object.keys(lossBins);
+      const rateData = labels.map(k => lossBins[k].count > 0 ? Math.round(lossBins[k].totalRate / lossBins[k].count) : 0);
+      const bidderData = labels.map(k => lossBins[k].count > 0 ? (lossBins[k].totalBidders / lossBins[k].count).toFixed(1) : 0);
 
       if (charts.calibration) charts.calibration.destroy();
       const calCanvas = document.getElementById("chartCalibration");
@@ -1814,10 +1789,10 @@
                 type: "bar",
                 label: "평균 낙찰가율 (%)",
                 data: rateData,
-                backgroundColor: "rgba(47, 129, 247, 0.6)",
+                backgroundColor: "rgba(47, 129, 247, 0.7)",
                 borderColor: "#2f81f7",
                 borderWidth: 1.5,
-                borderRadius: 5,
+                borderRadius: 6,
                 yAxisID: "yRate",
                 order: 2,
               },
@@ -1845,8 +1820,16 @@
               },
               tooltip: {
                 callbacks: {
+                  title: (items) => `📌 ${items[0].label}`,
                   label: (ctx) => {
-                    if (ctx.dataset.yAxisID === "yRate") return `📊 평균 낙찰가율: ${ctx.parsed.y}%`;
+                    const binKey = ctx.label;
+                    const sample = lossBins[binKey]?.count || 0;
+                    if (ctx.dataset.yAxisID === "yRate") {
+                      return [
+                        `📊 평균 낙찰가율: ${ctx.parsed.y}%`,
+                        `📁 분석 표본: ${sample}건`
+                      ];
+                    }
                     return `👥 평균 응찰자 수: ${ctx.parsed.y}명`;
                   }
                 }
@@ -1858,8 +1841,8 @@
                 type: "linear",
                 position: "left",
                 min: 0,
-                max: 110,
-                title: { display: true, text: "낙찰가율 (%)", color: "#2f81f7", font: { size: 10 } },
+                max: 100,
+                title: { display: true, text: "평균 낙찰가율 (%)", color: "#2f81f7", font: { size: 10 } },
                 ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v + "%" },
                 grid: { color: "#30363d" },
               },
@@ -1867,8 +1850,8 @@
                 type: "linear",
                 position: "right",
                 min: 0,
-                max: 15,
-                title: { display: true, text: "응찰자 (명)", color: "#f59e0b", font: { size: 10 } },
+                max: 12,
+                title: { display: true, text: "평균 응찰자 (명)", color: "#f59e0b", font: { size: 10 } },
                 ticks: { color: "#f59e0b", font: { size: 10 }, callback: v => v + "명" },
                 grid: { drawOnChartArea: false },
               }
