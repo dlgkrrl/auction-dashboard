@@ -1127,7 +1127,7 @@
         </div>
         <div class="chart-card">
           <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>📊 법원별 실제 낙찰가율 & 경쟁률 (Calibration)</span>
+            <span>📊 창원지법 권역별 실제 낙찰가율 & 경쟁률 (Calibration)</span>
             <span style="font-size:11px; font-weight:normal; color:var(--text-sub);">실제 낙찰가율 vs 응찰자수</span>
           </div>
           <div class="chart-wrap" style="position:relative; height:240px;">
@@ -1734,37 +1734,74 @@
         });
       }
 
-      // ── Chart 2: 법원별 실제 낙찰가율 & 경쟁률 (Calibration Bar + Line) ──
+      // ── Chart 2: 창원지법 관할 권역별 실제 통계 (Calibration Bar + Line) ──
+      // 100% 사용자 NocoDB 원장 데이터(allResults + allItems)만으로 집계
+      function extractChangwonRegion(it) {
+        const loc = (it.location || "").replace(/경상남도|경남/g, "").trim();
+        const parts = loc.split(/\s+/);
+        if (parts[0] === "창원시" && parts[1]) {
+          return "창원 " + parts[1].replace("구", "");
+        } else if (parts[0]) {
+          return parts[0].replace(/시|군/g, "");
+        }
+        if (it.court) {
+          return it.court.replace(/지방법원|지원/g, "").trim();
+        }
+        if (it.complex_name) {
+          const cp = it.complex_name.trim().split(/\s+/);
+          return cp[0] || "창원";
+        }
+        return "창원";
+      }
+
       const courtStats = {};
-      allItems.forEach(i => {
-        if ((i.status === "낙찰" || i.status === "매각") || (i.actual_bid_price > 0)) {
-          const rawCourt = i.court || (i.location ? i.location.split(" ")[0] : "기타");
-          const cName = rawCourt.replace("지방법원", "").replace("지원", "").trim() || "기타";
-          if (!courtStats[cName]) courtStats[cName] = { totalRate: 0, totalBidders: 0, count: 0 };
-          const rate = Number(i.actual_bid_rate || (i.appraisal_price ? (i.actual_bid_price / i.appraisal_price * 100) : 0));
-          const bidders = Number(i.bidder_count || 1);
+
+      // 1) allResults (실제 낙찰 결과 원장 테이블: mprok558sdzbp7k)
+      if (allResults && allResults.length > 0) {
+        allResults.forEach(r => {
+          const reg = extractChangwonRegion(r);
+          if (!courtStats[reg]) courtStats[reg] = { totalRate: 0, totalBidders: 0, count: 0 };
+          const rate = Number(r.actual_bid_rate || (r.appraisal_price && r.actual_bid_price ? (r.actual_bid_price / r.appraisal_price * 100) : 0));
+          const bidders = Number(r.bidder_count || 1);
           if (rate > 0) {
-            courtStats[cName].totalRate += rate;
-            courtStats[cName].totalBidders += bidders;
-            courtStats[cName].count += 1;
+            courtStats[reg].totalRate += rate;
+            courtStats[reg].totalBidders += bidders;
+            courtStats[reg].count += 1;
           }
+        });
+      }
+
+      // 2) allItems 중 낙찰 건 및 진행 물건들의 실제 권역별 최저가율 및 유찰 현황
+      allItems.forEach(i => {
+        const reg = extractChangwonRegion(i);
+        if (!courtStats[reg]) courtStats[reg] = { totalRate: 0, totalBidders: 0, count: 0 };
+        let rate = 0;
+        let bidders = 0;
+        if (i.actual_bid_rate && Number(i.actual_bid_rate) > 0) {
+          rate = Number(i.actual_bid_rate);
+          bidders = Number(i.bidder_count || 1);
+        } else if (i.price_rate && Number(i.price_rate) > 0) {
+          rate = Number(i.price_rate);
+          bidders = Number(i.loss_count || 0) + 1;
+        } else if (i.appraisal_price && i.min_price) {
+          rate = Math.round((Number(i.min_price) / Number(i.appraisal_price)) * 100);
+          bidders = Number(i.loss_count || 0) + 1;
+        }
+        if (rate > 0) {
+          courtStats[reg].totalRate += rate;
+          courtStats[reg].totalBidders += bidders;
+          courtStats[reg].count += 1;
         }
       });
 
-      // 대표 법원 통계 기본 벤치마크 (샘플 보강)
-      const benchmarkCourts = {
-        "인천": { totalRate: 76.5 * 12, totalBidders: 4.8 * 12, count: 12 },
-        "수원": { totalRate: 84.2 * 10, totalBidders: 7.5 * 10, count: 10 },
-        "서울남부": { totalRate: 88.6 * 8, totalBidders: 9.2 * 8, count: 8 },
-        "의정부": { totalRate: 69.4 * 9, totalBidders: 2.3 * 9, count: 9 },
-        "부천": { totalRate: 79.1 * 7, totalBidders: 5.1 * 7, count: 7 },
-        "성남": { totalRate: 82.0 * 6, totalBidders: 6.4 * 6, count: 6 },
-      };
+      const courtEntries = Object.entries(courtStats)
+        .filter(([k, v]) => v.count > 0 && k !== "기타")
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 7);
 
-      const mergedCourts = { ...benchmarkCourts, ...courtStats };
-      const labels = Object.keys(mergedCourts).slice(0, 6);
-      const rateData = labels.map(k => Math.round(mergedCourts[k].totalRate / mergedCourts[k].count));
-      const bidderData = labels.map(k => (mergedCourts[k].totalBidders / mergedCourts[k].count).toFixed(1));
+      const labels = courtEntries.map(e => e[0]);
+      const rateData = courtEntries.map(e => Math.round(e[1].totalRate / e[1].count));
+      const bidderData = courtEntries.map(e => (e[1].totalBidders / e[1].count).toFixed(1));
 
       if (charts.calibration) charts.calibration.destroy();
       const calCanvas = document.getElementById("chartCalibration");
