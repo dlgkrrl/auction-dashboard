@@ -48,6 +48,55 @@
       min-height: 100vh;
     }
 
+    
+    /* ── Profile Modal & ROI Sim Style ── */
+    .profile-badge-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .2s;
+    }
+    .profile-badge-btn:hover {
+      border-color: var(--blue);
+      background: rgba(47,129,247,.1);
+    }
+    .sim-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .sim-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+    .sim-val-display { font-weight: 700; color: var(--text); }
+    .sim-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .sim-input:focus { border-color: var(--blue); }
+    .sim-slider {
+      width: 100%;
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+
     /* ── Scrollbar ── */
     ::-webkit-scrollbar {
       width: 6px;
@@ -1019,6 +1068,9 @@
         </div>
       </a>
       <div class="header-actions">
+        <button class="profile-badge-btn" id="btnProfileModal" onclick="openProfileModal()" title="나의 투자 조건 및 가용자금 설정">
+          <span>⚙️</span> <span id="headerProfileLabel">무주택 (2,000만)</span>
+        </button>
         <button class="btn-refresh" id="btnToggleMap" onclick="toggleMap()" aria-label="지도 보기">
           <span class="icon">🗺️</span> 지도
         </button>
@@ -1172,6 +1224,87 @@
     // ─────────────────────────────────────────────────────
     let allItems = [];
 
+    let currentProfile = {
+      investorType: "no_house",
+      acquisitionTaxRate: 0.011,
+      availableCash: 20000000,
+      appraisalDiscountRate: 0.85,
+      loanInterestRate: 0.05,
+      legalFee: 500000,
+      evictionFee: 2000000,
+      repairFee: 2000000,
+      defaultHoldingMonths: 24,
+      brokerageRate: 0.005,
+      rentalIncomeTaxRate: 0.154,
+      localIncomeTaxRate: 0.10,
+    };
+
+    let hiddenItemIds = new Set();
+
+    function openProfileModal() {
+      document.getElementById("profileInvestorType").value = currentProfile.investorType;
+      document.getElementById("profileAvailableCash").value = currentProfile.availableCash;
+      document.getElementById("profileAvailableCashDisplay").innerText = (currentProfile.availableCash/10000).toLocaleString() + "만원";
+      document.getElementById("profileDiscountRate").value = currentProfile.appraisalDiscountRate;
+      document.getElementById("profileDiscountRateDisplay").innerText = Math.round(currentProfile.appraisalDiscountRate * 100) + "%";
+      document.getElementById("profileLoanRate").value = (currentProfile.loanInterestRate * 100).toFixed(1);
+      document.getElementById("profileHoldingMonths").value = currentProfile.defaultHoldingMonths;
+      document.getElementById("profileRepairFee").value = currentProfile.repairFee;
+      document.getElementById("profileEvictionFee").value = currentProfile.evictionFee;
+      updateProfileTaxRateDisplay();
+      document.getElementById("profileModal").classList.add("open");
+    }
+
+    function closeProfileModal() {
+      document.getElementById("profileModal").classList.remove("open");
+    }
+
+    function closeProfileModalOnOverlay(e) {
+      if (e.target.id === "profileModal") closeProfileModal();
+    }
+
+    function updateProfileTaxRateDisplay() {
+      const type = document.getElementById("profileInvestorType").value;
+      const rate = (type === "no_house" || type === "one_house") ? "1.1%" : (type === "multi_house" ? "8.4%" : "12.4%");
+      document.getElementById("profileTaxRateDisplay").innerText = rate;
+    }
+
+    function saveProfile() {
+      const type = document.getElementById("profileInvestorType").value;
+      const taxRate = (type === "no_house" || type === "one_house") ? 0.011 : (type === "multi_house" ? 0.084 : 0.124);
+      currentProfile = {
+        investorType: type,
+        acquisitionTaxRate: taxRate,
+        availableCash: Number(document.getElementById("profileAvailableCash").value) || 20000000,
+        appraisalDiscountRate: Number(document.getElementById("profileDiscountRate").value) || 0.85,
+        loanInterestRate: (Number(document.getElementById("profileLoanRate").value) || 5.0) / 100,
+        defaultHoldingMonths: Number(document.getElementById("profileHoldingMonths").value) || 24,
+        repairFee: Number(document.getElementById("profileRepairFee").value) || 2000000,
+        evictionFee: Number(document.getElementById("profileEvictionFee").value) || 2000000,
+        brokerageRate: 0.005,
+        rentalIncomeTaxRate: 0.154,
+        localIncomeTaxRate: 0.10,
+      };
+      const typeText = type === "no_house" ? "무주택" : (type === "one_house" ? "1주택" : "다주택");
+      document.getElementById("headerProfileLabel").innerText = `${typeText} (${(currentProfile.availableCash/10000).toLocaleString()}만)`;
+      closeProfileModal();
+      applyFilters();
+      showToast("나의 투자 조건이 대시보드에 즉시 반영되었습니다.");
+    }
+
+    function toggleHideItem(id) {
+      const sid = String(id);
+      if (hiddenItemIds.has(sid)) {
+        hiddenItemIds.delete(sid);
+        showToast("물건을 다시 복원했습니다.");
+      } else {
+        hiddenItemIds.add(sid);
+        showToast("물건을 브라우저 화면에서 숨겼습니다.");
+      }
+      applyFilters();
+    }
+
+
     // ─────────────────────────────────────────────────────
     // 🏛️ THE CALIBRATION ROI Calculation Engine (Embedded)
     // ─────────────────────────────────────────────────────
@@ -1191,7 +1324,7 @@
     };
 
     function calculateAuctionROI(item, customOverrides = {}, profileSettings = null) {
-      const profile = profileSettings || DEFAULT_PROFILE;
+      const profile = profileSettings || currentProfile;
       const appraisalPrice = Number(item.appraisal_price || 0);
       const minPrice = Number(item.min_price || 0);
       const targetBid = Number(item.bid_target || minPrice || 0);
@@ -1858,6 +1991,7 @@
 
     function renderUnifiedModalContent(item) {
       const docFields = [
+        { key: 'roi', label: '💰 ROI 시뮬레이터', title: '실투자금 & 세후 순수익 시뮬레이터' },
         { key: 'summary', label: '📊 종합 요약', title: 'AI 분석 및 물건 요약' },
         { key: 'doc_spec_text', label: '📄 명세서', title: '매각물건명세서' },
         { key: 'doc_survey_text', label: '📄 현황조사', title: '현황조사서' },
@@ -1882,7 +2016,9 @@
 
       let bodyContentHtml = '';
 
-      if (currentDocField === 'summary') {
+      if (currentDocField === 'roi') {
+        bodyContentHtml = `<div style="padding:16px;">${buildROISimulatorBody(item)}</div>`;
+      } else if (currentDocField === 'summary') {
         bodyContentHtml = `<div style="padding:16px;">${buildSummaryTabBody(item)}</div>`;
       } else {
         const searchHtml = `
@@ -1906,6 +2042,120 @@
         ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.court_url}" target="_blank">대법원 경매정보 가기 →</a>` : ''}
         <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; cursor:pointer;" onclick="closeModal()">닫기</button>
       `;
+    }
+
+    
+    let modalSimOverrides = {};
+
+    function buildROISimulatorBody(item) {
+      const roi = calculateAuctionROI(item, modalSimOverrides, currentProfile);
+      const fmt = (n) => {
+        if (!n || n <= 0) return "0원";
+        const e = Math.floor(n / 100000000), m = Math.round((n % 100000000) / 10000);
+        return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
+      };
+
+      return `
+        <div style="display:grid; grid-template-columns:1.1fr 1fr; gap:20px;">
+          <!-- 좌측: 입력 컨트롤러 (엑셀 노란색 셀) -->
+          <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-weight:700; font-size:14px; color:var(--text); margin-bottom:4px;">🎛️ 실시간 투자 변수 조절</div>
+
+            <div class="sim-input-group">
+              <div class="sim-label-row">
+                <span>예상 낙찰가</span>
+                <span class="sim-val-display" style="color:var(--blue)">${fmt(roi.bidPrice)} (${roi.bidPrice.toLocaleString()}원)</span>
+              </div>
+              <input type="range" class="sim-slider" min="${Math.round(roi.minPrice * 0.9)}" max="${Math.round(roi.appraisalPrice * 1.2)}" step="1000000" value="${roi.bidPrice}" oninput="updateModalSimParam('bidPrice', this.value)" />
+            </div>
+
+            <div class="sim-input-group">
+              <div class="sim-label-row">
+                <span>예상 매도가 (출구 시세)</span>
+                <span class="sim-val-display" style="color:var(--green)">${fmt(roi.expectedSalePrice)} (${roi.expectedSalePrice.toLocaleString()}원)</span>
+              </div>
+              <input type="range" class="sim-slider" min="${Math.round(roi.bidPrice * 0.9)}" max="${Math.round(roi.appraisalPrice * 1.4)}" step="1000000" value="${roi.expectedSalePrice}" oninput="updateModalSimParam('expectedSalePrice', this.value)" />
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>임대 보증금</span></div>
+                <input type="number" class="sim-input" step="1000000" value="${roi.rentalDeposit}" onchange="updateModalSimParam('rentalDeposit', this.value)" />
+              </div>
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>월세 (월)</span></div>
+                <input type="number" class="sim-input" step="50000" value="${roi.monthlyRent}" onchange="updateModalSimParam('monthlyRent', this.value)" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>수리비 (자본적지출)</span></div>
+                <input type="number" class="sim-input" step="500000" value="${modalSimOverrides.repairFee ?? currentProfile.repairFee}" onchange="updateModalSimParam('repairFee', this.value)" />
+              </div>
+              <div class="sim-input-group">
+                <div class="sim-label-row"><span>명도비 (이사비)</span></div>
+                <input type="number" class="sim-input" step="500000" value="${modalSimOverrides.evictionFee ?? currentProfile.evictionFee}" onchange="updateModalSimParam('evictionFee', this.value)" />
+              </div>
+            </div>
+
+            <div class="sim-input-group">
+              <div class="sim-label-row">
+                <span>보유기간</span>
+                <span class="sim-val-display">${roi.holdingMonths}개월 (${roi.capitalGainsTaxRate * 100}% 양도세율)</span>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="filter-btn ${roi.holdingMonths == 6 ? 'active' : ''}" onclick="updateModalSimParam('holdingMonths', 6)">6개월 (플립)</button>
+                <button class="filter-btn ${roi.holdingMonths == 12 ? 'active' : ''}" onclick="updateModalSimParam('holdingMonths', 12)">12개월 (1년)</button>
+                <button class="filter-btn ${roi.holdingMonths == 24 ? 'active' : ''}" onclick="updateModalSimParam('holdingMonths', 24)">24개월 (기본세율)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 우측: 결과 브레이크다운 (엑셀 시트 100% 매칭) -->
+          <div style="background:#131c2b; border:1px solid #233348; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-weight:700; font-size:14px; color:var(--yellow);">📊 최종 손익 및 ROI 계산 결과</div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="background:var(--surface); border:1px solid ${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'}; padding:10px; border-radius:8px;">
+                <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">💰 잔금일 필요 현금</div>
+                <div style="font-size:16px; font-weight:800; color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'};">${fmt(roi.cashOnClosing)}</div>
+                <span style="font-size:10px; color:var(--text-sub);">${roi.isBudgetOk ? '🟢 내 자금 충족' : '🔴 자금 부족'}</span>
+              </div>
+              <div style="background:var(--surface); border:1px solid var(--purple); padding:10px; border-radius:8px;">
+                <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">🤝 세입자 세팅 후 실투자금</div>
+                <div style="font-size:16px; font-weight:800; color:var(--purple);">${roi.isPlusFee ? '0원 (무피)' : fmt(roi.realCashNeeded)}</div>
+                <span style="font-size:10px; color:var(--text-sub);">${roi.isPlusFee ? '무피/플러스피' : '보증금 회수 후 잔여금'}</span>
+              </div>
+            </div>
+
+            <div style="background:#1a2536; border:1px solid var(--yellow); padding:12px; border-radius:8px;">
+              <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">🏆 최종 세후 순수익 & ROI</div>
+              <div style="font-size:20px; font-weight:800; color:var(--yellow);">+${fmt(roi.netProfit)} <span style="font-size:15px;">(${roi.roiReal})</span></div>
+              ${roi.annualizedROI ? `<div style="font-size:11px; color:var(--text-sub); margin-top:2px;">연환산 ROI: <strong>${roi.annualizedROI}</strong></div>` : ''}
+            </div>
+
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+              <tr><td style="padding:4px 0; color:var(--text-sub);">적용 경락대출 한도 (감정60%/낙찰80% Min)</td><td style="text-align:right; font-weight:600;">${fmt(roi.loanLimit)}</td></tr>
+              <tr><td style="padding:4px 0; color:var(--text-sub);">취득세액 (${(currentProfile.acquisitionTaxRate*100).toFixed(1)}%) + 법무비</td><td style="text-align:right; font-weight:600;">${fmt(roi.acquisitionTax + currentProfile.legalFee)}</td></tr>
+              <tr><td style="padding:4px 0; color:var(--text-sub);">명도비 + 수리비(자본적지출 인정분)</td><td style="text-align:right; font-weight:600;">${fmt(currentProfile.evictionFee + currentProfile.repairFee)}</td></tr>
+              <tr><td style="padding:4px 0; color:var(--text-sub);">총 대출이자 (${roi.holdingMonths}개월, 연 ${currentProfile.loanInterestRate*100}%)</td><td style="text-align:right; font-weight:600;">${fmt(roi.totalLoanInterest)}</td></tr>
+              ${roi.totalRentIncome > 0 ? `<tr><td style="padding:4px 0; color:var(--text-sub);">세후 임대 순수익 (소득세 15.4% 공제)</td><td style="text-align:right; font-weight:600; color:var(--green);">+${fmt(roi.netRentalIncome)}</td></tr>` : ''}
+              <tr><td style="padding:4px 0; color:var(--text-sub);">양도세 필요경비 (취득세+법무+수리+중개수수료)</td><td style="text-align:right; font-weight:600;">${fmt(roi.capitalGainsExpenses)}</td></tr>
+              <tr><td style="padding:4px 0; color:var(--text-sub);">양도차익 (매도가 - 낙찰가 - 필요경비)</td><td style="text-align:right; font-weight:600;">${fmt(roi.capitalGains)}</td></tr>
+              <tr><td style="padding:4px 0; color:var(--text-sub);">양도소득세 + 지방소득세 (세율 ${roi.capitalGainsTaxRate*100}%)</td><td style="text-align:right; font-weight:600; color:var(--red);">-${fmt(roi.totalTax)}</td></tr>
+              <tr style="font-weight:700; border-top:1px solid #233348;"><td style="padding:6px 0;">총투입원가 (낙찰가+취득비용+대출이자)</td><td style="text-align:right;">${fmt(roi.totalInvestedCost)}</td></tr>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateModalSimParam(key, val) {
+      modalSimOverrides[key] = Number(val);
+      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+      if (!item) return;
+      renderUnifiedModalContent(item);
     }
 
     function buildSummaryTabBody(item) {
@@ -3022,6 +3272,80 @@
     // ─────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', loadData);
   </script>
+
+    <!-- Profile Settings Modal -->
+    <div class="modal-overlay" id="profileModal" onclick="closeProfileModalOnOverlay(event)">
+      <div class="modal-container" style="max-width:520px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title">⚙️ 나의 투자 조건 & 가용자금 설정</div>
+            <div class="modal-subtitle">설정한 기준에 따라 전체 62개 물건의 실투자금과 순수익이 즉시 재계산됩니다.</div>
+          </div>
+          <button class="modal-close" onclick="closeProfileModal()">×</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:12px; padding:20px;">
+          <div class="sim-input-group">
+            <div class="sim-label-row">
+              <span>투자 주체 (취득세율)</span>
+              <span class="sim-val-display" id="profileTaxRateDisplay">1.1%</span>
+            </div>
+            <select class="sim-input" id="profileInvestorType" onchange="updateProfileTaxRateDisplay()">
+              <option value="no_house" selected>무주택자 (기본 취득세율 1.1%)</option>
+              <option value="one_house">1주택자 갈아타기 (취득세율 1.1%)</option>
+              <option value="multi_house">다주택자 중과 (취득세율 8.4%)</option>
+              <option value="corporate">법인 (취득세율 12.4%)</option>
+            </select>
+          </div>
+
+          <div class="sim-input-group">
+            <div class="sim-label-row">
+              <span>내 가용 현금 (잔금일 기준 예산)</span>
+              <span class="sim-val-display" id="profileAvailableCashDisplay">2,000만원</span>
+            </div>
+            <input type="number" class="sim-input" id="profileAvailableCash" step="1000000" value="20000000" oninput="document.getElementById('profileAvailableCashDisplay').innerText = (Number(this.value)/10000).toLocaleString() + '만원'" />
+          </div>
+
+          <div class="sim-input-group">
+            <div class="sim-label-row">
+              <span>빌라/주택 실거래가 부재 시 감정가 할인율</span>
+              <span class="sim-val-display" id="profileDiscountRateDisplay">85%</span>
+            </div>
+            <input type="range" class="sim-slider" id="profileDiscountRate" min="0.5" max="1.0" step="0.05" value="0.85" oninput="document.getElementById('profileDiscountRateDisplay').innerText = Math.round(this.value * 100) + '%'" />
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="sim-input-group">
+              <div class="sim-label-row"><span>대출 금리 (연)</span></div>
+              <input type="number" class="sim-input" id="profileLoanRate" step="0.1" value="5.0" />
+            </div>
+            <div class="sim-input-group">
+              <div class="sim-label-row"><span>기본 보유기간</span></div>
+              <select class="sim-input" id="profileHoldingMonths">
+                <option value="6">단기 플립 (6개월)</option>
+                <option value="12">1년 보유 (12개월)</option>
+                <option value="24" selected>2년 보유 (24개월 - 기본세율)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="sim-input-group">
+              <div class="sim-label-row"><span>기본 수리비</span></div>
+              <input type="number" class="sim-input" id="profileRepairFee" step="500000" value="2000000" />
+            </div>
+            <div class="sim-input-group">
+              <div class="sim-label-row"><span>기본 명도비(이사비)</span></div>
+              <input type="number" class="sim-input" id="profileEvictionFee" step="500000" value="2000000" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding:14px 20px; display:flex; justify-content:flex-end; gap:10px;">
+          <button class="btn-secondary" onclick="closeProfileModal()">취소</button>
+          <button class="btn-primary" onclick="saveProfile()">💾 저장 및 대시보드 반영</button>
+        </div>
+      </div>
+    </div>
+
 </body>
 
 </html>
