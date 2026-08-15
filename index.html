@@ -1292,16 +1292,35 @@
       showToast("나의 투자 조건이 대시보드에 즉시 반영되었습니다.");
     }
 
-    function toggleHideItem(id) {
+    async function toggleHideItem(id) {
       const sid = String(id);
-      if (hiddenItemIds.has(sid)) {
-        hiddenItemIds.delete(sid);
-        showToast("물건을 다시 복원했습니다.");
-      } else {
-        hiddenItemIds.add(sid);
-        showToast("물건을 브라우저 화면에서 숨겼습니다.");
-      }
+      const item = allItems.find(i => String(i.Id) === sid);
+      if (!item) return;
+
+      // 1. 낙관적 UI 업데이트 (즉시 반영)
+      const prevState = !!item.is_hidden;
+      const nextState = !prevState;
+      item.is_hidden = nextState;
       applyFilters();
+
+      // 2. NAS NocoDB is_hidden 컬럼 PATCH 요청
+      try {
+        const res = await fetch(`/api/auction-data?id=${sid}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_hidden: nextState }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        showToast(nextState ? "👁️‍🗨️ 물건을 숨겼습니다 (NAS NocoDB 동기화)." : "↩️ 물건을 복원했습니다 (NAS NocoDB 동기화).");
+      } catch (err) {
+        // 실패 시 롤백
+        item.is_hidden = prevState;
+        applyFilters();
+        showToast(`동기화 실패: ${err.message}`, true);
+      }
     }
 
 
@@ -1452,7 +1471,7 @@
           'bid_confidence', 'real_trade_3m_avg', 'real_trade_6m_avg', 'real_trade_12m_avg',
           'bid_vs_trade_gap_rate',
           'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
-          'is_interested', 'court_url', 'ai_summary',
+          'is_interested', 'is_hidden', 'court_url', 'ai_summary',
           'cancellation_standard', 'tenant_count', 'docs_risk_flags', 'docs_status',
           'doc_spec_text', 'doc_survey_text', 'doc_appraisal_text',
           'doc_registry_text', 'doc_ledger_text', 'real_trade_history',
@@ -1865,8 +1884,8 @@
           </button>
           <button class="btn-sm" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-sub); padding:5px 9px;"
                   onclick="event.stopPropagation(); toggleHideItem('${item.Id}')"
-                  title="${hiddenItemIds.has(String(item.Id)) ? '복원' : '대시보드에서 숨기기'}">
-            ${hiddenItemIds.has(String(item.Id)) ? '↩️ 복원' : '👁️‍🗨️ 숨김'}
+                  title="${item.is_hidden ? '복원' : '대시보드에서 숨기기'}">
+            ${item.is_hidden ? '↩️ 복원' : '👁️‍🗨️ 숨김'}
           </button>
           ${item.court_url ? `
           <a class="btn-sm btn-court" href="${item.court_url}" target="_blank" rel="noopener"

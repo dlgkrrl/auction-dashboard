@@ -152,7 +152,7 @@ export async function onRequestPatch({ request, env }) {
   }
 
   // 허용 필드만 NocoDB에 전달 (보안: 임의 필드 차단)
-  const allowed = ['is_interested', 'interest_level', 'interested_at', 'status', 'memo', 'interest_memo'];
+  const allowed = ['is_interested', 'interest_level', 'interested_at', 'status', 'memo', 'interest_memo', 'is_hidden'];
   const safeBody = {};
   for (const key of allowed) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {
