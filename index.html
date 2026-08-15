@@ -1252,11 +1252,11 @@
       document.getElementById("profileRepairFee").value = currentProfile.repairFee;
       document.getElementById("profileEvictionFee").value = currentProfile.evictionFee;
       updateProfileTaxRateDisplay();
-      document.getElementById("profileModal").classList.add("open");
+      document.getElementById("profileModal").classList.add("show");
     }
 
     function closeProfileModal() {
-      document.getElementById("profileModal").classList.remove("open");
+      document.getElementById("profileModal").classList.remove("show");
     }
 
     function closeProfileModalOnOverlay(e) {
@@ -1612,27 +1612,7 @@
       applyFilters();
     }
 
-    async function toggleHideItem(id) {
-      const item = allItems.find(i => String(i.Id) === String(id));
-      if (!item) return;
-
-      const nextStatus = item.status === '숨김' ? '진행중' : '숨김';
-      item.status = nextStatus;
-      applyFilters();
-
-      try {
-        const res = await fetch(`/api/auction-data?id=${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: nextStatus }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        showToast(nextStatus === '숨김' ? '물건을 숨겼습니다 (NAS NocoDB 동기화).' : '물건을 복원했습니다.');
-      } catch (e) {
-        console.error('Failed to sync hide state to NAS:', e);
-        showToast(`동기화 실패: ${e.message}`, true);
-      }
-    }
+    
 
     function toggleUrgentFilter(btn) {
       filters.urgent = !filters.urgent;
@@ -1883,6 +1863,11 @@
                   aria-pressed="${isStarred}">
             ${isStarred ? '⭐' : '☆'} ${isStarred ? '관심중' : '관심'}
           </button>
+          <button class="btn-sm" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-sub); padding:5px 9px;"
+                  onclick="event.stopPropagation(); toggleHideItem('${item.Id}')"
+                  title="${hiddenItemIds.has(String(item.Id)) ? '복원' : '대시보드에서 숨기기'}">
+            ${hiddenItemIds.has(String(item.Id)) ? '↩️ 복원' : '👁️‍🗨️ 숨김'}
+          </button>
           ${item.court_url ? `
           <a class="btn-sm btn-court" href="${item.court_url}" target="_blank" rel="noopener"
              onclick="event.stopPropagation()"
@@ -1970,7 +1955,7 @@
       if (!item) return;
 
       currentDocItemId = id;
-      currentDocField = initialTab || 'summary';
+      currentDocField = initialTab || 'roi';
 
       const modalContainer = document.querySelector('#detailModal .modal-container');
       if (modalContainer) modalContainer.classList.add('modal-wide');
@@ -2003,7 +1988,7 @@
 
       let tabsHtml = '<div class="doc-tab-bar">';
       docFields.forEach(f => {
-        const hasData = f.key === 'summary' ? true : !!item[f.key];
+        const hasData = (f.key === 'summary' || f.key === 'roi') ? true : !!item[f.key];
         const isActive = f.key === currentDocField;
         tabsHtml += `
           <button class="doc-tab ${isActive ? 'active' : ''} ${!hasData ? 'disabled' : ''}"
