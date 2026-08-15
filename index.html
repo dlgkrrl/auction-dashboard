@@ -1233,6 +1233,19 @@
     // State
     // ─────────────────────────────────────────────────────
     let allItems = [];
+    let allResults = [];
+
+    
+    // 저장된 프로필 복원
+    try {
+      const savedProfile = localStorage.getItem("THECALIBRATION_PROFILE");
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        if (parsed && typeof parsed === "object") {
+          currentProfile = { ...currentProfile, ...parsed };
+        }
+      }
+    } catch (e) {}
 
     let currentProfile = {
       investorType: "no_house",
@@ -1295,11 +1308,24 @@
         rentalIncomeTaxRate: 0.154,
         localIncomeTaxRate: 0.10,
       };
+
+      try {
+        localStorage.setItem("THECALIBRATION_PROFILE", JSON.stringify(currentProfile));
+      } catch (e) {}
+
       const typeText = type === "no_house" ? "무주택" : (type === "one_house" ? "1주택" : "다주택");
       document.getElementById("headerProfileLabel").innerText = `${typeText} (${(currentProfile.availableCash/10000).toLocaleString()}만)`;
+
+      const btnBudget = document.getElementById("btnBudget");
+      if (btnBudget) {
+        btnBudget.innerText = `🟢 ${(currentProfile.availableCash/10000).toLocaleString()}만 이하`;
+      }
+
       closeProfileModal();
+      updateStats();
+      updateCharts();
       applyFilters();
-      showToast("나의 투자 조건이 대시보드에 즉시 반영되었습니다.");
+      showToast(`나의 투자 조건(가용자금 ${(currentProfile.availableCash/10000).toLocaleString()}만원)이 즉시 저장 및 반영되었습니다.`);
     }
 
     async function toggleHideItem(id) {
@@ -1503,6 +1529,17 @@
 
         const data = await res.json();
         allItems = data.list || [];
+
+        // 낙찰 결과 테이블 (auction_results) 안전 호출
+        try {
+          const resResults = await fetch("/api/auction-data?table=results&limit=100");
+          if (resResults.ok) {
+            const resultsData = await resResults.json();
+            allResults = resultsData.list || [];
+          }
+        } catch (err) {
+          console.warn("auction_results fetch skipped:", err);
+        }
 
         if (data.KAKAO_MAP_API_KEY) {
           loadKakaoMapScript(data.KAKAO_MAP_API_KEY);
