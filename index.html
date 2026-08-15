@@ -50,6 +50,13 @@
 
     
     /* ── Profile Modal & ROI Sim Style ── */
+
+    @media (max-width: 768px) {
+      .sim-responsive-grid {
+        grid-template-columns: 1fr !important;
+      }
+    }
+
     .profile-badge-btn {
       background: var(--surface2);
       border: 1px solid var(--border);
@@ -2179,13 +2186,16 @@
     }
 
     function openDetailModal(id) {
-      openUnifiedModal(id, 'summary');
+      openUnifiedModal(id, 'roi');
     }
 
     function openUnifiedModal(id, initialTab) {
       const item = allItems.find(i => String(i.Id) === String(id));
       if (!item) return;
 
+      if (currentDocItemId !== id) {
+        modalSimOverrides = {};
+      }
       currentDocItemId = id;
       currentDocField = initialTab || 'roi';
 
@@ -2262,118 +2272,213 @@
     }
 
     
+    
     let modalSimOverrides = {};
 
     function buildROISimulatorBody(item) {
       const roi = calculateAuctionROI(item, modalSimOverrides, currentProfile);
-      const fmt = (n) => {
-        if (!n || n <= 0) return "0원";
-        const e = Math.floor(n / 100000000), m = Math.round((n % 100000000) / 10000);
-        return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
-      };
+
+      const minBid = Math.round((roi.minPrice || 10000000) * 0.7);
+      const maxBid = Math.round((roi.appraisalPrice || 100000000) * 1.5);
+      const minSale = Math.round((roi.bidPrice || 10000000) * 0.7);
+      const maxSale = Math.round((roi.appraisalPrice || 100000000) * 1.6);
 
       return `
-        <div style="display:grid; grid-template-columns:1.1fr 1fr; gap:20px;">
-          <!-- 좌측: 입력 컨트롤러 (엑셀 노란색 셀) -->
-          <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:12px;">
-            <div style="font-weight:700; font-size:14px; color:var(--text); margin-bottom:4px;">🎛️ 실시간 투자 변수 조절</div>
-
-            <div class="sim-input-group">
-              <div class="sim-label-row">
-                <span>예상 낙찰가</span>
-                <span class="sim-val-display" style="color:var(--blue)">${fmt(roi.bidPrice)} (${roi.bidPrice.toLocaleString()}원)</span>
-              </div>
-              <input type="range" class="sim-slider" min="${Math.round(roi.minPrice * 0.9)}" max="${Math.round(roi.appraisalPrice * 1.2)}" step="1000000" value="${roi.bidPrice}" oninput="updateModalSimParam('bidPrice', this.value)" />
+        <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:20px;" class="sim-responsive-grid">
+          <!-- 좌측: 입력 컨트롤러 (슬라이더 + 직접입력 양방향 동기화) -->
+          <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px;">
+              <span style="font-weight:700; font-size:14px; color:var(--text);">🎛️ 실시간 투자 조건 조절</span>
+              <button class="btn-sm" style="background:var(--surface); border:1px solid var(--border); color:var(--text-sub); font-size:11px; padding:3px 8px; cursor:pointer;" onclick="resetSimOverrides()">초기화 ↺</button>
             </div>
 
+            <!-- 예상 낙찰가 (슬라이더 + 직접입력) -->
             <div class="sim-input-group">
               <div class="sim-label-row">
-                <span>예상 매도가 (출구 시세)</span>
-                <span class="sim-val-display" style="color:var(--green)">${fmt(roi.expectedSalePrice)} (${roi.expectedSalePrice.toLocaleString()}원)</span>
+                <span style="font-weight:600;">예상 낙찰가</span>
+                <span class="sim-val-display" id="simDisplayBid" style="color:var(--blue); font-size:14px;">${fmt(roi.bidPrice)}</span>
               </div>
-              <input type="range" class="sim-slider" min="${Math.round(roi.bidPrice * 0.9)}" max="${Math.round(roi.appraisalPrice * 1.4)}" step="1000000" value="${roi.expectedSalePrice}" oninput="updateModalSimParam('expectedSalePrice', this.value)" />
+              <div style="display:flex; gap:10px; align-items:center;">
+                <input type="range" class="sim-slider" id="simSliderBid"
+                       min="${minBid}" max="${maxBid}" step="500000" value="${roi.bidPrice}"
+                       oninput="handleSimBidInput(this.value, 'slider')" style="flex:1;" />
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <input type="number" class="sim-input" id="simInputBid"
+                         step="1000000" value="${roi.bidPrice}"
+                         oninput="handleSimBidInput(this.value, 'input')"
+                         style="width:130px; text-align:right; font-weight:700; font-size:13px;" />
+                  <span style="font-size:12px; color:var(--text-sub);">원</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 예상 매도가 (슬라이더 + 직접입력) -->
+            <div class="sim-input-group">
+              <div class="sim-label-row">
+                <span style="font-weight:600;">예상 매도가 (출구 시세)</span>
+                <span class="sim-val-display" id="simDisplaySale" style="color:var(--green); font-size:14px;">${fmt(roi.expectedSalePrice)}</span>
+              </div>
+              <div style="display:flex; gap:10px; align-items:center;">
+                <input type="range" class="sim-slider" id="simSliderSale"
+                       min="${minSale}" max="${maxSale}" step="500000" value="${roi.expectedSalePrice}"
+                       oninput="handleSimSaleInput(this.value, 'slider')" style="flex:1;" />
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <input type="number" class="sim-input" id="simInputSale"
+                         step="1000000" value="${roi.expectedSalePrice}"
+                         oninput="handleSimSaleInput(this.value, 'input')"
+                         style="width:130px; text-align:right; font-weight:700; font-size:13px;" />
+                  <span style="font-size:12px; color:var(--text-sub);">원</span>
+                </div>
+              </div>
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div class="sim-input-group">
                 <div class="sim-label-row"><span>임대 보증금</span></div>
-                <input type="number" class="sim-input" step="1000000" value="${roi.rentalDeposit}" onchange="updateModalSimParam('rentalDeposit', this.value)" />
+                <input type="number" class="sim-input" id="simInputDeposit" step="1000000" value="${roi.rentalDeposit}" oninput="handleSimParamInput('rentalDeposit', this.value)" />
               </div>
               <div class="sim-input-group">
                 <div class="sim-label-row"><span>월세 (월)</span></div>
-                <input type="number" class="sim-input" step="50000" value="${roi.monthlyRent}" onchange="updateModalSimParam('monthlyRent', this.value)" />
+                <input type="number" class="sim-input" id="simInputRent" step="50000" value="${roi.monthlyRent}" oninput="handleSimParamInput('monthlyRent', this.value)" />
               </div>
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div class="sim-input-group">
                 <div class="sim-label-row"><span>수리비 (자본적지출)</span></div>
-                <input type="number" class="sim-input" step="500000" value="${modalSimOverrides.repairFee ?? currentProfile.repairFee}" onchange="updateModalSimParam('repairFee', this.value)" />
+                <input type="number" class="sim-input" id="simInputRepair" step="500000" value="${modalSimOverrides.repairFee ?? currentProfile.repairFee}" oninput="handleSimParamInput('repairFee', this.value)" />
               </div>
               <div class="sim-input-group">
                 <div class="sim-label-row"><span>명도비 (이사비)</span></div>
-                <input type="number" class="sim-input" step="500000" value="${modalSimOverrides.evictionFee ?? currentProfile.evictionFee}" onchange="updateModalSimParam('evictionFee', this.value)" />
+                <input type="number" class="sim-input" id="simInputEviction" step="500000" value="${modalSimOverrides.evictionFee ?? currentProfile.evictionFee}" oninput="handleSimParamInput('evictionFee', this.value)" />
               </div>
             </div>
 
             <div class="sim-input-group">
               <div class="sim-label-row">
                 <span>보유기간</span>
-                <span class="sim-val-display">${roi.holdingMonths}개월 (${roi.capitalGainsTaxRate * 100}% 양도세율)</span>
+                <span class="sim-val-display" id="simDisplayHolding">${roi.holdingMonths}개월 (${Math.round(roi.capitalGainsTaxRate * 100)}% 양도세율)</span>
               </div>
               <div style="display:flex; gap:6px;">
-                <button class="filter-btn ${roi.holdingMonths == 6 ? 'active' : ''}" onclick="updateModalSimParam('holdingMonths', 6)">6개월 (플립)</button>
-                <button class="filter-btn ${roi.holdingMonths == 12 ? 'active' : ''}" onclick="updateModalSimParam('holdingMonths', 12)">12개월 (1년)</button>
-                <button class="filter-btn ${roi.holdingMonths == 24 ? 'active' : ''}" onclick="updateModalSimParam('holdingMonths', 24)">24개월 (기본세율)</button>
+                <button class="filter-btn ${roi.holdingMonths == 6 ? 'active' : ''}" onclick="updateModalSimHolding(6)">6개월 (단기)</button>
+                <button class="filter-btn ${roi.holdingMonths == 12 ? 'active' : ''}" onclick="updateModalSimHolding(12)">12개월 (1년)</button>
+                <button class="filter-btn ${roi.holdingMonths == 24 ? 'active' : ''}" onclick="updateModalSimHolding(24)">24개월 (기본)</button>
               </div>
             </div>
           </div>
 
-          <!-- 우측: 결과 브레이크다운 (엑셀 시트 100% 매칭) -->
-          <div style="background:#131c2b; border:1px solid #233348; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:12px;">
-            <div style="font-weight:700; font-size:14px; color:var(--yellow);">📊 최종 손익 및 ROI 계산 결과</div>
-
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-              <div style="background:var(--surface); border:1px solid ${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'}; padding:10px; border-radius:8px;">
-                <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">💰 잔금일 필요 현금</div>
-                <div style="font-size:16px; font-weight:800; color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'};">${fmt(roi.cashOnClosing)}</div>
-                <span style="font-size:10px; color:var(--text-sub);">${roi.isBudgetOk ? '🟢 내 자금 충족' : '🔴 자금 부족'}</span>
-              </div>
-              <div style="background:var(--surface); border:1px solid var(--purple); padding:10px; border-radius:8px;">
-                <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">🤝 세입자 세팅 후 실투자금</div>
-                <div style="font-size:16px; font-weight:800; color:var(--purple);">${roi.isPlusFee ? '0원 (무피)' : fmt(roi.realCashNeeded)}</div>
-                <span style="font-size:10px; color:var(--text-sub);">${roi.isPlusFee ? '무피/플러스피' : '보증금 회수 후 잔여금'}</span>
-              </div>
-            </div>
-
-            <div style="background:#1a2536; border:1px solid var(--yellow); padding:12px; border-radius:8px;">
-              <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">🏆 최종 세후 순수익 & ROI</div>
-              <div style="font-size:20px; font-weight:800; color:var(--yellow);">+${fmt(roi.netProfit)} <span style="font-size:15px;">(${roi.roiReal})</span></div>
-              ${roi.annualizedROI ? `<div style="font-size:11px; color:var(--text-sub); margin-top:2px;">연환산 ROI: <strong>${roi.annualizedROI}</strong></div>` : ''}
-            </div>
-
-            <table style="width:100%; border-collapse:collapse; font-size:12px;">
-              <tr><td style="padding:4px 0; color:var(--text-sub);">적용 경락대출 한도 (감정60%/낙찰80% Min)</td><td style="text-align:right; font-weight:600;">${fmt(roi.loanLimit)}</td></tr>
-              <tr><td style="padding:4px 0; color:var(--text-sub);">취득세액 (${(currentProfile.acquisitionTaxRate*100).toFixed(1)}%) + 법무비</td><td style="text-align:right; font-weight:600;">${fmt(roi.acquisitionTax + currentProfile.legalFee)}</td></tr>
-              <tr><td style="padding:4px 0; color:var(--text-sub);">명도비 + 수리비(자본적지출 인정분)</td><td style="text-align:right; font-weight:600;">${fmt(currentProfile.evictionFee + currentProfile.repairFee)}</td></tr>
-              <tr><td style="padding:4px 0; color:var(--text-sub);">총 대출이자 (${roi.holdingMonths}개월, 연 ${currentProfile.loanInterestRate*100}%)</td><td style="text-align:right; font-weight:600;">${fmt(roi.totalLoanInterest)}</td></tr>
-              ${roi.totalRentIncome > 0 ? `<tr><td style="padding:4px 0; color:var(--text-sub);">세후 임대 순수익 (소득세 15.4% 공제)</td><td style="text-align:right; font-weight:600; color:var(--green);">+${fmt(roi.netRentalIncome)}</td></tr>` : ''}
-              <tr><td style="padding:4px 0; color:var(--text-sub);">양도세 필요경비 (취득세+법무+수리+중개수수료)</td><td style="text-align:right; font-weight:600;">${fmt(roi.capitalGainsExpenses)}</td></tr>
-              <tr><td style="padding:4px 0; color:var(--text-sub);">양도차익 (매도가 - 낙찰가 - 필요경비)</td><td style="text-align:right; font-weight:600;">${fmt(roi.capitalGains)}</td></tr>
-              <tr><td style="padding:4px 0; color:var(--text-sub);">양도소득세 + 지방소득세 (세율 ${roi.capitalGainsTaxRate*100}%)</td><td style="text-align:right; font-weight:600; color:var(--red);">-${fmt(roi.totalTax)}</td></tr>
-              <tr style="font-weight:700; border-top:1px solid #233348;"><td style="padding:6px 0;">총투입원가 (낙찰가+취득비용+대출이자)</td><td style="text-align:right;">${fmt(roi.totalInvestedCost)}</td></tr>
-            </table>
+          <!-- 우측: 결과 브레이크다운 (실시간 반응형 DOM) -->
+          <div id="roiSimResultsContainer" style="background:#131c2b; border:1px solid #233348; border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:12px;">
+            ${buildROIResultsPaneHTML(roi)}
           </div>
         </div>
       `;
     }
 
-    function updateModalSimParam(key, val) {
-      modalSimOverrides[key] = Number(val);
+    function buildROIResultsPaneHTML(roi) {
+      return `
+        <div style="font-weight:700; font-size:14px; color:var(--yellow); border-bottom:1px solid #233348; padding-bottom:8px;">📊 최종 손익 및 ROI 계산 결과</div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="background:var(--surface); border:1px solid ${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'}; padding:10px; border-radius:8px;">
+            <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">💰 잔금일 필요 현금</div>
+            <div style="font-size:16px; font-weight:800; color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'};">${fmt(roi.cashOnClosing)}</div>
+            <span style="font-size:10px; color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'};">${roi.isBudgetOk ? '🟢 내 예산 충족' : '🔴 예산 초과'}</span>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--purple); padding:10px; border-radius:8px;">
+            <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">🤝 세입자 세팅 후 실투자금</div>
+            <div style="font-size:16px; font-weight:800; color:var(--purple);">${roi.isPlusFee ? '0원 (무피)' : fmt(roi.realCashNeeded)}</div>
+            <span style="font-size:10px; color:var(--text-sub);">${roi.isPlusFee ? '🏆 무피/플러스피' : '보증금 회수 후 잔여금'}</span>
+          </div>
+        </div>
+
+        <div style="background:#1a2536; border:1px solid var(--yellow); padding:12px; border-radius:8px;">
+          <div style="font-size:11px; color:var(--text-sub); margin-bottom:2px;">🏆 최종 세후 순수익 & ROI</div>
+          <div style="font-size:20px; font-weight:800; color:var(--yellow);">${roi.netProfit >= 0 ? '+' : ''}${fmt(roi.netProfit)} <span style="font-size:14px; font-weight:600; color:var(--text);">(${roi.roiReal})</span></div>
+          ${roi.annualizedROI ? `<div style="font-size:11px; color:var(--text-sub); margin-top:3px;">연환산 ROI: <strong style="color:var(--yellow);">${roi.annualizedROI}</strong></div>` : ''}
+        </div>
+
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+          <tr><td style="padding:4px 0; color:var(--text-sub);">적용 경락대출 한도 (감정60%/낙찰80% Min)</td><td style="text-align:right; font-weight:600;">${fmt(roi.loanLimit)}</td></tr>
+          <tr><td style="padding:4px 0; color:var(--text-sub);">취득세액 (${(currentProfile.acquisitionTaxRate*100).toFixed(1)}%) + 법무비</td><td style="text-align:right; font-weight:600;">${fmt(roi.acquisitionTax + currentProfile.legalFee)}</td></tr>
+          <tr><td style="padding:4px 0; color:var(--text-sub);">명도비 + 수리비(자본적지출 인정분)</td><td style="text-align:right; font-weight:600;">${fmt((modalSimOverrides.evictionFee ?? currentProfile.evictionFee) + (modalSimOverrides.repairFee ?? currentProfile.repairFee))}</td></tr>
+          <tr><td style="padding:4px 0; color:var(--text-sub);">총 대출이자 (${roi.holdingMonths}개월, 연 ${(currentProfile.loanInterestRate*100).toFixed(1)}%)</td><td style="text-align:right; font-weight:600;">${fmt(roi.totalLoanInterest)}</td></tr>
+          ${roi.totalRentIncome > 0 ? `<tr><td style="padding:4px 0; color:var(--text-sub);">세후 임대 순수익 (소득세 15.4% 공제)</td><td style="text-align:right; font-weight:600; color:var(--green);">+${fmt(roi.netRentalIncome)}</td></tr>` : ''}
+          <tr><td style="padding:4px 0; color:var(--text-sub);">양도세 필요경비 (취득세+법무+수리+중개수수료)</td><td style="text-align:right; font-weight:600;">${fmt(roi.capitalGainsExpenses)}</td></tr>
+          <tr><td style="padding:4px 0; color:var(--text-sub);">양도차익 (매도가 - 낙찰가 - 필요경비)</td><td style="text-align:right; font-weight:600;">${fmt(roi.capitalGains)}</td></tr>
+          <tr><td style="padding:4px 0; color:var(--text-sub);">양도소득세 + 지방소득세 (세율 ${Math.round(roi.capitalGainsTaxRate*100)}%)</td><td style="text-align:right; font-weight:600; color:var(--red);">-${fmt(roi.totalTax)}</td></tr>
+          <tr style="font-weight:700; border-top:1px solid #233348;"><td style="padding:6px 0;">총투입원가 (낙찰가+취득비용+대출이자)</td><td style="text-align:right;">${fmt(roi.totalInvestedCost)}</td></tr>
+        </table>
+      `;
+    }
+
+    function handleSimBidInput(val, source) {
+      const num = Number(val) || 0;
+      modalSimOverrides.bidPrice = num;
+      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+      if (!item) return;
+
+      if (source === "slider") {
+        const inp = document.getElementById("simInputBid");
+        if (inp) inp.value = num;
+      } else if (source === "input") {
+        const sld = document.getElementById("simSliderBid");
+        if (sld) sld.value = num;
+      }
+      const disp = document.getElementById("simDisplayBid");
+      if (disp) disp.innerText = fmt(num);
+
+      refreshROISimulatorResults(item);
+    }
+
+    function handleSimSaleInput(val, source) {
+      const num = Number(val) || 0;
+      modalSimOverrides.expectedSalePrice = num;
+      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+      if (!item) return;
+
+      if (source === "slider") {
+        const inp = document.getElementById("simInputSale");
+        if (inp) inp.value = num;
+      } else if (source === "input") {
+        const sld = document.getElementById("simSliderSale");
+        if (sld) sld.value = num;
+      }
+      const disp = document.getElementById("simDisplaySale");
+      if (disp) disp.innerText = fmt(num);
+
+      refreshROISimulatorResults(item);
+    }
+
+    function handleSimParamInput(key, val) {
+      modalSimOverrides[key] = Number(val) || 0;
+      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+      if (!item) return;
+      refreshROISimulatorResults(item);
+    }
+
+    function updateModalSimHolding(months) {
+      modalSimOverrides.holdingMonths = Number(months);
       const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
       if (!item) return;
       renderUnifiedModalContent(item);
     }
+
+    function resetSimOverrides() {
+      modalSimOverrides = {};
+      const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+      if (!item) return;
+      renderUnifiedModalContent(item);
+    }
+
+    function refreshROISimulatorResults(item) {
+      const roi = calculateAuctionROI(item, modalSimOverrides, currentProfile);
+      const pane = document.getElementById("roiSimResultsContainer");
+      if (pane) {
+        pane.innerHTML = buildROIResultsPaneHTML(roi);
+      }
+    }
+
 
     function buildSummaryTabBody(item) {
       const safeFmt = (n) => {
