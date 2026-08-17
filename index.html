@@ -2081,7 +2081,7 @@
 
       <!-- Financial Twin Box (실투자금 & 세후 순수익) -->
       ${(() => {
-        const roi = calculateAuctionROI(item);
+        const roi = calculateAuctionROI(item, {}, currentProfile);
         return `
         <div style="background:#131c2b;border:1px solid #223249;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;display:flex;flex-direction:column;gap:5px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -3605,19 +3605,27 @@
       const today = new Date(); today.setHours(0, 0, 0, 0);
 
       const result = allItems.filter(item => {
-        if (hiddenItemIds.has(String(item.Id)) || item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true') {
-          if (!filters.hidden) return false;
+        const isHidden = Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김' || (typeof hiddenItemIds !== 'undefined' && hiddenItemIds.has(String(item.Id))));
+        if (filters.hidden) {
+          if (!isHidden) return false;
+        } else {
+          if (isHidden) return false;
+          // 지도 전용 상태 필터
+          if (mapStatusFilter === '진행중') {
+            if (item.status !== '진행중' && item.status !== '진행') return false;
+          } else if (mapStatusFilter === '낙찰') {
+            if (item.status !== '낙찰' && item.status !== '매각') return false;
+          } else if (mapStatusFilter !== 'all' && item.status !== mapStatusFilter) {
+            return false;
+          }
         }
-        // 지도 전용 상태 필터
-        if (mapStatusFilter === '진행중' && item.status !== '진행중') return false;
-        if (mapStatusFilter === '낙찰' && item.status !== '낙찰') return false;
 
         // 기존 필터 (risk, gap, star, urgent, budget, 검색어)
         if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
         if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
         if (filters.star && !item.is_interested) return false;
         if (filters.budget) {
-          const sim = calcROI(item, currentProfile);
+          const sim = calculateAuctionROI(item, {}, currentProfile);
           if (!sim.isBudgetOk) return false;
         }
         if (filters.urgent) {
