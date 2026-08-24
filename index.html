@@ -1270,6 +1270,8 @@
     // ─────────────────────────────────────────────────────
     let allItems = [];
     let allResults = [];
+    let mapSingleItem = null;
+    let isLoadedHidden = false;
 
     
     // 저장된 프로필 복원
@@ -1529,6 +1531,28 @@
     // ─────────────────────────────────────────────────────
     // Fetch
     // ─────────────────────────────────────────────────────
+    async function fetchAllPages(urlStr, whereClause, fields) {
+      let offset = 0, collected = [];
+      let apiKey = null;
+      const baseObj = new URL(urlStr, window.location.origin);
+      while (true) {
+        if (whereClause) baseObj.searchParams.set('where', whereClause);
+        baseObj.searchParams.set('sort', 'bid_date');
+        baseObj.searchParams.set('limit', '100');
+        baseObj.searchParams.set('offset', offset);
+        if (fields) baseObj.searchParams.set('fields', fields);
+        
+        const res = await fetch(baseObj.toString());
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.KAKAO_MAP_API_KEY) apiKey = data.KAKAO_MAP_API_KEY;
+        collected = collected.concat(data.list || []);
+        if (data.pageInfo?.isLastPage || (data.list && data.list.length < 100)) break;
+        offset += 100;
+      }
+      return { list: collected, KAKAO_MAP_API_KEY: apiKey };
+    }
+
     async function loadData() {
       const btn = document.getElementById('btnRefresh');
       btn.classList.add('loading');
@@ -1550,37 +1574,22 @@
           'status', 'actual_bid_price', 'actual_bid_rate', 'bidder_count', 'bid_engine_error'
         ].join(',');
 
-        // ✅ 보안: 토큰 없이 Cloudflare 서버리스 프록시(/api/auction-data)만 호출
-        //         실제 NocoDB 호출과 토큰 첨부는 서버(functions/api/auction-data.js)에서 처리
-        const params = new URLSearchParams({
-          where: '(status,eq,진행중)~or(status,eq,낙찰)~or(status,eq,유찰)~or(status,eq,진행)~or(status,eq,숨김)',
-          sort: 'bid_date',
-          limit: CONFIG.PAGE_SIZE,
-          fields,
-        });
-        const url = `${CONFIG.API_ENDPOINT}?${params.toString()}`;
+        const WHERE_ACTIVE = '(is_hidden,neq,true)~and(is_hidden,neq,1)~and(status,neq,숨김)';
+        const fetched = await fetchAllPages(CONFIG.API_ENDPOINT, WHERE_ACTIVE, fields);
+        allItems = fetched.list;
 
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-        allItems = data.list || [];
-
-        // 🌟 KAKAO_MAP_API_KEY 즉시 로드 (낙찰 결과 대기하지 않고 즉시 병렬 시작)
-        if (data.KAKAO_MAP_API_KEY) {
+        // 🌟 KAKAO_MAP_API_KEY 로드
+        if (fetched.KAKAO_MAP_API_KEY) {
           try {
-            localStorage.setItem('THECALIBRATION_KAKAO_KEY', data.KAKAO_MAP_API_KEY);
+            localStorage.setItem('THECALIBRATION_KAKAO_KEY', fetched.KAKAO_MAP_API_KEY);
           } catch (e) {}
-          loadKakaoMapScript(data.KAKAO_MAP_API_KEY).catch(e => console.warn("Map load err:", e));
+          loadKakaoMapScript(fetched.KAKAO_MAP_API_KEY).catch(e => console.warn("Map load err:", e));
         }
 
         // 낙찰 결과 테이블 (auction_results) 안전 호출
         try {
-          const resResults = await fetch("/api/auction-data?table=results&limit=100");
-          if (resResults.ok) {
-            const resultsData = await resResults.json();
-            allResults = resultsData.list || [];
-          }
+          const resFetched = await fetchAllPages('/api/auction-data?table=results', '', '');
+          allResults = resFetched.list;
         } catch (err) {
           console.warn("auction_results fetch skipped:", err);
         }
@@ -1897,9 +1906,39 @@
       applyFilters();
     }
 
-    function toggleHiddenFilter(btn) {
+    async function toggleHiddenFilter(btn) {
       filters.hidden = !filters.hidden;
       btn.classList.toggle('active', filters.hidden);
+
+      if (filters.hidden && !isLoadedHidden) {
+        showToast('숨김 데이터를 불러오는 중입니다...');
+        const WHERE_HIDDEN = '(is_hidden,eq,true)~or(is_hidden,eq,1)~or(status,eq,숨김)';
+        
+        const fields = [
+          'Id', 'case_no', 'location', 'complex_name', 'area_m2', 'floor',
+          'appraisal_price', 'min_price', 'price_rate', 'loss_count', 'bid_date',
+          'ai_risk', 'ai_recommend', 'gap_score', 'gap_score_grade',
+          'bid_target', 'bid_min', 'bid_max', 'bid_rate_used', 'bid_strategy_text',
+          'bid_confidence', 'real_trade_3m_avg', 'real_trade_6m_avg', 'real_trade_12m_avg',
+          'bid_vs_trade_gap_rate',
+          'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
+          'is_interested', 'is_hidden', 'court_url', 'ai_summary',
+          'cancellation_standard', 'tenant_count', 'docs_risk_flags', 'docs_status',
+          'doc_spec_text', 'doc_survey_text', 'doc_appraisal_text',
+          'doc_registry_text', 'doc_ledger_text', 'real_trade_history',
+          'status', 'actual_bid_price', 'actual_bid_rate', 'bidder_count', 'bid_engine_error'
+        ].join(',');
+
+        try {
+          const hiddenFetched = await fetchAllPages(CONFIG.API_ENDPOINT, WHERE_HIDDEN, fields);
+          allItems = allItems.concat(hiddenFetched.list);
+          isLoadedHidden = true;
+          showToast(`✅ 숨김 데이터 ${hiddenFetched.list.length}건 로드 완료`);
+        } catch (e) {
+          showToast('❌ 숨김 데이터 로드 실패', true);
+        }
+      }
+
       applyFilters();
     }
 
@@ -3530,6 +3569,7 @@
           }
         }, 100);
       } else {
+        mapSingleItem = null;
         btn.innerHTML = '<span class="icon">🗺️</span> 지도';
         btn.classList.remove('active');
         mapFilterBar.style.display = 'none';
@@ -3539,6 +3579,7 @@
     }
 
     function setMapFilter(val, btn) {
+      mapSingleItem = null;
       mapStatusFilter = val;
       document.querySelectorAll('[id^="mapFilter-"]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
@@ -3604,7 +3645,9 @@
       const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
       const today = new Date(); today.setHours(0, 0, 0, 0);
 
-      const result = allItems.filter(item => {
+      const result = mapSingleItem !== null
+        ? allItems.filter(i => String(i.Id) === String(mapSingleItem))
+        : allItems.filter(item => {
         const isHidden = Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김' || (typeof hiddenItemIds !== 'undefined' && hiddenItemIds.has(String(item.Id))));
         if (filters.hidden) {
           if (!isHidden) return false;
@@ -3698,7 +3741,12 @@
         clearTimeout(setBoundsTimer);
         setBoundsTimer = setTimeout(() => {
           if (added > 0 && mapInstance) {
-            mapInstance.setBounds(bounds);
+            if (mapSingleItem !== null && added === 1) {
+              mapInstance.setCenter(bounds.getCenter());
+              mapInstance.setLevel(3);
+            } else {
+              mapInstance.setBounds(bounds);
+            }
           }
         }, 80);
       };
@@ -3736,6 +3784,8 @@
 
     function showOnMap(id) {
       if (!isMapMode) toggleMap();
+      mapSingleItem = String(id);
+      updateMapMarkers();
       const item = allItems.find(i => String(i.Id) === String(id));
       if (item && item.location) {
         const moveToLocation = () => {
