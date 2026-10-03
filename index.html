@@ -212,6 +212,42 @@
       }
     }
 
+    .btn-crawl {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.1);
+    }
+
+    .btn-crawl:hover:not(:disabled) {
+      background: #f59e0b;
+      color: #000;
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+      border-color: #f59e0b;
+    }
+
+    .btn-crawl:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-sub);
+      box-shadow: none;
+    }
+
+    .btn-crawl.loading .icon {
+      animation: spin 1s linear infinite;
+    }
+
     .last-updated {
       font-size: 11px;
       color: var(--text-sub);
@@ -1093,6 +1129,9 @@
         <span class="last-updated" id="lastUpdated">—</span>
         <button class="btn-refresh" id="btnRefresh" onclick="loadData()" aria-label="데이터 새로고침">
           <span class="icon">↻</span> 새로고침
+        </button>
+        <button class="btn-crawl" id="btnRunCrawl" onclick="handleRunCrawl()" title="경매 물건 수집 및 Dify 권리분석 파이프라인 즉시 실행">
+          <span class="icon" id="btnCrawlIcon">⚡</span> <span id="btnCrawlText">크롤링 실행</span>
         </button>
       </div>
     </header>
@@ -3843,9 +3882,125 @@
     } catch (e) {}
 
     // ─────────────────────────────────────────────────────
+    // 크롤링 파이프라인 즉시 실행 & 10분 쿨다운 시스템
+    // ─────────────────────────────────────────────────────
+    const CRAWL_COOLDOWN_MS = 10 * 60 * 1000; // 10분 (600,000ms)
+    const CRAWL_STORAGE_KEY = 'THECALIBRATION_LAST_CRAWL_TIME';
+    let crawlCooldownTimer = null;
+
+    function initCrawlCooldown() {
+      const lastTriggered = localStorage.getItem(CRAWL_STORAGE_KEY);
+      if (!lastTriggered) return;
+
+      const elapsed = Date.now() - parseInt(lastTriggered, 10);
+      if (elapsed < CRAWL_COOLDOWN_MS) {
+        startCrawlCooldown(CRAWL_COOLDOWN_MS - elapsed);
+      } else {
+        localStorage.removeItem(CRAWL_STORAGE_KEY);
+      }
+    }
+
+    function startCrawlCooldown(remainingMs) {
+      const btn = document.getElementById('btnRunCrawl');
+      const textSpan = document.getElementById('btnCrawlText');
+      const iconSpan = document.getElementById('btnCrawlIcon');
+      if (!btn || !textSpan) return;
+
+      btn.disabled = true;
+      btn.classList.remove('loading');
+      if (iconSpan) iconSpan.textContent = '⏳';
+
+      if (crawlCooldownTimer) clearInterval(crawlCooldownTimer);
+
+      const endTime = Date.now() + remainingMs;
+
+      const updateTimer = () => {
+        const left = endTime - Date.now();
+        if (left <= 0) {
+          clearInterval(crawlCooldownTimer);
+          btn.disabled = false;
+          textSpan.textContent = '크롤링 실행';
+          if (iconSpan) iconSpan.textContent = '⚡';
+          localStorage.removeItem(CRAWL_STORAGE_KEY);
+          return;
+        }
+        const m = Math.floor(left / 60000);
+        const s = Math.floor((left % 60000) / 1000);
+        textSpan.textContent = `재실행 가능 (${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')})`;
+      };
+
+      updateTimer();
+      crawlCooldownTimer = setInterval(updateTimer, 1000);
+    }
+
+    async function handleRunCrawl() {
+      const btn = document.getElementById('btnRunCrawl');
+      const textSpan = document.getElementById('btnCrawlText');
+      const iconSpan = document.getElementById('btnCrawlIcon');
+
+      // 쿨다운 진행 여부 재확인
+      const lastTriggered = localStorage.getItem(CRAWL_STORAGE_KEY);
+      if (lastTriggered) {
+        const elapsed = Date.now() - parseInt(lastTriggered, 10);
+        if (elapsed < CRAWL_COOLDOWN_MS) {
+          showToast('⏳ 아직 쿨다운 진행 중입니다. 남은 시간을 기다려주세요.');
+          return;
+        }
+      }
+
+      // 실행 전 확인 confirm 대화창
+      const confirmMsg = "⚡ [경매 일일 파이프라인] 크롤링을 지금 즉시 실행하시겠습니까?\n\n" +
+        "· 대상: 법원경매 신규/진행 물건 수집 및 Dify AI 권리분석\n" +
+        "· 예상 소요 시간: 약 5~15분 (백그라운드 비동기 처리)\n" +
+        "· 결과 안내: 완료 시 텔레그램으로 알림 메시지가 전송됩니다.\n" +
+        "· 안전을 위해 실행 후 10분간 재실행이 제한됩니다.";
+
+      if (!confirm(confirmMsg)) {
+        return;
+      }
+
+      // 버튼 로딩 상태 전환
+      btn.disabled = true;
+      btn.classList.add('loading');
+      if (iconSpan) iconSpan.textContent = '🔄';
+      if (textSpan) textSpan.textContent = '요청 중...';
+
+      try {
+        const res = await fetch('/api/run-pipeline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trigger: 'manual_button' }),
+        });
+
+        const result = await res.json();
+
+        if (res.ok && result.success) {
+          showToast('🚀 크롤링 파이프라인이 시작되었습니다! 완료 시 텔레그램으로 알림이 전송됩니다.');
+          localStorage.setItem(CRAWL_STORAGE_KEY, Date.now().toString());
+          startCrawlCooldown(CRAWL_COOLDOWN_MS);
+        } else {
+          showToast(`❌ 크롤링 실행 실패: ${result.error || '알 수 없는 오류'}`, true);
+          btn.disabled = false;
+          btn.classList.remove('loading');
+          if (iconSpan) iconSpan.textContent = '⚡';
+          if (textSpan) textSpan.textContent = '크롤링 실행';
+        }
+      } catch (err) {
+        showToast(`❌ 네트워크 연결 실패: ${err.message}`, true);
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        if (iconSpan) iconSpan.textContent = '⚡';
+        if (textSpan) textSpan.textContent = '크롤링 실행';
+      }
+    }
+
+    // ─────────────────────────────────────────────────────
     // Init
     // ─────────────────────────────────────────────────────
-    document.addEventListener('DOMContentLoaded', loadData);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      initCrawlCooldown();
+    });
 
   </script>
 
