@@ -1,0 +1,39 @@
+{
+  "_workflow": "011.[BOT] 텔레그램 경매 안내 봇 파이프라인",
+  "_wiring": "관심등록 응답 생성 → 버튼 콜백 여부(true) → 버튼 콜백 응답. 기존 관심등록 응답 생성 → 텔레그램 메시지 전송 연결은 유지",
+  "nodes": [
+    {
+      "name": "버튼 콜백 여부",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 3 },
+          "conditions": [
+            {
+              "id": "7c1e2b4a-1f0d-4b8e-9a51-cb0e3f6d2a11",
+              "leftValue": "={{ $('보안 필터 및 명령어 파싱').first().json.callback_query_id || '' }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "버튼 콜백 응답",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $('보안 필터 및 명령어 파싱').first().json.callback_query_id }}",
+        "additionalFields": { "text": "⭐ 관심물건에 추가되었습니다" }
+      },
+      "credentials": { "telegramApi": { "id": "loTbDXHzCMMbqGkN", "name": "AUCTION_cali_bot" } }
+    }
+  ]
+}

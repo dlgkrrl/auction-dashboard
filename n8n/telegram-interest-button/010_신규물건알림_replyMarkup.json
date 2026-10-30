@@ -1,0 +1,21 @@
+{
+  "_node": "010.[DAILY] 법원경매 자동 탐지 및 AI 분석 파이프라인 > 텔레그램 신규 물건 알림",
+  "_note": "기존 parameters(chatId, text, additionalFields)는 그대로 두고 아래 두 키만 추가",
+  "replyMarkup": "inlineKeyboard",
+  "inlineKeyboard": {
+    "rows": [
+      {
+        "row": {
+          "buttons": [
+            {
+              "text": "⭐ 관심물건 추가",
+              "additionalFields": {
+                "callback_data": "=fav:{{ $json.사건번호 }}"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
