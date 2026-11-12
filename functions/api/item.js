@@ -6,8 +6,11 @@
  * 이 엔드포인트로 연결되는 평범한 링크입니다.
  *
  *   GET  /api/item?id={rowId}                  → 물건 상세 (AI 요약, 매각물건명세서 등 서류 원문)
- *   GET  /api/item?id={rowId}&action=interest  → 관심 등록 후 상세 페이지 표시 (메일에서 한 번 클릭)
+ *   GET  /api/item?id={rowId}&action=interest  → 상세 페이지 + "관심 추가" 확인 버튼 (GET으로는 바꾸지 않음:
+ *                                                메일 보안 스캐너·링크 미리보기가 자동으로 여는 경우 대비)
  *   POST /api/item?id={rowId}  (form action=interest|uninterest) → 상세 페이지의 버튼
+ *
+ * 접근: 로그인 세션 또는 물건별 서명 링크 &sig= (functions/_middleware.js 에서 검사)
  *
  * 관심 필드는 대시보드 toggleStar와 동일: is_interested, interest_level, interested_at
  * 필요한 Cloudflare 환경변수: NOCODB_TOKEN, NOCODB_BASE, TABLE_ID, PROJECT_ID (auction-data.js와 동일)
@@ -32,12 +35,8 @@ export async function onRequestGet({ request, env }) {
   const check = validate(env, id);
   if (check) return check;
 
-  let notice = '';
-  if (action === 'interest') {
-    const res = await patchItem(env, id, INTEREST_ON());
-    notice = res.ok ? '⭐ 관심물건에 추가했습니다.' : `❌ 관심 등록 실패: ${res.error}`;
-  }
-  return renderItem(env, id, notice);
+  const notice = action === 'interest' ? '아래 [⭐ 관심물건 추가] 버튼을 누르면 등록됩니다.' : '';
+  return renderItem(env, id, notice, url.searchParams.get('sig') || '');
 }
 
 export async function onRequestPost({ request, env }) {
@@ -62,7 +61,7 @@ export async function onRequestPost({ request, env }) {
       ? (action === 'interest' ? '⭐ 관심물건에 추가했습니다.' : '관심물건에서 해제했습니다.')
       : `❌ 저장 실패: ${res.error}`;
   }
-  return renderItem(env, id, notice);
+  return renderItem(env, id, notice, url.searchParams.get('sig') || '');
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -96,7 +95,7 @@ async function patchItem(env, id, body) {
   }
 }
 
-async function renderItem(env, id, notice) {
+async function renderItem(env, id, notice, sig = '') {
   let item;
   try {
     const res = await fetch(rowUrl(env, id), {
@@ -108,10 +107,10 @@ async function renderItem(env, id, notice) {
   } catch (err) {
     return page('조회 실패', `<p>NocoDB에 연결하지 못했습니다: ${esc(err.message)}</p>`, 502);
   }
-  return page(item.complex_name || item.case_no || '물건 상세', itemBody(item, id, notice));
+  return page(item.complex_name || item.case_no || '물건 상세', itemBody(item, id, notice, sig));
 }
 
-export function itemBody(item, id, notice = '') {
+export function itemBody(item, id, notice = '', sig = '') {
   const interested = !!item.is_interested && item.is_interested !== 'false' && item.is_interested !== 0;
   const riskColor = { 안전: '#10b981', 주의: '#f59e0b', 위험: '#ef4444' }[item.ai_risk] || '#6b7280';
 
@@ -138,7 +137,7 @@ export function itemBody(item, id, notice = '') {
         <div><span>최저가 (${esc(item.price_rate ?? 0)}%)</span><b class="blue">${fmt(item.min_price)}</b></div>
         <div><span>유찰</span><b>${esc(item.loss_count || 0)}회</b></div>
       </div>
-      <form method="POST" action="/api/item?id=${esc(id)}" class="actions">
+      <form method="POST" action="/api/item?id=${esc(id)}${sig ? `&sig=${esc(encodeURIComponent(sig))}` : ''}" class="actions">
         ${interested
           ? '<button name="action" value="uninterest" class="btn ghost">⭐ 관심물건 (해제)</button>'
           : '<button name="action" value="interest" class="btn">⭐ 관심물건 추가</button>'}

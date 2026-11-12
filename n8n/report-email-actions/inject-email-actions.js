@@ -7,6 +7,10 @@
 
 const DASHBOARD_URL = '__DASHBOARD_URL__'; // 예: https://auction.example.com (끝에 / 없이)
 const SOURCE_NODE = '__SOURCE_NODE__';     // NocoDB 조회 노드 이름
+// 대시보드 Cloudflare 환경변수 DASHBOARD_SECRET 과 같은 값 (링크 서명용, functions/_lib/auth.js)
+const LINK_SECRET = '__DASHBOARD_SECRET__';
+const crypto = require('crypto');
+const itemSig = (id) => crypto.createHmac('sha256', LINK_SECRET).update(`item:${id}`).digest('base64url');
 
 const report = $input.first().json;
 const list = $(SOURCE_NODE).first().json.list || [];
@@ -23,7 +27,7 @@ const btn = (href, label, bg, color) =>
   `<a href="${href}" style="display:inline-block;background:${bg};color:${color};padding:6px 12px;border-radius:6px;text-decoration:none;font-size:12px;font-weight:700;margin:4px 6px 0 0">${label}</a>`;
 
 const actionRow = (item) => {
-  const base = `${DASHBOARD_URL}/api/item?id=${encodeURIComponent(item.Id)}`;
+  const base = `${DASHBOARD_URL}/api/item?id=${encodeURIComponent(item.Id)}&sig=${itemSig(item.Id)}`;
   const done = ['낙찰', '유찰'].includes(item.status);
   const summary = truncate(item.ai_summary, 180);
   const flags = truncate(item.ai_flags, 80);
