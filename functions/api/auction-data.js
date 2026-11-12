@@ -101,6 +101,19 @@ export async function onRequestGet({ request, env }) {
 
   // ── 성공: JSON을 그대로 브라우저에 반환 ───────────────
   const data = await nocoRes.json();
+
+  // docs=flags: 목록 화면용. 서류 원문(물건당 수만 자)은 "있음(true)/없음('')"만 보내고,
+  // 원문은 모달을 열 때 where=(Id,eq,…)로 따로 받습니다.
+  if (params.get('docs') === 'flags' && Array.isArray(data.list)) {
+    const DOC_FIELDS = ['doc_spec_text', 'doc_survey_text', 'doc_appraisal_text',
+      'doc_registry_text', 'doc_ledger_text', 'real_trade_history'];
+    for (const row of data.list) {
+      for (const f of DOC_FIELDS) {
+        if (f in row) row[f] = row[f] && String(row[f]).trim() ? true : '';
+      }
+    }
+  }
+
   if (KAKAO_MAP_API_KEY) {
     data.KAKAO_MAP_API_KEY = KAKAO_MAP_API_KEY;
   }
