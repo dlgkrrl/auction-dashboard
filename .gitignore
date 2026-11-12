@@ -11,3 +11,4 @@ wrangler.toml.local
 .idea/
 ops/phase0/backup/
 __pycache__/
+ops/phase2/backup_*.json
