@@ -9,3 +9,5 @@ wrangler.toml.local
 # 에디터 설정
 .vscode/
 .idea/
+ops/phase0/backup/
+__pycache__/

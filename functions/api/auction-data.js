@@ -2,7 +2,7 @@
  * Cloudflare Pages Functions — NocoDB API 프록시
  * 경로: /api/auction-data
  *
- * 브라우저는 토큰 없이 이 엔드포인트를 호출합니다.
+ * 브라우저는 NocoDB 토큰 없이, 로그인 세션 쿠키로 이 엔드포인트를 호출합니다 (functions/_middleware.js).
  * 이 함수가 서버 환경변수에서 NOCODB_TOKEN을 읽어
  * NocoDB API에 안전하게 중계합니다.
  *
@@ -14,7 +14,6 @@
  */
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
@@ -109,8 +108,8 @@ export async function onRequestGet({ request, env }) {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      // 30초 캐시 (CDN 엣지에서 캐싱, 불필요한 NocoDB 호출 감소)
-      'Cache-Control': 'public, max-age=30, s-maxage=30',
+      // 30초 브라우저 캐시 (로그인 데이터라 공용/CDN 캐시 금지)
+      'Cache-Control': 'private, max-age=30',
       ...CORS_HEADERS,
     },
   });
