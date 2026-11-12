@@ -1,6 +1,6 @@
 // 012 · 결과 파싱 (2026-11-12 0단계 개편)
 // - 판정: sold / rescheduled(유찰·변경·불허가·미납 후 다음 기일) / canceled / hold(기일 미정·미확인·애매) / unchanged
-// - 매칭: 사건번호 + 물건번호 (다물건 사건에서 엉뚱한 물건 결과가 붙지 않게)
+// - 매칭: 상세페이지 번호 > 사건번호 + 물건번호 (다물건 사건에서 엉뚱한 물건 결과가 붙지 않게)
 // - 유찰 횟수: 트래커가 기일표에서 센 값 우선 (매일 +1 되던 버그 제거)
 // - 법원: 트래커가 읽은 실제 관할로 보정 (양산 = 울산지방법원)
 // - 다음 기일이 잡히면 V3 엔진으로 목표가를 바로 다시 계산 (유찰 후 목표가가 그대로 남던 문제)
@@ -108,7 +108,7 @@ for (const stored of storedItems) {
   const key = keyOf(storedCaseNo);
   const storedItemNo = stored.item_no ? String(stored.item_no) : '';
 
-  // ── 매칭: 사건번호 + 물건번호 ──
+  // ── 매칭: 상세페이지 번호 > 사건번호 + 물건번호 ──
   const cands = extractedList.filter((r) => keyOf(r.case_no || r.사건번호 || r.saNo || '') === key);
   let matched = null;
   let ambiguous = false;

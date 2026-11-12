@@ -39,3 +39,22 @@
 - 양산 물건에 낙찰/유찰 결과가 잡히는지
 - `loss_count`가 기일표 유찰 수와 같은지 (최대값 39 → 한 자릿수)
 - `needs_manual_review=true` 물건 목록 확인 (물건번호를 못 정한 다물건 사건)
+
+## 반영 기록 (2026-11-12)
+
+| 대상 | 결과 | 되돌릴 버전 |
+|---|---|---|
+| 041 일회성 보정 (`phgiFY5puCZupiAb`) | 컬럼 10개 추가, 진행중 364건 중 법원 194건 보정(울산 114·마산지원 72·통영 5·거창 2·진주 1), 지분 7건 `is_share`+`is_hidden` | — |
+| 012 결과 추적 | 게시 `bc828026…` | `8a7d5c1c…` |
+| 010 수집 | 게시 `7ab084fe…` | `edc3fff7…` |
+| 일간 리포트 `cjOgYndfnkWqGzM5` | 게시 `dfbd6b2a…` (서명 지원, 비밀키 자리표시자) | `c0bf5e02…` |
+| 주간 리포트 `dAIUwhMyKMAZvFc0` | 게시 `9bcff264…` (서명 지원, 비밀키 자리표시자) | `4bdccfa7…` |
+
+변경 사항: status는 선택형 컬럼(진행중·낙찰·유찰·취하·기각·정지)이라 '제외' 대신 `is_hidden=true`로 숨김.
+010 업데이트는 크롤러가 기본값 '창원지방법원'을 줄 때 DB의 법원을 유지하고, 양산 주소는 신규 입력 때 울산지방법원으로 고정 (크롤러 패치 전에도 보정값이 되돌아가지 않게).
+
+### 남은 일 (사용자)
+1. `bash ops/phase0/apply_crawler.sh --apply` → DSM에서 auction-crawler 재시작
+2. Cloudflare Pages 환경변수 `DASHBOARD_PASSWORD`, `DASHBOARD_SECRET`(32자 이상) 설정
+3. n8n 리포트 2개 `이메일 액션 삽입` 노드의 `'__DASHBOARD_SECRET__'`를 같은 값으로 교체 후 게시
+4. 브랜치 `phase0-pipeline-api-auth`를 main에 반영(배포)

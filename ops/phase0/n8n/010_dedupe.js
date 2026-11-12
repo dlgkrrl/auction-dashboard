@@ -16,8 +16,11 @@ function findRecord(current) {
   const objNo = String(current.물건번호 || '1');
   const byNo = recs.find((x) => x.item_no && String(x.item_no) === objNo);
   if (byNo) return byNo;
-  if (recs.length === 1 && !recs[0].item_no) return recs[0];
-  return null; // 같은 사건의 다른 물건 → 신규
+  if (recs.length === 1 && !recs[0].item_no && !uidOf(recs[0].court_url)) return recs[0];
+  // 기존 행들이 모두 상세번호를 갖고 있고 어느 것과도 다르면 → 같은 사건의 다른 물건(신규)
+  if (uid && recs.every((x) => uidOf(x.court_url))) return null;
+  if (recs.length === 1) return recs[0];
+  return { __skip: true }; // 판단 불가 → 중복 삽입을 막기 위해 이번에는 건너뜀
 }
 
 const results = [];
@@ -26,6 +29,7 @@ for (const current of originalItems) {
   if (current.__parseFailed || current.__parseError || !current.사건번호) continue;
 
   const dbRecord = findRecord(current);
+  if (dbRecord && dbRecord.__skip) continue;
 
   // 1. 신규 물건인 경우
   if (!dbRecord) {

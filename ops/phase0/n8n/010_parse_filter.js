@@ -245,7 +245,7 @@ return filtered.map(function(item) {
       유찰횟수:       lossCount,
       용도:           item.usage,
       면적:           area,
-      법원:           item.court,
+      법원:           (item.court === '창원지방법원' && /양산시/.test(addressForParsing)) ? '울산지방법원' : item.court, // 양산 = 울산지법 관할
       물건번호:       item.objNo,
       url:            courtUrl,
       naver_url:      naverUrl,

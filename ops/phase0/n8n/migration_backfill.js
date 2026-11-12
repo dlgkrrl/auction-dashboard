@@ -30,7 +30,7 @@ for (const it of list) {
 
   if (isShare && !it.is_share) patch.is_share = true;
   if (isBulk && !it.is_bulk) patch.is_bulk = true;
-  if ((isShare || isBulk) && it.status === '진행중') patch.status = '제외';
+  if ((isShare || isBulk) && !it.is_hidden) patch.is_hidden = true; // status는 선택형(제외 옵션 없음) → 숨김 처리
 
   if (Object.keys(patch).length) patches.push({ Id: it.Id, ...patch, __case: it.case_no });
 }
