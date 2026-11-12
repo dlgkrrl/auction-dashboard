@@ -19,7 +19,7 @@ export async function onRequest(context) {
   const path = url.pathname;
 
   if (!path.startsWith('/api/')) return next();
-  if (path === '/api/login') return next();
+  if (path === '/api/login' || path === '/api/session') return next();
 
   if (!authConfigured(env)) {
     // 설정이 빠졌을 때 열어 두지 않고 막습니다.

@@ -108,8 +108,8 @@ export async function onRequestGet({ request, env }) {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      // 30초 캐시 (CDN 엣지에서 캐싱, 불필요한 NocoDB 호출 감소)
-      'Cache-Control': 'public, max-age=30, s-maxage=30',
+      // 30초 브라우저 캐시 (로그인 데이터라 공용/CDN 캐시 금지)
+      'Cache-Control': 'private, max-age=30',
       ...CORS_HEADERS,
     },
   });

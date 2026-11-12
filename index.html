@@ -1331,6 +1331,14 @@
       if (res.status === 401) {
         await askLogin();
         res = await fetch(url, opts);
+        if (res.status === 401) {
+          // 로그인은 됐는데 세션 쿠키가 통과하지 못함 → 원인 진단 결과를 화면에 표시
+          try {
+            const diag = await (await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' })).json();
+            console.warn('[auth] 로그인 후에도 401', diag);
+            alert('로그인 후에도 401입니다. 이 내용을 알려주세요:\n' + JSON.stringify(diag, null, 2));
+          } catch (e) { /* 진단 실패는 무시 */ }
+        }
       }
       return res;
     }

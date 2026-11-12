@@ -61,6 +61,27 @@ function readCookie(request, name) {
   return '';
 }
 
+/** 진단용: 비밀값 없이 쿠키 상태만 설명 (GET /api/session) */
+export async function describeSession(request, env) {
+  const header = request.headers.get('Cookie') || '';
+  const names = header.split(';').map((p) => p.trim().split('=')[0]).filter(Boolean);
+  const raw = readCookie(request, SESSION_COOKIE);
+  const dot = raw.indexOf('.');
+  const exp = dot > 0 ? Number(raw.slice(0, dot)) : NaN;
+  let sigOk = false;
+  if (dot > 0 && Number.isFinite(exp)) {
+    sigOk = safeEqual(raw.slice(dot + 1), await hmac(env.DASHBOARD_SECRET, `session:${exp}`));
+  }
+  return {
+    cookie_header_present: !!header,
+    cookie_names: names,
+    session_cookie_present: !!raw,
+    format_ok: dot > 0 && Number.isFinite(exp),
+    expired: Number.isFinite(exp) ? exp < Date.now() / 1000 : null,
+    signature_ok: sigOk,
+  };
+}
+
 export async function hasValidSession(request, env) {
   const raw = readCookie(request, SESSION_COOKIE);
   const dot = raw.indexOf('.');
