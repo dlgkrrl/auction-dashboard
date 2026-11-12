@@ -1,0 +1,1410 @@
+{
+ "id": "aJ2Y0saAKunHpTwr",
+ "name": "012.[TRACKING] 낙찰 결과 역추적 및 자기강화 파이프라인 (V4.0.1)",
+ "active": true,
+ "isArchived": false,
+ "versionId": "7d4921cf-4e3b-4614-981e-13113d70b545",
+ "activeVersionId": "bc828026-078d-4997-944f-3ba8e2e61be0",
+ "triggerCount": 1,
+ "nodeCount": 20,
+ "createdAt": "2026-06-11T04:32:47.704Z",
+ "updatedAt": "2026-11-12T23:13:37.194Z",
+ "settings": {
+  "executionOrder": "v1",
+  "binaryMode": "separate",
+  "timeSavedMode": "fixed",
+  "errorWorkflow": "k6w8DeDGTz31qE8A",
+  "callerPolicy": "workflowsFromSameOwner",
+  "availableInMCP": true,
+  "timezone": "Asia/Seoul",
+  "saveDataSuccessExecution": "all"
+ },
+ "tags": [],
+ "parentFolderId": "DPixS4N57kgm6XgE",
+ "scopes": [
+  "execution:delete",
+  "execution:list",
+  "execution:read",
+  "execution:reveal",
+  "workflow:create",
+  "workflow:delete",
+  "workflow:disableRedaction",
+  "workflow:enableRedaction",
+  "workflow:execute",
+  "workflow:execute-chat",
+  "workflow:export",
+  "workflow:import",
+  "workflow:list",
+  "workflow:move",
+  "workflow:publish",
+  "workflow:read",
+  "workflow:share",
+  "workflow:unpublish",
+  "workflow:unshare",
+  "workflow:update"
+ ],
+ "canExecute": true,
+ "connections": {
+  "Schedule Trigger": {
+   "main": [
+    [
+     {
+      "node": "대상 물건 조회",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "대상 물건 조회": {
+   "main": [
+    [
+     {
+      "node": "오늘 날짜 필터",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "오늘 날짜 필터": {
+   "main": [
+    [
+     {
+      "node": "NocoDB 목록 추출 및 그룹화",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Split In Batches": {
+   "main": [
+    [
+     {
+      "node": "Browserless 요청 바디 생성",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "결과 크롤링": {
+   "main": [
+    [
+     {
+      "node": "결과 파싱",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "결과 파싱": {
+   "main": [
+    [
+     {
+      "node": "변화없음 필터",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "변화없음 필터": {
+   "main": [
+    [
+     {
+      "node": "Split In Batches",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "낙찰 판정",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "낙찰 판정": {
+   "main": [
+    [
+     {
+      "node": "NocoDB 낙찰 업데이트",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "유찰 판정",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "NocoDB 낙찰 업데이트": {
+   "main": [
+    [
+     {
+      "node": "NocoDB 낙찰결과 입력",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "NocoDB 낙찰결과 입력": {
+   "main": [
+    [
+     {
+      "node": "텔레그램 낙찰 알림",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "텔레그램 낙찰 알림": {
+   "main": [
+    [
+     {
+      "node": "Split In Batches",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Browserless 요청 바디 생성": {
+   "main": [
+    [
+     {
+      "node": "결과 크롤링",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "NocoDB 목록 추출 및 그룹화": {
+   "main": [
+    [
+     {
+      "node": "Split In Batches",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "유찰 판정": {
+   "main": [
+    [
+     {
+      "node": "NocoDB 유찰 업데이트",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "취하 판정",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "취하 판정": {
+   "main": [
+    [
+     {
+      "node": "NocoDB 취하 업데이트",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "NocoDB 보류 업데이트",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "NocoDB 취하 업데이트": {
+   "main": [
+    [
+     {
+      "node": "Split In Batches",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "NocoDB 보류 업데이트": {
+   "main": [
+    [
+     {
+      "node": "Split In Batches",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "NocoDB 유찰 업데이트": {
+   "main": [
+    [
+     {
+      "node": "이벤트 기록 대상",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "이벤트 기록 대상": {
+   "main": [
+    [
+     {
+      "node": "NocoDB 이벤트결과 입력",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Split In Batches",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "NocoDB 이벤트결과 입력": {
+   "main": [
+    [
+     {
+      "node": "Split In Batches",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "nodes": [
+  {
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "cronExpression",
+       "expression": "0 1 * * *"
+      }
+     ]
+    }
+   },
+   "id": "8f0fe7b0-5e57-4e5f-8ad6-b3c5b7653f82",
+   "name": "Schedule Trigger",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.1,
+   "position": [
+    -20352,
+    19216
+   ]
+  },
+  {
+   "parameters": {
+    "url": "http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "nocoDbApiToken",
+    "sendQuery": true,
+    "queryParameters": {
+     "parameters": [
+      {
+       "name": "where",
+       "value": "=(status,eq,진행중)~or(status,eq,유찰)"
+      },
+      {
+       "name": "limit",
+       "value": "1000"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "3dc7e5d3-69da-4470-b471-49b309ed7b1a",
+   "name": "대상 물건 조회",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -20128,
+    19216
+   ],
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 5000,
+   "credentials": {
+    "nocoDbApiToken": {
+     "id": "lh3tnFIzojQ5Uqea",
+     "name": "NocoDB account"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "jsCode": "// 012 · 오늘 날짜 필터 (2026-11-12 0단계 개편)\n// - 01:00 KST 실행: 오늘 매각기일은 결과가 없으므로 어제까지만 추적\n// - 지분·여러 호수 일괄 물건은 추적 제외\n// - 기일이 3일 넘게 지났는데 결과가 안 잡히는 물건(기일변경 후 미정 등)은 7일에 한 번만 재확인\nconst list = $input.first().json.list || [];\n\nconst DAY = 24 * 60 * 60 * 1000;\nconst STALE_DAYS = 3;\nconst RECHECK_DAYS = 7;\n\nconst kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);\nconst todayStr = kstNow.toISOString().split('T')[0];\nconst staleCut = new Date(kstNow.getTime() - STALE_DAYS * DAY).toISOString().split('T')[0];\n\nconst toKstDateStr = (val) => {\n  if (!val) return '';\n  const str = String(val).trim();\n  if (/^\\d{4}[-.]\\d{2}[-.]\\d{2}$/.test(str)) return str.replace(/\\./g, '-');\n  const d = new Date(val);\n  if (isNaN(d.getTime())) return str;\n  return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];\n};\nconst parseTs = (v) => {\n  if (!v) return null;\n  const s = String(v).trim().replace(' ', 'T');\n  const d = new Date(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(s) ? s : s + 'Z');\n  return isNaN(d.getTime()) ? null : d;\n};\n\nconst targets = list.filter((item) => {\n  if (item.is_share || item.is_bulk) return false;\n  const itemDateStr = toKstDateStr(item.bid_date || item.입찰기일 || item.매각기일);\n  if (!itemDateStr || itemDateStr >= todayStr) return false;\n  if (itemDateStr < staleCut) {\n    const last = parseTs(item.last_checked);\n    if (last && Date.now() - last.getTime() < RECHECK_DAYS * DAY) return false;\n  }\n  return true;\n});\n\nif (targets.length === 0) return [];\nreturn [{ json: { list: targets } }];\n"
+   },
+   "id": "c833f9fc-1180-49f6-9d97-e1c13eedd9b7",
+   "name": "오늘 날짜 필터",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -19904,
+    19216
+   ]
+  },
+  {
+   "parameters": {
+    "batchSize": 1,
+    "options": {}
+   },
+   "id": "629541f0-62f3-4363-bbf5-cc5c30bcd5d5",
+   "name": "Split In Batches",
+   "type": "n8n-nodes-base.splitInBatches",
+   "typeVersion": 1,
+   "position": [
+    -19456,
+    19216
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "http://auction-crawler:5001/track",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={\n  \"case_nos\": {{ JSON.stringify($json.case_nos) }},\n  \"court\": \"{{ $json.court }}\"\n}",
+    "options": {
+     "timeout": 900000
+    }
+   },
+   "id": "44dc80e7-800b-452a-934a-de5d9a9bed32",
+   "name": "결과 크롤링",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -19008,
+    18736
+   ],
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 5000
+  },
+  {
+   "parameters": {
+    "jsCode": "// 012 · 결과 파싱 (2026-11-12 0단계 개편)\n// - 판정: sold / rescheduled(유찰·변경·불허가·미납 후 다음 기일) / canceled / hold(기일 미정·미확인·애매) / unchanged\n// - 매칭: 상세페이지 번호 > 사건번호 + 물건번호 (다물건 사건에서 엉뚱한 물건 결과가 붙지 않게)\n// - 유찰 횟수: 트래커가 기일표에서 센 값 우선 (매일 +1 되던 버그 제거)\n// - 법원: 트래커가 읽은 실제 관할로 보정 (양산 = 울산지방법원)\n// - 다음 기일이 잡히면 V3 엔진으로 목표가를 바로 다시 계산 (유찰 후 목표가가 그대로 남던 문제)\n\nlet splitItem;\ntry { splitItem = $('Split In Batches').item.json; } catch (e) { splitItem = {}; }\n\nconst raw = $input.first().json || {};\nconst extractedList = raw.data || raw.extractedResult || [];\nconst storedItems = splitItem.items || [];\nif (storedItems.length === 0) return [];\n\nconst keyOf = (s) => {\n  const m = (s || '').match(/(\\d{4})타경(\\d+)/);\n  return m ? `${m[1]}타경${m[2]}` : (s || '').replace(/\\s+/g, '');\n};\nconst normDate = (s) => (s ? String(s).trim().replace(/\\./g, '-').slice(0, 10) : '');\nconst num = (v) => (v === null || v === undefined || v === '' ? 0 : Number(v) || 0);\n\nconst formatPrice = (val) => {\n  if (!val || val <= 0) return '0원';\n  const eok = Math.floor(val / 100000000);\n  const remainder = Math.round((val % 100000000) / 10000);\n  return eok > 0 ? (remainder > 0 ? `${eok}억 ${remainder.toLocaleString()}만원` : `${eok}억`) : `${remainder.toLocaleString()}만원`;\n};\n\n// ── V3 입찰가 엔진 (010 '입찰가 엔진 및 GAP SCORE 계산'과 같은 규칙; 복합통계 테이블은 비어 있어 표 기반) ──\nfunction runEngineV3(s, minPrice, lossCount) {\n  const appraisal = num(s.appraisal_price);\n  const realAvg = num(s.real_trade_3m_avg) || num(s.real_trade_6m_avg) || num(s.real_trade_12m_avg);\n  const areaSqm = num(s.area_m2);\n  const inheritedAmt = num(s.inherited_amount) > 0 ? num(s.inherited_amount) : 0;\n  const tenantDeposit = num(s.tenant_deposit_total) > 0 ? num(s.tenant_deposit_total) : 0;\n  const aiRisk = s.ai_risk || '주의';\n\n  const LOSS_RATE_TABLE = { 0: 82, 1: 76, 2: 70, 3: 65, 4: 60 };\n  const baseRate = LOSS_RATE_TABLE[Math.min(lossCount, 4)] || 60;\n  const rateSource = `유찰보정규칙(유찰${lossCount}회)`;\n  const confidence = '낮음';\n\n  let riskAdjust = 0;\n  if (aiRisk === '위험') riskAdjust = -5;\n  if (aiRisk === '주의') riskAdjust = -2;\n  if (aiRisk === '안전') riskAdjust = +1;\n  let areaAdjust = 0;\n  if (areaSqm < 60) areaAdjust = +2;\n  else if (areaSqm > 99) areaAdjust = -2;\n\n  const adjustedRate = Math.max(50, Math.min(100, baseRate + riskAdjust + areaAdjust));\n  const basePrice = realAvg > 0 ? Math.min(realAvg, appraisal) : appraisal;\n  const effectiveBase = Math.max(0, basePrice - inheritedAmt);\n  const bidTarget = Math.round(effectiveBase * (adjustedRate / 100));\n  const finalBidMin = Math.max(Math.round(bidTarget * 0.95), minPrice);\n  const finalBidTarget = Math.max(bidTarget, minPrice);\n  const finalBidMax = Math.max(Math.round(bidTarget * 1.03), minPrice);\n\n  const tradeBase = num(s.real_trade_3m_avg) || num(s.real_trade_6m_avg) || num(s.real_trade_12m_avg);\n  let gapAmt = null, gapRate = null, gapBaseScore = 0;\n  if (finalBidTarget && tradeBase) {\n    gapAmt = finalBidTarget - tradeBase;\n    gapRate = Math.round((gapAmt / tradeBase) * 1000) / 10;\n    if (gapRate <= -20) gapBaseScore = 60;\n    else if (gapRate <= -15) gapBaseScore = 52;\n    else if (gapRate <= -10) gapBaseScore = 45;\n    else if (gapRate <= -5) gapBaseScore = 38;\n    else if (gapRate <= 0) gapBaseScore = 30;\n    else if (gapRate <= 5) gapBaseScore = 20;\n    else if (gapRate <= 10) gapBaseScore = 10;\n  }\n  const riskScore = aiRisk === '안전' ? 20 : aiRisk === '주의' ? 10 : 0;\n  const compScore = lossCount >= 3 ? 20 : lossCount >= 2 ? 15 : lossCount >= 1 ? 10 : 5;\n  let dataPenalty = 5; // confidence 낮음\n  if (!num(s.real_trade_3m_avg) && !num(s.real_trade_6m_avg)) dataPenalty += 5;\n  if (num(s.real_trade_sample_count) < 3) dataPenalty += 5;\n  const gapScore = Math.max(0, Math.min(100, gapBaseScore + riskScore + compScore - dataPenalty));\n  const gapGrade = gapScore >= 80 ? 'S' : gapScore >= 65 ? 'A' : gapScore >= 50 ? 'B' : gapScore >= 35 ? 'C' : 'D';\n\n  const toEok = (v) => `${(Math.round(v / 1000000) / 100).toFixed(2)}억`;\n  const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);\n  const strategyText =\n    `📊 입찰가 산출 근거 (V3 엔진 · 결과추적 후 재계산)\\n` +\n    `기준 낙찰가율: ${adjustedRate}% (${rateSource})\\n` +\n    `  └─ 기본: ${baseRate}% + 리스크보정: ${riskAdjust > 0 ? '+' : ''}${riskAdjust}% + 면적보정: ${areaAdjust > 0 ? '+' : ''}${areaAdjust}%\\n` +\n    `기준가: ${toEok(basePrice)} (${realAvg > 0 ? '실거래vs감정 최솟값' : '감정가'})\\n` +\n    (inheritedAmt > 0 ? `인수비용 차감: -${toEok(inheritedAmt)}\\n` : '') +\n    `\\n💰 추천 입찰가 범위\\n  하한: ${toEok(finalBidMin)}\\n  ★ 목표: *${toEok(finalBidTarget)}*\\n  상한: ${toEok(finalBidMax)}\\n` +\n    (bidTarget < minPrice ? `⚠️ 계산 목표가(${toEok(bidTarget)})가 최저가보다 낮음 — 이번 회차 유찰 가능성 높음\\n` : '') +\n    `\\n신뢰도: ${confidence}\\n` +\n    (num(s.inherited_amount) === -1 ? '⚠️ 인수금액 불명 — 실제 부담 추가될 수 있음\\n' : '') +\n    (tenantDeposit > 0 ? `⚠️ 임차인 보증금 ${toEok(tenantDeposit)} — 대항력 여부 재확인 필요\\n` : '');\n\n  return {\n    bid_min: finalBidMin, bid_max: finalBidMax, bid_target: finalBidTarget,\n    bid_rate_used: adjustedRate, bid_confidence: confidence,\n    bid_strategy_text: strategyText, bid_strategy_updated: nowStr,\n    bid_vs_trade_gap_amt: gapAmt, bid_vs_trade_gap_rate: gapRate,\n    gap_score: gapScore, gap_score_grade: gapGrade, gap_calculated_at: nowStr,\n  };\n}\n\n// 2단계: 결과 테이블 이벤트 기록용 주소 분해\nfunction splitAddress(addr) {\n  const t = String(addr || '').split(/\\s+/);\n  let sgg = '', emd = '';\n  if (t.length >= 2) {\n    sgg = t[1];\n    let rest = t.slice(2);\n    if (rest[0] && /구$/.test(rest[0])) { sgg += ' ' + rest[0]; rest = rest.slice(1); }\n    const e = rest.find((x) => /(동|읍|면|가)$/.test(x) && !/^\\d/.test(x));\n    if (e) emd = e;\n  }\n  return { sgg, emd };\n}\n\nconst results = [];\nfor (const stored of storedItems) {\n  const storedCaseNo = stored.case_no || stored.사건번호 || stored.saNo || '';\n  if (!storedCaseNo) continue;\n  const key = keyOf(storedCaseNo);\n  const storedItemNo = stored.item_no ? String(stored.item_no) : '';\n\n  // ── 매칭: 상세페이지 번호 > 사건번호 + 물건번호 ──\n  const cands = extractedList.filter((r) => keyOf(r.case_no || r.사건번호 || r.saNo || '') === key);\n  let matched = null;\n  let ambiguous = false;\n  // 1순위: 상세페이지 번호(court_url의 /view/{uid})가 같으면 같은 물건\n  const uidM = String(stored.court_url || stored.url || '').match(/\\/view\\/(\\d+)|idx=(\\d+)/);\n  const storedUid = uidM ? (uidM[1] || uidM[2]) : '';\n  if (storedUid) matched = cands.find((r) => String(r.detail_uid || '') === storedUid) || null;\n  if (matched) {\n    // 확정\n  } else if (cands.length === 1) {\n    matched = cands[0];\n  } else if (cands.length > 1) {\n    if (storedItemNo) matched = cands.find((r) => String(r.item_no || '1') === storedItemNo) || null;\n    if (!matched) ambiguous = true; // 물건번호를 모르는 다물건 사건 → 쓰지 않고 수동 확인 표시\n  }\n\n  const m = matched || {};\n  const resultText = (m.result || 'pending').trim();\n  const nextBidDate = m.next_bid_date || null;\n  const nextMinPrice = num(m.next_min_price);\n  const storedLoss = num(stored.loss_count);\n  const storedDate = normDate(stored.bid_date);\n  const trackerLoss = Number.isInteger(m.loss_count) ? m.loss_count : null;\n  const newCourt = m.court || stored.court || '';\n  const newItemNo = matched ? String(m.item_no || storedItemNo || '1') : storedItemNo;\n\n  // ── 판정 ──\n  let resultStatus = 'hold';\n  if (!matched) {\n    resultStatus = 'hold';\n  } else if (m.is_unchanged === true) {\n    const needsFix =\n      (trackerLoss !== null && trackerLoss !== storedLoss) ||\n      (m.court && m.court !== stored.court) ||\n      (m.item_no && !storedItemNo);\n    resultStatus = needsFix ? 'hold' : 'unchanged';\n  } else if (resultText.includes('불허') || resultText.includes('미납')) {\n    resultStatus = nextBidDate ? 'rescheduled' : 'hold';\n  } else if (resultText.includes('매각')) {\n    resultStatus = 'sold';\n  } else if (resultText.includes('취하') || resultText.includes('기각') || resultText.includes('정지')) {\n    resultStatus = 'canceled';\n  } else if (nextBidDate) {\n    resultStatus = 'rescheduled';\n  }\n\n  // ── 유찰 횟수: 트래커 값 우선, 없으면 '기일이 바뀐 유찰'만 +1 ──\n  const newLoss = trackerLoss !== null\n    ? trackerLoss\n    : (resultText === '유찰' && nextBidDate && normDate(nextBidDate) !== storedDate ? storedLoss + 1 : storedLoss);\n\n  const newMinPrice = resultStatus === 'rescheduled' && nextMinPrice > 0 ? nextMinPrice : num(stored.min_price);\n  const engine = resultStatus === 'rescheduled' ? runEngineV3(stored, newMinPrice, newLoss) : {};\n\n  const actualBidPrice = num(m.actual_bid_price);\n  const bidderCount = num(m.bidder_count);\n  const appraisalPrice = num(stored.appraisal_price);\n  const actualBidRate = appraisalPrice > 0 && actualBidPrice > 0\n    ? Math.round((actualBidPrice / appraisalPrice) * 1000) / 10 : null;\n  const ourBidTarget = num(stored.bid_target);\n  const engineError = ourBidTarget > 0 && actualBidPrice > 0\n    ? Math.round(((ourBidTarget - actualBidPrice) / actualBidPrice) * 1000) / 10 : null;\n  const saleMinPrice = num(m.last_min_price) || num(stored.min_price);\n\n  // 텔레그램(비활성) 호환용 표시 필드\n  const trade3m = num(stored.real_trade_3m_avg);\n  const trade6m = num(stored.real_trade_6m_avg);\n  const tradeBase = trade3m || trade6m;\n  let tradeDiffText = '';\n  if (actualBidPrice > 0 && tradeBase > 0) {\n    const diff = actualBidPrice - tradeBase;\n    const rate = Math.round((diff / tradeBase) * 1000) / 10;\n    tradeDiffText = rate <= 0\n      ? `✅ 실거래대비 ${Math.abs(rate)}% 저렴 (${Math.round(Math.abs(diff) / 10000).toLocaleString()}만원 마진)`\n      : `⚠️ 실거래대비 +${rate}% (${Math.round(diff / 10000).toLocaleString()}만원 비쌈)`;\n  }\n  const searchKey = stored.complex_name || stored.location || '';\n\n  results.push({\n    json: {\n      ...stored,\n      __resultStatus: resultStatus,\n      __resultText: resultText,\n      __isUnchanged: m.is_unchanged === true,\n      __skippedReason: m.skipped_reason || null,\n      __ambiguous: ambiguous,\n      __candidates: cands.length,\n      new_loss_count: newLoss,\n      new_min_price: newMinPrice,\n      new_court: newCourt,\n      new_item_no: newItemNo,\n      sale_min_price: saleMinPrice,\n      // 2단계: 결과 테이블 이벤트(매각·유찰·변경·불허가·미납) 기록용\n      detail_uid: String(m.detail_uid || storedUid || ''),\n      ...splitAddress(stored.location),\n      event_type: resultText.includes('불허') ? '매각불허가' : resultText.includes('미납') ? '대금미납' : resultText,\n      event_loss_count: resultText === '유찰' ? Math.max(0, newLoss - 1) : newLoss,\n      event_min_price: saleMinPrice,\n      engine,\n      actual_bid_price: actualBidPrice,\n      actual_bid_rate: actualBidRate,\n      bidder_count: bidderCount,\n      next_bid_date: nextBidDate,\n      next_min_price: nextMinPrice,\n      engine_error: engineError,\n      fetched_at: new Date().toISOString(),\n      court_url: stored.court_url || stored.url || 'https://www.my-auction.co.kr',\n      naver_url: stored.naver_url || (searchKey ? 'https://m.land.naver.com/search/result/' + encodeURIComponent(searchKey) : 'https://m.land.naver.com'),\n      appraisal_price_fmt: formatPrice(appraisalPrice),\n      min_price_fmt: formatPrice(num(stored.min_price)),\n      actual_bid_price_fmt: formatPrice(actualBidPrice),\n      real_trade_3m_fmt: formatPrice(trade3m),\n      real_trade_6m_fmt: formatPrice(trade6m),\n      trade_diff_text: tradeDiffText,\n      bid_diff_text: ourBidTarget > 0 && actualBidPrice > 0\n        ? `(${ourBidTarget - actualBidPrice >= 0 ? '+' : ''}${Math.round((ourBidTarget - actualBidPrice) / 10000).toLocaleString()}만원)` : '',\n    },\n  });\n}\nreturn results;\n"
+   },
+   "id": "a30dfba0-b5ba-42db-8625-a975e6d9cbf5",
+   "name": "결과 파싱",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -18784,
+    18736
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+       "leftValue": "={{ $json.__resultStatus }}",
+       "rightValue": "unchanged",
+       "operator": {
+        "type": "string",
+        "operation": "equals"
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "1c67474c-602f-4aff-8929-7481dab1483f",
+   "name": "변화없음 필터",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    -18560,
+    18736
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "string": [
+      {
+       "value1": "={{ $json.__resultStatus }}",
+       "value2": "sold"
+      }
+     ]
+    }
+   },
+   "id": "0346abad-68f8-4765-a533-dfaf2097f7b9",
+   "name": "낙찰 판정",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 1,
+   "position": [
+    -18336,
+    18736
+   ]
+  },
+  {
+   "parameters": {
+    "method": "PATCH",
+    "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "nocoDbApiToken",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ ({\n  status: '낙찰',\n  actual_bid_price: $json.actual_bid_price,\n  actual_bid_rate: $json.actual_bid_rate,\n  bidder_count: $json.bidder_count > 0 ? $json.bidder_count : null,\n  result_fetched_at: $json.fetched_at,\n  bid_engine_error: $json.engine_error,\n  loss_count: $json.new_loss_count,\n  court: $json.new_court,\n  item_no: $json.new_item_no || null,\n  last_checked: new Date().toISOString().replace('T', ' ').substring(0, 19)\n}) }}",
+    "options": {}
+   },
+   "id": "85fac38c-9110-4501-8253-eacacaee4c5f",
+   "name": "NocoDB 낙찰 업데이트",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -18112,
+    18544
+   ],
+   "retryOnFail": true,
+   "credentials": {
+    "nocoDbApiToken": {
+     "id": "lh3tnFIzojQ5Uqea",
+     "name": "NocoDB account"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mprok558sdzbp7k",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "nocoDbApiToken",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ (() => { const j = $('결과 파싱').item.json; const n = (v) => (v === undefined || v === '' ? null : v); const ap = Number(j.appraisal_price) || 0; const mp = Number(j.sale_min_price) || 0; const rate = j.actual_bid_rate; return {\n  case_no: j.case_no || '',\n  item_no: j.new_item_no || null,\n  court: j.new_court || '',\n  location: j.location || '',\n  sgg: j.sgg || '',\n  emd: j.emd || '',\n  usage: j.usage || '',\n  detail_uid: j.detail_uid || null,\n  result_type: '매각',\n  complex_name: j.complex_name || '',\n  dong: j.dong || '',\n  area_m2: n(j.area_m2),\n  floor: j.floor || '',\n  appraisal_price: n(j.appraisal_price),\n  min_price: mp || null,\n  min_price_rate: ap && mp ? Math.round(mp / ap * 1000) / 10 : null,\n  loss_count: n(j.new_loss_count),\n  actual_bid_price: n(j.actual_bid_price),\n  actual_bid_rate: n(rate),\n  bidder_count: j.bidder_count > 0 ? j.bidder_count : null,\n  bid_date: String(j.bid_date || '').replace(/\\./g, '-').slice(0, 10),\n  our_bid_target: j.bid_target || null,\n  engine_error_rate: n(j.engine_error),\n  engine_version: 'v3',\n  fetched_at: j.fetched_at || '',\n  real_trade_3m_avg: j.real_trade_3m_avg || null,\n  real_trade_6m_avg: j.real_trade_6m_avg || null,\n  market_price: j.real_trade_3m_avg || null,\n  bid_vs_trade_gap_amt: n(j.bid_vs_trade_gap_amt),\n  bid_vs_trade_gap_rate: n(j.bid_vs_trade_gap_rate),\n  gap_score: n(j.gap_score),\n  source: 'tracked',\n  item_ref: j.Id || null,\n  ai_risk: j.ai_risk || null,\n  tenant_count: Number(j.tenant_count) >= 0 ? Number(j.tenant_count) : null,\n  inherited_amount: n(j.inherited_amount),\n  is_share: !!j.is_share,\n  is_outlier: (rate !== null && rate !== undefined && (rate < 5 || rate > 200)) || (ap > 0 && mp > ap * 1.05)\n}; })() }}",
+    "options": {}
+   },
+   "id": "86792b08-00a7-496b-afa4-bb60ae115ea7",
+   "name": "NocoDB 낙찰결과 입력",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -17888,
+    18544
+   ],
+   "retryOnFail": true,
+   "credentials": {
+    "nocoDbApiToken": {
+     "id": "lh3tnFIzojQ5Uqea",
+     "name": "NocoDB account"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "chatId": "6449313439",
+    "text": "=🔨 *낙찰 결과 확인* ({{ String(($('결과 파싱').item.json.case_no || $('결과 파싱').item.json.사건번호) ?? '').replace(/([_*`\\[])/g, '\\\\$1') }})\n\n📍 *{{ String(($('결과 파싱').item.json.location || $('결과 파싱').item.json.소재지 || '-') ?? '').replace(/[*_`\\[\\]]/g, '') }}*\n🏢 {{ String(($('결과 파싱').item.json.complex_name || $('결과 파싱').item.json.단지명 || '단지명 확인필요') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }} | {{ String(($('결과 파싱').item.json.area_m2 || $('결과 파싱').item.json.전용면적 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}㎡ | {{ String(($('결과 파싱').item.json.floor || $('결과 파싱').item.json.층 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n⚖️ {{ String(($('결과 파싱').item.json.court || $('결과 파싱').item.json.법원 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }} | 📅 매각기일: {{ String(($('결과 파싱').item.json.bid_date || $('결과 파싱').item.json.입찰기일 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━━━━━━━━━━━━━━━━\n💰 감정가: {{ String(($('결과 파싱').item.json.appraisal_price_fmt || '0원') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n📉 최저매각가: {{ String(($('결과 파싱').item.json.min_price_fmt || '0원') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }} ({{ String(($('결과 파싱').item.json.loss_count || 0) ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}회 유찰)\n🔨 낙찰가: *{{ String(($('결과 파싱').item.json.actual_bid_price_fmt || '0원') ?? '').replace(/[*_`\\[\\]]/g, '') }}* (*{{ String((Math.round(($('결과 파싱').item.json.actual_bid_price || 0)/10000).toLocaleString()) ?? '').replace(/[*_`\\[\\]]/g, '') }}만원*)\n📊 낙찰가율: *{{ String(($('결과 파싱').item.json.actual_bid_rate || 0) ?? '').replace(/[*_`\\[\\]]/g, '') }}%* (감정가 대비)\n👥 응찰자: {{ String((($('결과 파싱').item.json.bidder_count || 0) > 0 ? $('결과 파싱').item.json.bidder_count + '명' : '미확인') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━ 🤖 추천 입찰가 (V3 엔진) ━━━\n🎯 우리 추천가: *{{ String(($('결과 파싱').item.json.bid_target ? Math.round($('결과 파싱').item.json.bid_target/10000).toLocaleString() + '만원' : '미정') ?? '').replace(/[*_`\\[\\]]/g, '') }}* (신뢰도: {{ String(($('결과 파싱').item.json.bid_confidence || '보통') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }})\n{{ String((($('결과 파싱').item.json.bid_min && $('결과 파싱').item.json.bid_max) ? '  └ 추천범위: ' + Math.round($('결과 파싱').item.json.bid_min/10000).toLocaleString() + '만 ~ ' + Math.round($('결과 파싱').item.json.bid_max/10000).toLocaleString() + '만원' : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n📏 예측 오차: *{{ String((($('결과 파싱').item.json.engine_error !== null && $('결과 파싱').item.json.engine_error !== undefined) ? (($('결과 파싱').item.json.engine_error > 0 ? '+' : '') + $('결과 파싱').item.json.engine_error + '%') : '-') ?? '').replace(/[*_`\\[\\]]/g, '') }}* {{ String(($('결과 파싱').item.json.bid_diff_text || '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━ 📈 실거래가 갭 분석 ━━━\n{{ $('결과 파싱').item.json.gap_score ? ($('결과 파싱').item.json.gap_score_grade === 'S' ? '🏆 S등급' : ($('결과 파싱').item.json.gap_score_grade === 'A' ? '🥇 A등급' : ($('결과 파싱').item.json.gap_score_grade === 'B' ? '🥈 B등급' : ($('결과 파싱').item.json.gap_score_grade === 'C' ? '🥉 C등급' : '❌ D등급')))) + ' GAP SCORE: *' + $('결과 파싱').item.json.gap_score + '점*' : '' }}\n🏘️ 실거래가 (3개월): {{ String(($('결과 파싱').item.json.real_trade_3m_fmt || '데이터없음') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n🏘️ 실거래가 (6개월): {{ String(($('결과 파싱').item.json.real_trade_6m_fmt || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.trade_diff_text || '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━ 🛡️ 권리분석 요약 ━━━\n🤖 [{{ String(($('결과 파싱').item.json.ai_risk || '검토필요') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}] {{ String(($('결과 파싱').item.json.ai_recommend || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.cancellation_standard ? '⚖️ 말소기준: ' + $('결과 파싱').item.json.cancellation_standard : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.tenant_count > 0 ? '👤 임차인 ' + $('결과 파싱').item.json.tenant_count + '명 / 보증금 ' + Math.round(($('결과 파싱').item.json.tenant_deposit_total||0)/10000).toLocaleString() + '만원' : ($('결과 파싱').item.json.tenant_count === 0 ? '👤 임차인 없음' : '')) ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.inherited_amount > 0 ? '⚠️ 인수금액: ' + Math.round($('결과 파싱').item.json.inherited_amount/10000).toLocaleString() + '만원' : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.ai_summary ? '📝 AI: ' + $('결과 파싱').item.json.ai_summary : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n🔗 [마이옥션 상세보기]({{ $('결과 파싱').item.json.court_url }}) | [네이버 시세]({{ $('결과 파싱').item.json.naver_url }})\n\n📈 이 결과가 입찰가 엔진 통계에 누적 반영됐습니다.\n",
+    "additionalFields": {
+     "parse_mode": "Markdown"
+    }
+   },
+   "id": "8b0832c0-d4bc-443b-ab58-da9145b60af4",
+   "name": "텔레그램 낙찰 알림",
+   "type": "n8n-nodes-base.telegram",
+   "typeVersion": 1.2,
+   "position": [
+    -17664,
+    18816
+   ],
+   "webhookId": "e446c321-9877-408e-b57d-554bcfdef87b",
+   "disabled": true,
+   "credentials": {
+    "telegramApi": {
+     "id": "loTbDXHzCMMbqGkN",
+     "name": "AUCTION_cali_bot"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "jsCode": "let item = null;\ntry {\n  item = $input.first().json;\n} catch (e) {}\n\nif (!item) {\n  try {\n    item = $json;\n  } catch (e) {}\n}\n\nif (!item) {\n  try {\n    item = $('Split In Batches').item.json;\n  } catch (e) {}\n}\n\nif (!item) {\n  item = {};\n}\n\nconst courtName = item.court || item.법원 || '';\nconst bidDate = item.bid_date || item.입찰기일 || item.매각기일 || '';\nconst targetItems = item.items || [];\nconst targetCaseNos = targetItems.map(it => it.case_no || it.사건번호 || it.saNo).filter(Boolean);\n\nreturn [{\n  json: {\n    case_nos: targetCaseNos,\n    court: courtName,\n    bid_date: bidDate,\n    items: targetItems\n  }\n}];"
+   },
+   "id": "97794bab-ae60-4d74-b3ae-9a386a827883",
+   "name": "Browserless 요청 바디 생성",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -19232,
+    18736
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "const items = $input.first().json.list || [];\nconst groups = {};\n\nconst cleanBidDate = (dInput) => {\n  if (!dInput) return '';\n  const str = String(dInput).trim();\n  if (/^\\d{4}[-.]\\d{2}[-.]\\d{2}$/.test(str)) {\n    return str.replace(/-/g, '.');\n  }\n  const d = new Date(dInput);\n  if (!isNaN(d.getTime())) {\n    const kstEpoch = d.getTime() + (9 * 60 * 60 * 1000);\n    const kstDate = new Date(kstEpoch);\n    return kstDate.toISOString().split('T')[0].replace(/-/g, '.');\n  }\n  return str.replace(/-/g, '.');\n};\n\nfor (const item of items) {\n  const rawCourt = item.court || item.법원;\n  const rawBidDate = item.bid_date || item.입찰기일 || item.매각기일;\n  if (!rawCourt || !rawBidDate) continue;\n\n  const kstBidDate = cleanBidDate(rawBidDate);\n  const key = `${rawCourt}_${kstBidDate}`;\n  if (!groups[key]) {\n    groups[key] = {\n      court: rawCourt,\n      bid_date: kstBidDate,\n      items: []\n    };\n  }\n  groups[key].items.push({\n    ...item,\n    court: rawCourt,\n    bid_date: kstBidDate\n  });\n}\nreturn Object.values(groups).map(g => ({ json: g }));"
+   },
+   "id": "485ce5d4-7fc3-4207-b008-76544f5ebf67",
+   "name": "NocoDB 목록 추출 및 그룹화",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -19680,
+    19216
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "string": [
+      {
+       "value1": "={{ $json.__resultStatus }}",
+       "value2": "rescheduled"
+      }
+     ]
+    }
+   },
+   "id": "56e85cf3-29cd-4612-aa11-badb1fe1f213",
+   "name": "유찰 판정",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 1,
+   "position": [
+    -18112,
+    18832
+   ]
+  },
+  {
+   "parameters": {
+    "method": "PATCH",
+    "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "nocoDbApiToken",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ ({\n  status: '진행중',\n  loss_count: $json.new_loss_count,\n  prev_loss_count: $json.loss_count || 0,\n  prev_min_price: $json.min_price || 0,\n  min_price: $json.new_min_price,\n  bid_date: $json.next_bid_date,\n  court: $json.new_court,\n  item_no: $json.new_item_no || null,\n  last_checked: new Date().toISOString().replace('T', ' ').substring(0, 19),\n  ...($json.engine || {})\n}) }}",
+    "options": {}
+   },
+   "id": "25c25b6e-51b5-4fb8-af16-26502a9143a5",
+   "name": "NocoDB 유찰 업데이트",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -17888,
+    18736
+   ],
+   "retryOnFail": true,
+   "credentials": {
+    "nocoDbApiToken": {
+     "id": "lh3tnFIzojQ5Uqea",
+     "name": "NocoDB account"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "string": [
+      {
+       "value1": "={{ $json.__resultStatus }}",
+       "value2": "canceled"
+      }
+     ]
+    }
+   },
+   "id": "e2970cdf-5c90-4769-b704-a14de0c782f8",
+   "name": "취하 판정",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 1,
+   "position": [
+    -17888,
+    18928
+   ]
+  },
+  {
+   "parameters": {
+    "method": "PATCH",
+    "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "nocoDbApiToken",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={\n  \"status\": \"{{ $json.__resultText && $json.__resultText.length > 0 ? $json.__resultText : '취하' }}\",\n  \"last_checked\": \"{{ new Date().toISOString().replace('T', ' ').substring(0, 19) }}\"\n}",
+    "options": {}
+   },
+   "id": "5ca05a5d-2eb5-4de3-992d-b0eb8feaadfc",
+   "name": "NocoDB 취하 업데이트",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -17664,
+    19104
+   ],
+   "retryOnFail": true,
+   "credentials": {
+    "nocoDbApiToken": {
+     "id": "lh3tnFIzojQ5Uqea",
+     "name": "NocoDB account"
+    }
+   }
+  },
+  {
+   "id": "50c153ca-8221-4ff7-892d-d3f01d597ec8",
+   "name": "NocoDB 보류 업데이트",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -17440,
+    19104
+   ],
+   "parameters": {
+    "method": "PATCH",
+    "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "nocoDbApiToken",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ ({\n  last_checked: new Date().toISOString().replace('T', ' ').substring(0, 19),\n  loss_count: $json.new_loss_count,\n  court: $json.new_court,\n  ...($json.new_item_no ? { item_no: $json.new_item_no } : {}),\n  ...($json.__ambiguous ? { needs_manual_review: true } : {})\n}) }}",
+    "options": {}
+   },
+   "notes": "기일 미정·결과 미확인·다물건 애매: last_checked(7일 주기 재확인 기준)와 유찰횟수·법원·물건번호 보정만 기록",
+   "retryOnFail": true,
+   "credentials": {
+    "nocoDbApiToken": {
+     "id": "lh3tnFIzojQ5Uqea",
+     "name": "NocoDB account"
+    }
+   }
+  },
+  {
+   "id": "79b57be5-b0fb-41cf-9770-6700c7e1c250",
+   "name": "이벤트 기록 대상",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    -17664,
+    18640
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "ev-type-check",
+       "leftValue": "={{ ['유찰','변경','매각불허가','대금미납'].includes($('결과 파싱').item.json.event_type) }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "de99e13e-b99b-4fdb-b607-99f8d7438cab",
+   "name": "NocoDB 이벤트결과 입력",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.1,
+   "position": [
+    -17440,
+    18640
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mprok558sdzbp7k",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "nocoDbApiToken",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ (() => { const j = $('결과 파싱').item.json; const n = (v) => (v === undefined || v === '' ? null : v); const ap = Number(j.appraisal_price) || 0; const mp = Number(j.event_min_price) || 0; return {\n  case_no: j.case_no || '',\n  item_no: j.new_item_no || null,\n  court: j.new_court || '',\n  location: j.location || '',\n  sgg: j.sgg || '',\n  emd: j.emd || '',\n  usage: j.usage || '',\n  detail_uid: j.detail_uid || null,\n  result_type: j.event_type,\n  complex_name: j.complex_name || '',\n  dong: j.dong || '',\n  area_m2: n(j.area_m2),\n  floor: j.floor || '',\n  appraisal_price: n(j.appraisal_price),\n  min_price: mp || null,\n  min_price_rate: ap && mp ? Math.round(mp / ap * 1000) / 10 : null,\n  loss_count: j.event_loss_count,\n  bid_date: String(j.bid_date || '').replace(/\\./g, '-').slice(0, 10),\n  our_bid_target: j.bid_target || null,\n  engine_version: 'v3',\n  fetched_at: j.fetched_at || '',\n  source: 'tracked',\n  item_ref: j.Id || null,\n  ai_risk: j.ai_risk || null,\n  tenant_count: Number(j.tenant_count) >= 0 ? Number(j.tenant_count) : null,\n  inherited_amount: n(j.inherited_amount),\n  is_share: !!j.is_share,\n  market_price: j.real_trade_3m_avg || null\n}; })() }}",
+    "options": {}
+   },
+   "notes": "2단계: 유찰·변경·불허가·미납 1회 = 결과 테이블 1행 (source=tracked)",
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "credentials": {
+    "nocoDbApiToken": {
+     "id": "lh3tnFIzojQ5Uqea",
+     "name": "NocoDB account"
+    }
+   }
+  }
+ ],
+ "nodeGroups": [],
+ "activeVersion": {
+  "sameAsDraft": false,
+  "nodes": [
+   {
+    "parameters": {
+     "rule": {
+      "interval": [
+       {
+        "field": "cronExpression",
+        "expression": "0 1 * * *"
+       }
+      ]
+     }
+    },
+    "id": "8f0fe7b0-5e57-4e5f-8ad6-b3c5b7653f82",
+    "name": "Schedule Trigger",
+    "type": "n8n-nodes-base.scheduleTrigger",
+    "typeVersion": 1.1,
+    "position": [
+     -20352,
+     19216
+    ]
+   },
+   {
+    "parameters": {
+     "url": "http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9",
+     "authentication": "predefinedCredentialType",
+     "nodeCredentialType": "nocoDbApiToken",
+     "sendQuery": true,
+     "queryParameters": {
+      "parameters": [
+       {
+        "name": "where",
+        "value": "=(status,eq,진행중)~or(status,eq,유찰)"
+       },
+       {
+        "name": "limit",
+        "value": "1000"
+       }
+      ]
+     },
+     "options": {}
+    },
+    "id": "3dc7e5d3-69da-4470-b471-49b309ed7b1a",
+    "name": "대상 물건 조회",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [
+     -20128,
+     19216
+    ],
+    "retryOnFail": true,
+    "maxTries": 3,
+    "waitBetweenTries": 5000,
+    "credentials": {
+     "nocoDbApiToken": {
+      "id": "lh3tnFIzojQ5Uqea",
+      "name": "NocoDB account"
+     }
+    }
+   },
+   {
+    "parameters": {
+     "jsCode": "// 012 · 오늘 날짜 필터 (2026-11-12 0단계 개편)\n// - 01:00 KST 실행: 오늘 매각기일은 결과가 없으므로 어제까지만 추적\n// - 지분·여러 호수 일괄 물건은 추적 제외\n// - 기일이 3일 넘게 지났는데 결과가 안 잡히는 물건(기일변경 후 미정 등)은 7일에 한 번만 재확인\nconst list = $input.first().json.list || [];\n\nconst DAY = 24 * 60 * 60 * 1000;\nconst STALE_DAYS = 3;\nconst RECHECK_DAYS = 7;\n\nconst kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);\nconst todayStr = kstNow.toISOString().split('T')[0];\nconst staleCut = new Date(kstNow.getTime() - STALE_DAYS * DAY).toISOString().split('T')[0];\n\nconst toKstDateStr = (val) => {\n  if (!val) return '';\n  const str = String(val).trim();\n  if (/^\\d{4}[-.]\\d{2}[-.]\\d{2}$/.test(str)) return str.replace(/\\./g, '-');\n  const d = new Date(val);\n  if (isNaN(d.getTime())) return str;\n  return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];\n};\nconst parseTs = (v) => {\n  if (!v) return null;\n  const s = String(v).trim().replace(' ', 'T');\n  const d = new Date(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(s) ? s : s + 'Z');\n  return isNaN(d.getTime()) ? null : d;\n};\n\nconst targets = list.filter((item) => {\n  if (item.is_share || item.is_bulk) return false;\n  const itemDateStr = toKstDateStr(item.bid_date || item.입찰기일 || item.매각기일);\n  if (!itemDateStr || itemDateStr >= todayStr) return false;\n  if (itemDateStr < staleCut) {\n    const last = parseTs(item.last_checked);\n    if (last && Date.now() - last.getTime() < RECHECK_DAYS * DAY) return false;\n  }\n  return true;\n});\n\nif (targets.length === 0) return [];\nreturn [{ json: { list: targets } }];\n"
+    },
+    "id": "c833f9fc-1180-49f6-9d97-e1c13eedd9b7",
+    "name": "오늘 날짜 필터",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [
+     -19904,
+     19216
+    ]
+   },
+   {
+    "parameters": {
+     "batchSize": 1,
+     "options": {}
+    },
+    "id": "629541f0-62f3-4363-bbf5-cc5c30bcd5d5",
+    "name": "Split In Batches",
+    "type": "n8n-nodes-base.splitInBatches",
+    "typeVersion": 1,
+    "position": [
+     -19456,
+     19216
+    ]
+   },
+   {
+    "parameters": {
+     "method": "POST",
+     "url": "http://auction-crawler:5001/track",
+     "sendBody": true,
+     "specifyBody": "json",
+     "jsonBody": "={\n  \"case_nos\": {{ JSON.stringify($json.case_nos) }},\n  \"court\": \"{{ $json.court }}\"\n}",
+     "options": {
+      "timeout": 900000
+     }
+    },
+    "id": "44dc80e7-800b-452a-934a-de5d9a9bed32",
+    "name": "결과 크롤링",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [
+     -19008,
+     18736
+    ],
+    "retryOnFail": true,
+    "maxTries": 3,
+    "waitBetweenTries": 5000
+   },
+   {
+    "parameters": {
+     "jsCode": "// 012 · 결과 파싱 (2026-11-12 0단계 개편)\n// - 판정: sold / rescheduled(유찰·변경·불허가·미납 후 다음 기일) / canceled / hold(기일 미정·미확인·애매) / unchanged\n// - 매칭: 상세페이지 번호 > 사건번호 + 물건번호 (다물건 사건에서 엉뚱한 물건 결과가 붙지 않게)\n// - 유찰 횟수: 트래커가 기일표에서 센 값 우선 (매일 +1 되던 버그 제거)\n// - 법원: 트래커가 읽은 실제 관할로 보정 (양산 = 울산지방법원)\n// - 다음 기일이 잡히면 V3 엔진으로 목표가를 바로 다시 계산 (유찰 후 목표가가 그대로 남던 문제)\n\nlet splitItem;\ntry { splitItem = $('Split In Batches').item.json; } catch (e) { splitItem = {}; }\n\nconst raw = $input.first().json || {};\nconst extractedList = raw.data || raw.extractedResult || [];\nconst storedItems = splitItem.items || [];\nif (storedItems.length === 0) return [];\n\nconst keyOf = (s) => {\n  const m = (s || '').match(/(\\d{4})타경(\\d+)/);\n  return m ? `${m[1]}타경${m[2]}` : (s || '').replace(/\\s+/g, '');\n};\nconst normDate = (s) => (s ? String(s).trim().replace(/\\./g, '-').slice(0, 10) : '');\nconst num = (v) => (v === null || v === undefined || v === '' ? 0 : Number(v) || 0);\n\nconst formatPrice = (val) => {\n  if (!val || val <= 0) return '0원';\n  const eok = Math.floor(val / 100000000);\n  const remainder = Math.round((val % 100000000) / 10000);\n  return eok > 0 ? (remainder > 0 ? `${eok}억 ${remainder.toLocaleString()}만원` : `${eok}억`) : `${remainder.toLocaleString()}만원`;\n};\n\n// ── V3 입찰가 엔진 (010 '입찰가 엔진 및 GAP SCORE 계산'과 같은 규칙; 복합통계 테이블은 비어 있어 표 기반) ──\nfunction runEngineV3(s, minPrice, lossCount) {\n  const appraisal = num(s.appraisal_price);\n  const realAvg = num(s.real_trade_3m_avg) || num(s.real_trade_6m_avg) || num(s.real_trade_12m_avg);\n  const areaSqm = num(s.area_m2);\n  const inheritedAmt = num(s.inherited_amount) > 0 ? num(s.inherited_amount) : 0;\n  const tenantDeposit = num(s.tenant_deposit_total) > 0 ? num(s.tenant_deposit_total) : 0;\n  const aiRisk = s.ai_risk || '주의';\n\n  const LOSS_RATE_TABLE = { 0: 82, 1: 76, 2: 70, 3: 65, 4: 60 };\n  const baseRate = LOSS_RATE_TABLE[Math.min(lossCount, 4)] || 60;\n  const rateSource = `유찰보정규칙(유찰${lossCount}회)`;\n  const confidence = '낮음';\n\n  let riskAdjust = 0;\n  if (aiRisk === '위험') riskAdjust = -5;\n  if (aiRisk === '주의') riskAdjust = -2;\n  if (aiRisk === '안전') riskAdjust = +1;\n  let areaAdjust = 0;\n  if (areaSqm < 60) areaAdjust = +2;\n  else if (areaSqm > 99) areaAdjust = -2;\n\n  const adjustedRate = Math.max(50, Math.min(100, baseRate + riskAdjust + areaAdjust));\n  const basePrice = realAvg > 0 ? Math.min(realAvg, appraisal) : appraisal;\n  const effectiveBase = Math.max(0, basePrice - inheritedAmt);\n  const bidTarget = Math.round(effectiveBase * (adjustedRate / 100));\n  const finalBidMin = Math.max(Math.round(bidTarget * 0.95), minPrice);\n  const finalBidTarget = Math.max(bidTarget, minPrice);\n  const finalBidMax = Math.max(Math.round(bidTarget * 1.03), minPrice);\n\n  const tradeBase = num(s.real_trade_3m_avg) || num(s.real_trade_6m_avg) || num(s.real_trade_12m_avg);\n  let gapAmt = null, gapRate = null, gapBaseScore = 0;\n  if (finalBidTarget && tradeBase) {\n    gapAmt = finalBidTarget - tradeBase;\n    gapRate = Math.round((gapAmt / tradeBase) * 1000) / 10;\n    if (gapRate <= -20) gapBaseScore = 60;\n    else if (gapRate <= -15) gapBaseScore = 52;\n    else if (gapRate <= -10) gapBaseScore = 45;\n    else if (gapRate <= -5) gapBaseScore = 38;\n    else if (gapRate <= 0) gapBaseScore = 30;\n    else if (gapRate <= 5) gapBaseScore = 20;\n    else if (gapRate <= 10) gapBaseScore = 10;\n  }\n  const riskScore = aiRisk === '안전' ? 20 : aiRisk === '주의' ? 10 : 0;\n  const compScore = lossCount >= 3 ? 20 : lossCount >= 2 ? 15 : lossCount >= 1 ? 10 : 5;\n  let dataPenalty = 5; // confidence 낮음\n  if (!num(s.real_trade_3m_avg) && !num(s.real_trade_6m_avg)) dataPenalty += 5;\n  if (num(s.real_trade_sample_count) < 3) dataPenalty += 5;\n  const gapScore = Math.max(0, Math.min(100, gapBaseScore + riskScore + compScore - dataPenalty));\n  const gapGrade = gapScore >= 80 ? 'S' : gapScore >= 65 ? 'A' : gapScore >= 50 ? 'B' : gapScore >= 35 ? 'C' : 'D';\n\n  const toEok = (v) => `${(Math.round(v / 1000000) / 100).toFixed(2)}억`;\n  const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);\n  const strategyText =\n    `📊 입찰가 산출 근거 (V3 엔진 · 결과추적 후 재계산)\\n` +\n    `기준 낙찰가율: ${adjustedRate}% (${rateSource})\\n` +\n    `  └─ 기본: ${baseRate}% + 리스크보정: ${riskAdjust > 0 ? '+' : ''}${riskAdjust}% + 면적보정: ${areaAdjust > 0 ? '+' : ''}${areaAdjust}%\\n` +\n    `기준가: ${toEok(basePrice)} (${realAvg > 0 ? '실거래vs감정 최솟값' : '감정가'})\\n` +\n    (inheritedAmt > 0 ? `인수비용 차감: -${toEok(inheritedAmt)}\\n` : '') +\n    `\\n💰 추천 입찰가 범위\\n  하한: ${toEok(finalBidMin)}\\n  ★ 목표: *${toEok(finalBidTarget)}*\\n  상한: ${toEok(finalBidMax)}\\n` +\n    (bidTarget < minPrice ? `⚠️ 계산 목표가(${toEok(bidTarget)})가 최저가보다 낮음 — 이번 회차 유찰 가능성 높음\\n` : '') +\n    `\\n신뢰도: ${confidence}\\n` +\n    (num(s.inherited_amount) === -1 ? '⚠️ 인수금액 불명 — 실제 부담 추가될 수 있음\\n' : '') +\n    (tenantDeposit > 0 ? `⚠️ 임차인 보증금 ${toEok(tenantDeposit)} — 대항력 여부 재확인 필요\\n` : '');\n\n  return {\n    bid_min: finalBidMin, bid_max: finalBidMax, bid_target: finalBidTarget,\n    bid_rate_used: adjustedRate, bid_confidence: confidence,\n    bid_strategy_text: strategyText, bid_strategy_updated: nowStr,\n    bid_vs_trade_gap_amt: gapAmt, bid_vs_trade_gap_rate: gapRate,\n    gap_score: gapScore, gap_score_grade: gapGrade, gap_calculated_at: nowStr,\n  };\n}\n\nconst results = [];\nfor (const stored of storedItems) {\n  const storedCaseNo = stored.case_no || stored.사건번호 || stored.saNo || '';\n  if (!storedCaseNo) continue;\n  const key = keyOf(storedCaseNo);\n  const storedItemNo = stored.item_no ? String(stored.item_no) : '';\n\n  // ── 매칭: 상세페이지 번호 > 사건번호 + 물건번호 ──\n  const cands = extractedList.filter((r) => keyOf(r.case_no || r.사건번호 || r.saNo || '') === key);\n  let matched = null;\n  let ambiguous = false;\n  // 1순위: 상세페이지 번호(court_url의 /view/{uid})가 같으면 같은 물건\n  const uidM = String(stored.court_url || stored.url || '').match(/\\/view\\/(\\d+)|idx=(\\d+)/);\n  const storedUid = uidM ? (uidM[1] || uidM[2]) : '';\n  if (storedUid) matched = cands.find((r) => String(r.detail_uid || '') === storedUid) || null;\n  if (matched) {\n    // 확정\n  } else if (cands.length === 1) {\n    matched = cands[0];\n  } else if (cands.length > 1) {\n    if (storedItemNo) matched = cands.find((r) => String(r.item_no || '1') === storedItemNo) || null;\n    if (!matched) ambiguous = true; // 물건번호를 모르는 다물건 사건 → 쓰지 않고 수동 확인 표시\n  }\n\n  const m = matched || {};\n  const resultText = (m.result || 'pending').trim();\n  const nextBidDate = m.next_bid_date || null;\n  const nextMinPrice = num(m.next_min_price);\n  const storedLoss = num(stored.loss_count);\n  const storedDate = normDate(stored.bid_date);\n  const trackerLoss = Number.isInteger(m.loss_count) ? m.loss_count : null;\n  const newCourt = m.court || stored.court || '';\n  const newItemNo = matched ? String(m.item_no || storedItemNo || '1') : storedItemNo;\n\n  // ── 판정 ──\n  let resultStatus = 'hold';\n  if (!matched) {\n    resultStatus = 'hold';\n  } else if (m.is_unchanged === true) {\n    const needsFix =\n      (trackerLoss !== null && trackerLoss !== storedLoss) ||\n      (m.court && m.court !== stored.court) ||\n      (m.item_no && !storedItemNo);\n    resultStatus = needsFix ? 'hold' : 'unchanged';\n  } else if (resultText.includes('불허') || resultText.includes('미납')) {\n    resultStatus = nextBidDate ? 'rescheduled' : 'hold';\n  } else if (resultText.includes('매각')) {\n    resultStatus = 'sold';\n  } else if (resultText.includes('취하') || resultText.includes('기각') || resultText.includes('정지')) {\n    resultStatus = 'canceled';\n  } else if (nextBidDate) {\n    resultStatus = 'rescheduled';\n  }\n\n  // ── 유찰 횟수: 트래커 값 우선, 없으면 '기일이 바뀐 유찰'만 +1 ──\n  const newLoss = trackerLoss !== null\n    ? trackerLoss\n    : (resultText === '유찰' && nextBidDate && normDate(nextBidDate) !== storedDate ? storedLoss + 1 : storedLoss);\n\n  const newMinPrice = resultStatus === 'rescheduled' && nextMinPrice > 0 ? nextMinPrice : num(stored.min_price);\n  const engine = resultStatus === 'rescheduled' ? runEngineV3(stored, newMinPrice, newLoss) : {};\n\n  const actualBidPrice = num(m.actual_bid_price);\n  const bidderCount = num(m.bidder_count);\n  const appraisalPrice = num(stored.appraisal_price);\n  const actualBidRate = appraisalPrice > 0 && actualBidPrice > 0\n    ? Math.round((actualBidPrice / appraisalPrice) * 1000) / 10 : null;\n  const ourBidTarget = num(stored.bid_target);\n  const engineError = ourBidTarget > 0 && actualBidPrice > 0\n    ? Math.round(((ourBidTarget - actualBidPrice) / actualBidPrice) * 1000) / 10 : null;\n  const saleMinPrice = num(m.last_min_price) || num(stored.min_price);\n\n  // 텔레그램(비활성) 호환용 표시 필드\n  const trade3m = num(stored.real_trade_3m_avg);\n  const trade6m = num(stored.real_trade_6m_avg);\n  const tradeBase = trade3m || trade6m;\n  let tradeDiffText = '';\n  if (actualBidPrice > 0 && tradeBase > 0) {\n    const diff = actualBidPrice - tradeBase;\n    const rate = Math.round((diff / tradeBase) * 1000) / 10;\n    tradeDiffText = rate <= 0\n      ? `✅ 실거래대비 ${Math.abs(rate)}% 저렴 (${Math.round(Math.abs(diff) / 10000).toLocaleString()}만원 마진)`\n      : `⚠️ 실거래대비 +${rate}% (${Math.round(diff / 10000).toLocaleString()}만원 비쌈)`;\n  }\n  const searchKey = stored.complex_name || stored.location || '';\n\n  results.push({\n    json: {\n      ...stored,\n      __resultStatus: resultStatus,\n      __resultText: resultText,\n      __isUnchanged: m.is_unchanged === true,\n      __skippedReason: m.skipped_reason || null,\n      __ambiguous: ambiguous,\n      __candidates: cands.length,\n      new_loss_count: newLoss,\n      new_min_price: newMinPrice,\n      new_court: newCourt,\n      new_item_no: newItemNo,\n      sale_min_price: saleMinPrice,\n      engine,\n      actual_bid_price: actualBidPrice,\n      actual_bid_rate: actualBidRate,\n      bidder_count: bidderCount,\n      next_bid_date: nextBidDate,\n      next_min_price: nextMinPrice,\n      engine_error: engineError,\n      fetched_at: new Date().toISOString(),\n      court_url: stored.court_url || stored.url || 'https://www.my-auction.co.kr',\n      naver_url: stored.naver_url || (searchKey ? 'https://m.land.naver.com/search/result/' + encodeURIComponent(searchKey) : 'https://m.land.naver.com'),\n      appraisal_price_fmt: formatPrice(appraisalPrice),\n      min_price_fmt: formatPrice(num(stored.min_price)),\n      actual_bid_price_fmt: formatPrice(actualBidPrice),\n      real_trade_3m_fmt: formatPrice(trade3m),\n      real_trade_6m_fmt: formatPrice(trade6m),\n      trade_diff_text: tradeDiffText,\n      bid_diff_text: ourBidTarget > 0 && actualBidPrice > 0\n        ? `(${ourBidTarget - actualBidPrice >= 0 ? '+' : ''}${Math.round((ourBidTarget - actualBidPrice) / 10000).toLocaleString()}만원)` : '',\n    },\n  });\n}\nreturn results;\n"
+    },
+    "id": "a30dfba0-b5ba-42db-8625-a975e6d9cbf5",
+    "name": "결과 파싱",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [
+     -18784,
+     18736
+    ]
+   },
+   {
+    "parameters": {
+     "conditions": {
+      "options": {
+       "caseSensitive": true,
+       "leftValue": "",
+       "typeValidation": "strict",
+       "version": 3
+      },
+      "conditions": [
+       {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "leftValue": "={{ $json.__resultStatus }}",
+        "rightValue": "unchanged",
+        "operator": {
+         "type": "string",
+         "operation": "equals"
+        }
+       }
+      ],
+      "combinator": "and"
+     },
+     "options": {}
+    },
+    "id": "1c67474c-602f-4aff-8929-7481dab1483f",
+    "name": "변화없음 필터",
+    "type": "n8n-nodes-base.if",
+    "typeVersion": 2.3,
+    "position": [
+     -18560,
+     18736
+    ]
+   },
+   {
+    "parameters": {
+     "conditions": {
+      "string": [
+       {
+        "value1": "={{ $json.__resultStatus }}",
+        "value2": "sold"
+       }
+      ]
+     }
+    },
+    "id": "0346abad-68f8-4765-a533-dfaf2097f7b9",
+    "name": "낙찰 판정",
+    "type": "n8n-nodes-base.if",
+    "typeVersion": 1,
+    "position": [
+     -18336,
+     18736
+    ]
+   },
+   {
+    "parameters": {
+     "method": "PATCH",
+     "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+     "authentication": "predefinedCredentialType",
+     "nodeCredentialType": "nocoDbApiToken",
+     "sendBody": true,
+     "specifyBody": "json",
+     "jsonBody": "={{ ({\n  status: '낙찰',\n  actual_bid_price: $json.actual_bid_price,\n  actual_bid_rate: $json.actual_bid_rate,\n  bidder_count: $json.bidder_count > 0 ? $json.bidder_count : null,\n  result_fetched_at: $json.fetched_at,\n  bid_engine_error: $json.engine_error,\n  loss_count: $json.new_loss_count,\n  court: $json.new_court,\n  item_no: $json.new_item_no || null,\n  last_checked: new Date().toISOString().replace('T', ' ').substring(0, 19)\n}) }}",
+     "options": {}
+    },
+    "id": "85fac38c-9110-4501-8253-eacacaee4c5f",
+    "name": "NocoDB 낙찰 업데이트",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [
+     -18112,
+     18544
+    ],
+    "retryOnFail": true,
+    "credentials": {
+     "nocoDbApiToken": {
+      "id": "lh3tnFIzojQ5Uqea",
+      "name": "NocoDB account"
+     }
+    }
+   },
+   {
+    "parameters": {
+     "method": "POST",
+     "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mprok558sdzbp7k",
+     "authentication": "predefinedCredentialType",
+     "nodeCredentialType": "nocoDbApiToken",
+     "sendBody": true,
+     "specifyBody": "json",
+     "jsonBody": "={{ (() => { const j = $('결과 파싱').item.json; const n = (v) => (v === undefined || v === '' ? null : v); return {\n  case_no: j.case_no || '',\n  item_no: j.new_item_no || null,\n  court: j.new_court || '',\n  location: j.location || '',\n  usage: j.usage || '',\n  result_type: '매각',\n  complex_name: j.complex_name || '',\n  dong: j.dong || '',\n  area_m2: n(j.area_m2),\n  floor: j.floor || '',\n  appraisal_price: n(j.appraisal_price),\n  min_price: n(j.sale_min_price),\n  loss_count: n(j.new_loss_count),\n  actual_bid_price: n(j.actual_bid_price),\n  actual_bid_rate: n(j.actual_bid_rate),\n  bidder_count: j.bidder_count > 0 ? j.bidder_count : null,\n  bid_date: j.bid_date || '',\n  our_bid_target: j.bid_target || null,\n  engine_error_rate: n(j.engine_error),\n  engine_version: 'v3',\n  fetched_at: j.fetched_at || '',\n  real_trade_3m_avg: j.real_trade_3m_avg || null,\n  real_trade_6m_avg: j.real_trade_6m_avg || null,\n  bid_vs_trade_gap_amt: n(j.bid_vs_trade_gap_amt),\n  bid_vs_trade_gap_rate: n(j.bid_vs_trade_gap_rate),\n  gap_score: n(j.gap_score)\n}; })() }}",
+     "options": {}
+    },
+    "id": "86792b08-00a7-496b-afa4-bb60ae115ea7",
+    "name": "NocoDB 낙찰결과 입력",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [
+     -17888,
+     18544
+    ],
+    "retryOnFail": true,
+    "credentials": {
+     "nocoDbApiToken": {
+      "id": "lh3tnFIzojQ5Uqea",
+      "name": "NocoDB account"
+     }
+    }
+   },
+   {
+    "parameters": {
+     "chatId": "6449313439",
+     "text": "=🔨 *낙찰 결과 확인* ({{ String(($('결과 파싱').item.json.case_no || $('결과 파싱').item.json.사건번호) ?? '').replace(/([_*`\\[])/g, '\\\\$1') }})\n\n📍 *{{ String(($('결과 파싱').item.json.location || $('결과 파싱').item.json.소재지 || '-') ?? '').replace(/[*_`\\[\\]]/g, '') }}*\n🏢 {{ String(($('결과 파싱').item.json.complex_name || $('결과 파싱').item.json.단지명 || '단지명 확인필요') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }} | {{ String(($('결과 파싱').item.json.area_m2 || $('결과 파싱').item.json.전용면적 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}㎡ | {{ String(($('결과 파싱').item.json.floor || $('결과 파싱').item.json.층 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n⚖️ {{ String(($('결과 파싱').item.json.court || $('결과 파싱').item.json.법원 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }} | 📅 매각기일: {{ String(($('결과 파싱').item.json.bid_date || $('결과 파싱').item.json.입찰기일 || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━━━━━━━━━━━━━━━━\n💰 감정가: {{ String(($('결과 파싱').item.json.appraisal_price_fmt || '0원') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n📉 최저매각가: {{ String(($('결과 파싱').item.json.min_price_fmt || '0원') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }} ({{ String(($('결과 파싱').item.json.loss_count || 0) ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}회 유찰)\n🔨 낙찰가: *{{ String(($('결과 파싱').item.json.actual_bid_price_fmt || '0원') ?? '').replace(/[*_`\\[\\]]/g, '') }}* (*{{ String((Math.round(($('결과 파싱').item.json.actual_bid_price || 0)/10000).toLocaleString()) ?? '').replace(/[*_`\\[\\]]/g, '') }}만원*)\n📊 낙찰가율: *{{ String(($('결과 파싱').item.json.actual_bid_rate || 0) ?? '').replace(/[*_`\\[\\]]/g, '') }}%* (감정가 대비)\n👥 응찰자: {{ String((($('결과 파싱').item.json.bidder_count || 0) > 0 ? $('결과 파싱').item.json.bidder_count + '명' : '미확인') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━ 🤖 추천 입찰가 (V3 엔진) ━━━\n🎯 우리 추천가: *{{ String(($('결과 파싱').item.json.bid_target ? Math.round($('결과 파싱').item.json.bid_target/10000).toLocaleString() + '만원' : '미정') ?? '').replace(/[*_`\\[\\]]/g, '') }}* (신뢰도: {{ String(($('결과 파싱').item.json.bid_confidence || '보통') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }})\n{{ String((($('결과 파싱').item.json.bid_min && $('결과 파싱').item.json.bid_max) ? '  └ 추천범위: ' + Math.round($('결과 파싱').item.json.bid_min/10000).toLocaleString() + '만 ~ ' + Math.round($('결과 파싱').item.json.bid_max/10000).toLocaleString() + '만원' : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n📏 예측 오차: *{{ String((($('결과 파싱').item.json.engine_error !== null && $('결과 파싱').item.json.engine_error !== undefined) ? (($('결과 파싱').item.json.engine_error > 0 ? '+' : '') + $('결과 파싱').item.json.engine_error + '%') : '-') ?? '').replace(/[*_`\\[\\]]/g, '') }}* {{ String(($('결과 파싱').item.json.bid_diff_text || '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━ 📈 실거래가 갭 분석 ━━━\n{{ $('결과 파싱').item.json.gap_score ? ($('결과 파싱').item.json.gap_score_grade === 'S' ? '🏆 S등급' : ($('결과 파싱').item.json.gap_score_grade === 'A' ? '🥇 A등급' : ($('결과 파싱').item.json.gap_score_grade === 'B' ? '🥈 B등급' : ($('결과 파싱').item.json.gap_score_grade === 'C' ? '🥉 C등급' : '❌ D등급')))) + ' GAP SCORE: *' + $('결과 파싱').item.json.gap_score + '점*' : '' }}\n🏘️ 실거래가 (3개월): {{ String(($('결과 파싱').item.json.real_trade_3m_fmt || '데이터없음') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n🏘️ 실거래가 (6개월): {{ String(($('결과 파싱').item.json.real_trade_6m_fmt || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.trade_diff_text || '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n━━━ 🛡️ 권리분석 요약 ━━━\n🤖 [{{ String(($('결과 파싱').item.json.ai_risk || '검토필요') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}] {{ String(($('결과 파싱').item.json.ai_recommend || '-') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.cancellation_standard ? '⚖️ 말소기준: ' + $('결과 파싱').item.json.cancellation_standard : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.tenant_count > 0 ? '👤 임차인 ' + $('결과 파싱').item.json.tenant_count + '명 / 보증금 ' + Math.round(($('결과 파싱').item.json.tenant_deposit_total||0)/10000).toLocaleString() + '만원' : ($('결과 파싱').item.json.tenant_count === 0 ? '👤 임차인 없음' : '')) ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.inherited_amount > 0 ? '⚠️ 인수금액: ' + Math.round($('결과 파싱').item.json.inherited_amount/10000).toLocaleString() + '만원' : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n{{ String(($('결과 파싱').item.json.ai_summary ? '📝 AI: ' + $('결과 파싱').item.json.ai_summary : '') ?? '').replace(/([_*`\\[])/g, '\\\\$1') }}\n\n🔗 [마이옥션 상세보기]({{ $('결과 파싱').item.json.court_url }}) | [네이버 시세]({{ $('결과 파싱').item.json.naver_url }})\n\n📈 이 결과가 입찰가 엔진 통계에 누적 반영됐습니다.\n",
+     "additionalFields": {
+      "parse_mode": "Markdown"
+     }
+    },
+    "id": "8b0832c0-d4bc-443b-ab58-da9145b60af4",
+    "name": "텔레그램 낙찰 알림",
+    "type": "n8n-nodes-base.telegram",
+    "typeVersion": 1.2,
+    "position": [
+     -17664,
+     18816
+    ],
+    "webhookId": "e446c321-9877-408e-b57d-554bcfdef87b",
+    "disabled": true,
+    "credentials": {
+     "telegramApi": {
+      "id": "loTbDXHzCMMbqGkN",
+      "name": "AUCTION_cali_bot"
+     }
+    }
+   },
+   {
+    "parameters": {
+     "jsCode": "let item = null;\ntry {\n  item = $input.first().json;\n} catch (e) {}\n\nif (!item) {\n  try {\n    item = $json;\n  } catch (e) {}\n}\n\nif (!item) {\n  try {\n    item = $('Split In Batches').item.json;\n  } catch (e) {}\n}\n\nif (!item) {\n  item = {};\n}\n\nconst courtName = item.court || item.법원 || '';\nconst bidDate = item.bid_date || item.입찰기일 || item.매각기일 || '';\nconst targetItems = item.items || [];\nconst targetCaseNos = targetItems.map(it => it.case_no || it.사건번호 || it.saNo).filter(Boolean);\n\nreturn [{\n  json: {\n    case_nos: targetCaseNos,\n    court: courtName,\n    bid_date: bidDate,\n    items: targetItems\n  }\n}];"
+    },
+    "id": "97794bab-ae60-4d74-b3ae-9a386a827883",
+    "name": "Browserless 요청 바디 생성",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [
+     -19232,
+     18736
+    ]
+   },
+   {
+    "parameters": {
+     "jsCode": "const items = $input.first().json.list || [];\nconst groups = {};\n\nconst cleanBidDate = (dInput) => {\n  if (!dInput) return '';\n  const str = String(dInput).trim();\n  if (/^\\d{4}[-.]\\d{2}[-.]\\d{2}$/.test(str)) {\n    return str.replace(/-/g, '.');\n  }\n  const d = new Date(dInput);\n  if (!isNaN(d.getTime())) {\n    const kstEpoch = d.getTime() + (9 * 60 * 60 * 1000);\n    const kstDate = new Date(kstEpoch);\n    return kstDate.toISOString().split('T')[0].replace(/-/g, '.');\n  }\n  return str.replace(/-/g, '.');\n};\n\nfor (const item of items) {\n  const rawCourt = item.court || item.법원;\n  const rawBidDate = item.bid_date || item.입찰기일 || item.매각기일;\n  if (!rawCourt || !rawBidDate) continue;\n\n  const kstBidDate = cleanBidDate(rawBidDate);\n  const key = `${rawCourt}_${kstBidDate}`;\n  if (!groups[key]) {\n    groups[key] = {\n      court: rawCourt,\n      bid_date: kstBidDate,\n      items: []\n    };\n  }\n  groups[key].items.push({\n    ...item,\n    court: rawCourt,\n    bid_date: kstBidDate\n  });\n}\nreturn Object.values(groups).map(g => ({ json: g }));"
+    },
+    "id": "485ce5d4-7fc3-4207-b008-76544f5ebf67",
+    "name": "NocoDB 목록 추출 및 그룹화",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [
+     -19680,
+     19216
+    ]
+   },
+   {
+    "parameters": {
+     "conditions": {
+      "string": [
+       {
+        "value1": "={{ $json.__resultStatus }}",
+        "value2": "rescheduled"
+       }
+      ]
+     }
+    },
+    "id": "56e85cf3-29cd-4612-aa11-badb1fe1f213",
+    "name": "유찰 판정",
+    "type": "n8n-nodes-base.if",
+    "typeVersion": 1,
+    "position": [
+     -18112,
+     18832
+    ]
+   },
+   {
+    "parameters": {
+     "method": "PATCH",
+     "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+     "authentication": "predefinedCredentialType",
+     "nodeCredentialType": "nocoDbApiToken",
+     "sendBody": true,
+     "specifyBody": "json",
+     "jsonBody": "={{ ({\n  status: '진행중',\n  loss_count: $json.new_loss_count,\n  prev_loss_count: $json.loss_count || 0,\n  prev_min_price: $json.min_price || 0,\n  min_price: $json.new_min_price,\n  bid_date: $json.next_bid_date,\n  court: $json.new_court,\n  item_no: $json.new_item_no || null,\n  last_checked: new Date().toISOString().replace('T', ' ').substring(0, 19),\n  ...($json.engine || {})\n}) }}",
+     "options": {}
+    },
+    "id": "25c25b6e-51b5-4fb8-af16-26502a9143a5",
+    "name": "NocoDB 유찰 업데이트",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [
+     -17888,
+     18736
+    ],
+    "retryOnFail": true,
+    "credentials": {
+     "nocoDbApiToken": {
+      "id": "lh3tnFIzojQ5Uqea",
+      "name": "NocoDB account"
+     }
+    }
+   },
+   {
+    "parameters": {
+     "conditions": {
+      "string": [
+       {
+        "value1": "={{ $json.__resultStatus }}",
+        "value2": "canceled"
+       }
+      ]
+     }
+    },
+    "id": "e2970cdf-5c90-4769-b704-a14de0c782f8",
+    "name": "취하 판정",
+    "type": "n8n-nodes-base.if",
+    "typeVersion": 1,
+    "position": [
+     -17888,
+     18928
+    ]
+   },
+   {
+    "parameters": {
+     "method": "PATCH",
+     "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+     "authentication": "predefinedCredentialType",
+     "nodeCredentialType": "nocoDbApiToken",
+     "sendBody": true,
+     "specifyBody": "json",
+     "jsonBody": "={\n  \"status\": \"{{ $json.__resultText && $json.__resultText.length > 0 ? $json.__resultText : '취하' }}\",\n  \"last_checked\": \"{{ new Date().toISOString().replace('T', ' ').substring(0, 19) }}\"\n}",
+     "options": {}
+    },
+    "id": "5ca05a5d-2eb5-4de3-992d-b0eb8feaadfc",
+    "name": "NocoDB 취하 업데이트",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [
+     -17664,
+     19104
+    ],
+    "retryOnFail": true,
+    "credentials": {
+     "nocoDbApiToken": {
+      "id": "lh3tnFIzojQ5Uqea",
+      "name": "NocoDB account"
+     }
+    }
+   },
+   {
+    "id": "50c153ca-8221-4ff7-892d-d3f01d597ec8",
+    "name": "NocoDB 보류 업데이트",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [
+     -17440,
+     19104
+    ],
+    "parameters": {
+     "method": "PATCH",
+     "url": "=http://nocodb_app:8080/api/v1/db/data/noco/pwmyhpb0tu3b4m6/mfim9xo11ob6gp9/{{ $json.Id || $json.id }}",
+     "authentication": "predefinedCredentialType",
+     "nodeCredentialType": "nocoDbApiToken",
+     "sendBody": true,
+     "specifyBody": "json",
+     "jsonBody": "={{ ({\n  last_checked: new Date().toISOString().replace('T', ' ').substring(0, 19),\n  loss_count: $json.new_loss_count,\n  court: $json.new_court,\n  ...($json.new_item_no ? { item_no: $json.new_item_no } : {}),\n  ...($json.__ambiguous ? { needs_manual_review: true } : {})\n}) }}",
+     "options": {}
+    },
+    "notes": "기일 미정·결과 미확인·다물건 애매: last_checked(7일 주기 재확인 기준)와 유찰횟수·법원·물건번호 보정만 기록",
+    "retryOnFail": true,
+    "credentials": {
+     "nocoDbApiToken": {
+      "id": "lh3tnFIzojQ5Uqea",
+      "name": "NocoDB account"
+     }
+    }
+   }
+  ],
+  "connections": {
+   "Schedule Trigger": {
+    "main": [
+     [
+      {
+       "node": "대상 물건 조회",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "대상 물건 조회": {
+    "main": [
+     [
+      {
+       "node": "오늘 날짜 필터",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "오늘 날짜 필터": {
+    "main": [
+     [
+      {
+       "node": "NocoDB 목록 추출 및 그룹화",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "Split In Batches": {
+    "main": [
+     [
+      {
+       "node": "Browserless 요청 바디 생성",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "결과 크롤링": {
+    "main": [
+     [
+      {
+       "node": "결과 파싱",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "결과 파싱": {
+    "main": [
+     [
+      {
+       "node": "변화없음 필터",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "변화없음 필터": {
+    "main": [
+     [
+      {
+       "node": "Split In Batches",
+       "type": "main",
+       "index": 0
+      }
+     ],
+     [
+      {
+       "node": "낙찰 판정",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "낙찰 판정": {
+    "main": [
+     [
+      {
+       "node": "NocoDB 낙찰 업데이트",
+       "type": "main",
+       "index": 0
+      }
+     ],
+     [
+      {
+       "node": "유찰 판정",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "NocoDB 낙찰 업데이트": {
+    "main": [
+     [
+      {
+       "node": "NocoDB 낙찰결과 입력",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "NocoDB 낙찰결과 입력": {
+    "main": [
+     [
+      {
+       "node": "텔레그램 낙찰 알림",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "텔레그램 낙찰 알림": {
+    "main": [
+     [
+      {
+       "node": "Split In Batches",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "Browserless 요청 바디 생성": {
+    "main": [
+     [
+      {
+       "node": "결과 크롤링",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "NocoDB 목록 추출 및 그룹화": {
+    "main": [
+     [
+      {
+       "node": "Split In Batches",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "유찰 판정": {
+    "main": [
+     [
+      {
+       "node": "NocoDB 유찰 업데이트",
+       "type": "main",
+       "index": 0
+      }
+     ],
+     [
+      {
+       "node": "취하 판정",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "NocoDB 유찰 업데이트": {
+    "main": [
+     [
+      {
+       "node": "Split In Batches",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "취하 판정": {
+    "main": [
+     [
+      {
+       "node": "NocoDB 취하 업데이트",
+       "type": "main",
+       "index": 0
+      }
+     ],
+     [
+      {
+       "node": "NocoDB 보류 업데이트",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "NocoDB 취하 업데이트": {
+    "main": [
+     [
+      {
+       "node": "Split In Batches",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   },
+   "NocoDB 보류 업데이트": {
+    "main": [
+     [
+      {
+       "node": "Split In Batches",
+       "type": "main",
+       "index": 0
+      }
+     ]
+    ]
+   }
+  },
+  "nodeGroups": []
+ },
+ "meta": {
+  "templateCredsSetupCompleted": true,
+  "aiBuilderAssisted": true,
+  "builderVariant": "mcp"
+ }
+}

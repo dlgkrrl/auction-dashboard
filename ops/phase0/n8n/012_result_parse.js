@@ -101,6 +101,20 @@ function runEngineV3(s, minPrice, lossCount) {
   };
 }
 
+// 2단계: 결과 테이블 이벤트 기록용 주소 분해
+function splitAddress(addr) {
+  const t = String(addr || '').split(/\s+/);
+  let sgg = '', emd = '';
+  if (t.length >= 2) {
+    sgg = t[1];
+    let rest = t.slice(2);
+    if (rest[0] && /구$/.test(rest[0])) { sgg += ' ' + rest[0]; rest = rest.slice(1); }
+    const e = rest.find((x) => /(동|읍|면|가)$/.test(x) && !/^\d/.test(x));
+    if (e) emd = e;
+  }
+  return { sgg, emd };
+}
+
 const results = [];
 for (const stored of storedItems) {
   const storedCaseNo = stored.case_no || stored.사건번호 || stored.saNo || '';
@@ -201,6 +215,12 @@ for (const stored of storedItems) {
       new_court: newCourt,
       new_item_no: newItemNo,
       sale_min_price: saleMinPrice,
+      // 2단계: 결과 테이블 이벤트(매각·유찰·변경·불허가·미납) 기록용
+      detail_uid: String(m.detail_uid || storedUid || ''),
+      ...splitAddress(stored.location),
+      event_type: resultText.includes('불허') ? '매각불허가' : resultText.includes('미납') ? '대금미납' : resultText,
+      event_loss_count: resultText === '유찰' ? Math.max(0, newLoss - 1) : newLoss,
+      event_min_price: saleMinPrice,
       engine,
       actual_bid_price: actualBidPrice,
       actual_bid_rate: actualBidRate,
