@@ -1,6 +1,6 @@
 // 0단계 점검 (읽기 전용): 물건·결과 테이블 상태 요약
-const items = $('물건 조회').first().json.list || [];
-const results = $input.first().json.list || [];
+const items = $('물건 조회').all().flatMap((i) => i.json.list || []);  // 11-14: 1000행 넘으면 페이지 합침
+const results = $input.all().flatMap((i) => i.json.list || []);
 const kst = new Date(Date.now() + 9 * 3600e3);
 const today = kst.toISOString().slice(0, 10);
 const since = '2026-11-12';
