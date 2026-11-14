@@ -245,7 +245,15 @@ return filtered.map(function(item) {
       유찰횟수:       lossCount,
       용도:           item.usage,
       면적:           area,
-      법원:           (item.court === '창원지방법원' && /양산시/.test(addressForParsing)) ? '울산지방법원' : item.court, // 양산 = 울산지법 관할
+      // 법원: 크롤러가 상세 제목에서 읽은 관할 우선. 기본값 '창원지방법원'이면 주소로 관할 결정 (양산=울산, 마산·함안=마산지원 등)
+      법원:           (item.court && item.court !== '창원지방법원') ? item.court : (
+                        /양산시/.test(addressForParsing) ? '울산지방법원'
+                        : /마산합포구|마산회원구|함안군|의령군/.test(addressForParsing) ? '창원지방법원 마산지원'
+                        : /통영시|거제시|고성군/.test(addressForParsing) ? '창원지방법원 통영지원'
+                        : /진주시|사천시|남해군|하동군|산청군/.test(addressForParsing) ? '창원지방법원 진주지원'
+                        : /밀양시|창녕군/.test(addressForParsing) ? '창원지방법원 밀양지원'
+                        : /거창군|함양군|합천군/.test(addressForParsing) ? '창원지방법원 거창지원'
+                        : (item.court || '창원지방법원')),
       물건번호:       item.objNo,
       url:            courtUrl,
       naver_url:      naverUrl,
