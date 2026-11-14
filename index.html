@@ -1954,12 +1954,17 @@
       // ── Chart 2: 유찰 횟수별 실전 낙찰가율 & 경쟁률 (100% NocoDB auction_results 기반) ──
       // 낙찰가율은 평균 대신 중앙값(이상치에 덜 흔들림). 5% 미만·200% 초과는 지분·입력오류로 보고 제외.
       // 응찰자 수는 '미확인(0/빈값)'을 1명으로 치지 않고, 확인된 값만 평균.
+      // 2단계 이후 결과 테이블: 매각·유찰 이벤트(우리 물건 tracked + 표본 확대 court_list).
+      //   통계 제외: is_outlier·is_share·is_bulk, 유찰 횟수 신뢰 불가(loss_count_suspect)는 회차 구분이 안 되므로 제외.
+      //   유찰 이벤트는 그 회차의 '매각 비율'(매각 ÷ (매각+유찰))에 사용.
       const lossBins = {
-        "신건 (0회)": { rates: [], bidders: [] },
-        "유찰 1회": { rates: [], bidders: [] },
-        "유찰 2회": { rates: [], bidders: [] },
-        "유찰 3회+": { rates: [], bidders: [] },
+        "신건 (0회)": { rates: [], bidders: [], fails: 0 },
+        "유찰 1회": { rates: [], bidders: [], fails: 0 },
+        "유찰 2회": { rates: [], bidders: [], fails: 0 },
+        "유찰 3회+": { rates: [], bidders: [], fails: 0 },
       };
+      const binOf = (loss) => loss >= 3 ? "유찰 3회+" : loss === 2 ? "유찰 2회" : loss === 1 ? "유찰 1회" : "신건 (0회)";
+      const isTrue = (v) => v === true || v === 1 || v === '1' || v === 'true';
 
       const sourceData = (allResults && allResults.length > 0) 
         ? allResults 
@@ -1967,9 +1972,16 @@
 
       let totalAnalyzedCount = 0;
       let excludedCount = 0;
+      let failCount = 0;
+      const bySource = {};
 
       sourceData.forEach(r => {
         const loss = Number(r.loss_count) || 0;
+        if (allResults && allResults.length > 0) {
+          if (isTrue(r.is_outlier) || isTrue(r.is_share) || isTrue(r.is_bulk) || isTrue(r.loss_count_suspect)) { excludedCount += 1; return; }
+          if (r.result_type === '유찰') { lossBins[binOf(loss)].fails += 1; failCount += 1; return; }
+          if (r.result_type && r.result_type !== '매각') return;
+        }
         let rate = Number(r.actual_bid_rate || 0);
         if (!rate && r.appraisal_price && r.actual_bid_price) {
           rate = (Number(r.actual_bid_price) / Number(r.appraisal_price)) * 100;
@@ -1977,12 +1989,10 @@
         if (!(rate > 0)) return;
         if (rate < 5 || rate > 200) { excludedCount += 1; return; }
 
-        let binKey = "신건 (0회)";
-        if (loss === 1) binKey = "유찰 1회";
-        else if (loss === 2) binKey = "유찰 2회";
-        else if (loss >= 3) binKey = "유찰 3회+";
-
+        const binKey = binOf(loss);
         lossBins[binKey].rates.push(rate);
+        const src = r.source === 'court_list' ? '표본' : '우리 물건';
+        bySource[src] = (bySource[src] || 0) + 1;
         const bidders = Number(r.bidder_count);
         if (bidders > 0) lossBins[binKey].bidders.push(bidders);
         totalAnalyzedCount += 1;
@@ -1998,7 +2008,10 @@
 
       const calibCountBadge = document.getElementById("calibSampleCount");
       if (calibCountBadge) {
-        calibCountBadge.innerText = `실제 낙찰 데이터 ${totalAnalyzedCount}건 분석${excludedCount ? ` (이상치 ${excludedCount}건 제외)` : ''}`;
+        const srcText = Object.entries(bySource).map(([k, v]) => `${k} ${v}`).join('·');
+        calibCountBadge.innerText = `낙찰 ${totalAnalyzedCount}건${srcText ? ` (${srcText})` : ''}`
+          + (failCount ? ` · 유찰 ${failCount}건` : '')
+          + (excludedCount ? ` · 통계 제외 ${excludedCount}건` : '');
       }
 
       const labels = Object.keys(lossBins);
@@ -2053,10 +2066,15 @@
                     const binKey = ctx.label;
                     const sample = lossBins[binKey]?.count || 0;
                     if (ctx.dataset.yAxisID === "yRate") {
-                      return [
+                      const fails = lossBins[binKey]?.fails || 0;
+                      const lines = [
                         `📊 낙찰가율 중앙값: ${ctx.parsed.y}%`,
-                        `📁 분석 표본: ${sample}건${sample < 5 ? ' (표본 적음 — 참고만)' : ''}`
+                        `📁 낙찰 표본: ${sample}건${sample < 5 ? ' (표본 적음 — 참고만)' : ''}`
                       ];
+                      if (sample + fails > 0 && fails > 0) {
+                        lines.push(`🎯 이 회차 매각 비율: ${Math.round(sample / (sample + fails) * 100)}% (매각 ${sample} / 유찰 ${fails})`);
+                      }
+                      return lines;
                     }
                     return `👥 평균 응찰자 수: ${ctx.parsed.y}명`;
                   }
