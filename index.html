@@ -2820,6 +2820,31 @@
     }
 
 
+    // 4단계 · 입찰가 → 낙찰 확률 (V4 물건만)
+    // 하한·목표·상한 = 최저가 × 낙찰가 배수 25%·50%·75% 분위. 사분위 3점을 잇고 꼬리는 같은 기울기로 연장.
+    // 낙찰가는 위로 길게 튀는 경우(경쟁 과열)가 많아 위쪽 폭은 2배로 넓힘 — 8-15 이후 백테스트에서 예측·실제 차이 5%p 안팎으로 맞춘 값.
+    // 뜻: '다른 사람의 최고 입찰가보다 높게 쓸 확률'(그 회차에 낙찰이 난다는 가정).
+    function winProb(item, price) {
+      if (!/V4 엔진/.test(item.bid_strategy_text || '')) return null;
+      const t = Number(item.bid_target), hi = Number(item.bid_max), min = Number(item.min_price) || 0;
+      let lo = Number(item.bid_min);
+      if (!(t > 0 && hi > t && price > 0)) return null;
+      if (!(lo > 0 && lo < t) || lo <= min * 1.001) lo = t - (hi - t);   // 하한이 최저가에 막혔으면 위쪽 폭으로 대신
+      const up = (hi - t) * 2;
+      let p;
+      if (price <= t) p = 0.5 - (t - price) / (t - lo) * 0.25;
+      else p = 0.5 + (price - t) / up * 0.25;
+      return Math.round(Math.min(0.95, Math.max(0.02, p)) * 100);
+    }
+    function updateWinProb(input, id) {
+      const item = window.__winProbItem; if (item && String(item.Id) !== String(id)) return;
+      const out = document.getElementById('winProbOut');
+      if (!item || !out) return;
+      const won = Number(String(input.value).replace(/[^0-9.]/g, '')) * 10000;   // 만원 단위 입력
+      const p = winProb(item, won);
+      out.textContent = p == null ? '-' : (won < Number(item.min_price) ? '최저가 미만' : `약 ${p}%`);
+    }
+
     function buildSummaryTabBody(item) {
       const safeFmt = (n) => {
         if (!n || n <= 0) return '-';
@@ -2913,6 +2938,21 @@
                 <div style="text-align:center; color:var(--green);">목표 입찰가<br/><strong style="font-size:14px;">${safeFmt(item.bid_target)}</strong></div>
                 <div style="text-align:center; color:var(--red);">상한가<br/><strong>${safeFmt(item.bid_max)}</strong></div>
               </div>
+              ${winProb(item, Number(item.bid_target)) != null ? (() => { window.__winProbItem = item; return `
+              <div style="font-size:12px; margin:-4px 0 12px; background:var(--surface); padding:10px; border-radius:6px;">
+                <div style="display:flex; justify-content:space-between; color:var(--text-sub);">
+                  <span>낙찰 확률 ≈ 하한 <strong style="color:var(--text);">${winProb(item, Number(item.bid_min) || Number(item.min_price))}%</strong></span>
+                  <span>목표 <strong style="color:var(--green);">${winProb(item, Number(item.bid_target))}%</strong></span>
+                  <span>상한 <strong style="color:var(--red);">${winProb(item, Number(item.bid_max))}%</strong></span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:8px;">
+                  <span style="color:var(--text-sub);">내 입찰가</span>
+                  <input type="text" inputmode="numeric" placeholder="만원" style="width:110px; padding:4px 6px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:4px;" oninput="updateWinProb(this, '${item.Id}')" />
+                  <span style="color:var(--text-sub);">만원 →</span>
+                  <strong id="winProbOut" style="color:var(--text);">-</strong>
+                </div>
+                <div style="font-size:11px; color:var(--text-sub); margin-top:6px;">비슷한 물건의 실제 낙찰가 분포 기준, 다른 응찰자보다 높게 쓸 확률(그 회차에 낙찰이 난다고 볼 때). 백테스트 오차 ±5%p 안팎.</div>
+              </div>`; })() : ''}
               ${item.bid_strategy_text ? `<div style="font-size:13px; line-height:1.5; color:var(--text); border-top:1px solid var(--border); padding-top:8px; margin-top:8px;">${escapeHtml(item.bid_strategy_text).replace(/\n/g, '<br/>')}</div>` : ''}
             </div>
           </div>
