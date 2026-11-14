@@ -50,6 +50,8 @@ export async function onRequestGet({ request, env }) {
     targetTableId = env.TABLE_RESULTS_ID || 'mprok558sdzbp7k';
   } else if (tableParam === 'history') {
     targetTableId = env.TABLE_HISTORY_ID || 'mxfyoppx5l9l0pq';
+  } else if (tableParam === 'stats') {
+    targetTableId = env.TABLE_STATS_ID || 'mmzvy0moer7p7hq'; // 3단계 통계 (n8n 049가 매일 05:00 갱신)
   } else if (tableParam === 'items') {
     targetTableId = TABLE_ID;
   }

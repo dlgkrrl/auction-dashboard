@@ -1123,6 +1123,9 @@
         <button class="profile-badge-btn" id="btnProfileModal" onclick="openProfileModal()" title="나의 투자 조건 및 가용자금 설정">
           <span>⚙️</span> <span id="headerProfileLabel">무주택 (2,000만)</span>
         </button>
+        <button class="btn-refresh" id="btnStats" onclick="openStatsModal()" aria-label="낙찰 통계 보기" title="지역·유찰 회차별 실제 낙찰가율 통계 (매일 05:00 갱신)">
+          <span class="icon">📈</span> 통계
+        </button>
         <button class="btn-refresh" id="btnToggleMap" onclick="toggleMap()" aria-label="지도 보기">
           <span class="icon">🗺️</span> 지도
         </button>
@@ -1254,6 +1257,31 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <!-- Detail/Text Modal -->
+    <!-- 3단계: 낙찰 통계 (auction_stats, n8n 049가 매일 05:00 갱신) -->
+    <div class="modal-overlay" id="statsModal" onclick="if (event.target.id === 'statsModal') closeStatsModal()">
+      <div class="modal-container" style="max-width:760px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title">📈 낙찰 통계</div>
+            <div class="modal-subtitle" id="statsSubtitle">지역·유찰 회차별 실제 낙찰가율 (감정가 대비)</div>
+          </div>
+          <button class="modal-close" onclick="closeStatsModal()" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <select id="statsLevel" class="sort-select" onchange="onStatsLevelChange()" aria-label="통계 단위">
+              <option value="전체">전체</option><option value="법원">법원</option><option value="시군구">시군구</option>
+              <option value="읍면동">읍면동</option><option value="단지">단지</option>
+            </select>
+            <select id="statsScope" class="sort-select" onchange="renderStats()" aria-label="통계 범위" style="flex:1; min-width:180px;"></select>
+          </div>
+          <div style="position:relative; height:220px; margin-bottom:12px;"><canvas id="chartStats" aria-label="유찰 회차별 낙찰가율 중앙값 차트"></canvas></div>
+          <div style="overflow-x:auto;"><table class="stats-table" id="statsTable" style="width:100%; border-collapse:collapse; font-size:12px;"></table></div>
+          <div id="statsNote" style="font-size:11px; color:var(--text-sub); margin-top:10px; line-height:1.6;"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
       <div class="modal-container" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -3766,6 +3794,131 @@
       });
 
       return kakaoMapScriptPromise;
+    }
+
+    // ── 3단계: 낙찰 통계 창 ─────────────────────────────────────────────
+    // auction_stats: (level, scope, loss_bin) 1행. loss_bin 4 = 4회 이상.
+    // V3 고정표(82/76/70/65/60%)와 나란히 보여 실제 값과의 차이를 확인한다.
+    let statsRows = null;
+    const V3_TABLE = { 0: 82, 1: 76, 2: 70, 3: 65, 4: 60 };
+    const LOSS_LABEL = ['신건', '유찰 1회', '유찰 2회', '유찰 3회', '유찰 4회+'];
+
+    async function loadStats() {
+      const all = [];
+      for (let offset = 0; offset < 20000; offset += 1000) {
+        const u = new URL('/api/auction-data', window.location.origin);
+        u.searchParams.set('table', 'stats');
+        u.searchParams.set('limit', '1000');
+        u.searchParams.set('offset', String(offset));
+        const res = await apiFetch(u.toString());
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        all.push(...(data.list || []));
+        if (data.pageInfo?.isLastPage || (data.list || []).length < 1000) break;
+      }
+      return all;
+    }
+
+    async function openStatsModal() {
+      document.getElementById('statsModal').classList.add('show');
+      if (!statsRows) {
+        document.getElementById('statsTable').innerHTML = '<tr><td style="padding:12px; color:var(--text-sub);">불러오는 중…</td></tr>';
+        try {
+          statsRows = await loadStats();
+        } catch (e) {
+          document.getElementById('statsTable').innerHTML = `<tr><td style="padding:12px; color:var(--red);">통계를 불러오지 못했습니다 (${escapeHtml(e.message)})</td></tr>`;
+          return;
+        }
+      }
+      onStatsLevelChange();
+    }
+
+    function closeStatsModal() {
+      document.getElementById('statsModal').classList.remove('show');
+    }
+
+    function onStatsLevelChange() {
+      if (!statsRows) return;
+      const level = document.getElementById('statsLevel').value;
+      const totals = {};
+      statsRows.filter(r => r.level === level).forEach(r => {
+        totals[r.scope] = (totals[r.scope] || 0) + (Number(r.n_sold) || 0);
+      });
+      const scopes = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+      document.getElementById('statsScope').innerHTML = scopes
+        .map(([sc, n]) => `<option value="${escapeHtml(sc)}">${escapeHtml(sc)} (낙찰 ${n}건)</option>`).join('');
+      renderStats();
+    }
+
+    function renderStats() {
+      if (!statsRows) return;
+      const level = document.getElementById('statsLevel').value;
+      const scope = document.getElementById('statsScope').value;
+      const rows = statsRows.filter(r => r.level === level && r.scope === scope);
+      const byBin = {};
+      rows.forEach(r => { byBin[Number(r.loss_bin)] = r; });
+      const fmt = (v, unit = '%') => (v === null || v === undefined || v === '' ? '—' : `${v}${unit}`);
+
+      const head = `<tr style="color:var(--text-sub); text-align:right;">
+        <th style="text-align:left; padding:6px;">회차</th><th style="padding:6px;">낙찰</th><th style="padding:6px;">유찰</th>
+        <th style="padding:6px;">매각 비율</th><th style="padding:6px;">낙찰가율 중앙값</th><th style="padding:6px;">25~75%</th>
+        <th style="padding:6px;">최저가율</th><th style="padding:6px;">최저가 대비</th><th style="padding:6px;">응찰자</th><th style="padding:6px;">V3 표</th></tr>`;
+      const body = [0, 1, 2, 3, 4].map(b => {
+        const r = byBin[b];
+        if (!r) return `<tr style="border-top:1px solid var(--border); color:var(--text-sub);"><td style="padding:6px;">${LOSS_LABEL[b]}</td><td colspan="8" style="padding:6px; text-align:center;">표본 없음</td><td style="padding:6px; text-align:right;">${V3_TABLE[b]}%</td></tr>`;
+        const n = Number(r.n_sold) || 0, f = Number(r.n_fail) || 0;
+        const few = n < 5 ? ' style="color:var(--yellow);" title="표본 5건 미만 — 참고만"' : '';
+        const diff = r.rate_median != null ? Math.round((V3_TABLE[b] - Number(r.rate_median)) * 10) / 10 : null;
+        return `<tr style="border-top:1px solid var(--border); text-align:right;">
+          <td style="text-align:left; padding:6px;">${LOSS_LABEL[b]}</td>
+          <td style="padding:6px;"${few}>${n}</td><td style="padding:6px;">${f}</td>
+          <td style="padding:6px;">${f > 0 ? fmt(r.sale_ratio) : '—'}</td>
+          <td style="padding:6px; font-weight:700;">${fmt(r.rate_median)}</td>
+          <td style="padding:6px;">${r.rate_q1 != null ? `${r.rate_q1}~${r.rate_q3}%` : '—'}</td>
+          <td style="padding:6px;">${fmt(r.min_rate_median)}</td>
+          <td style="padding:6px;">${r.over_min_median != null ? `×${r.over_min_median}` : '—'}</td>
+          <td style="padding:6px;">${fmt(r.bidders_avg, '명')}</td>
+          <td style="padding:6px; color:${diff != null && Math.abs(diff) >= 5 ? 'var(--red)' : 'var(--text-sub)'};">${V3_TABLE[b]}%${diff != null ? ` (${diff > 0 ? '+' : ''}${diff})` : ''}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('statsTable').innerHTML = head + body;
+
+      const any = rows[0];
+      const computed = any ? String(any.computed_at || '').slice(0, 16).replace('T', ' ') : '';
+      document.getElementById('statsSubtitle').textContent = any
+        ? `${scope} · 기일 ${any.period_from || ''}~${any.period_to || ''} · ${computed} UTC 계산`
+        : '통계 없음';
+      document.getElementById('statsNote').innerHTML =
+        '· 낙찰가율 = 낙찰가 ÷ 감정가. 최저가 대비 = 낙찰가 ÷ 그 회차 최저가(중앙값).<br>' +
+        '· 이상치·지분·일괄·유찰 횟수 불확실 행은 제외. 노란 숫자는 표본 5건 미만.<br>' +
+        '· 매각 비율은 유찰 기록이 쌓이는 중이라(11-14부터 유찰 보강 수집) 당분간 실제보다 높게 나옵니다.<br>' +
+        '· V3 표 = 지금 입찰가 엔진이 쓰는 고정 낙찰가율. 괄호는 실제 중앙값과의 차이(빨강 = 5%p 이상).';
+
+      if (charts.stats) charts.stats.destroy();
+      const cv = document.getElementById('chartStats');
+      if (cv && typeof Chart !== 'undefined') {
+        charts.stats = new Chart(cv, {
+          data: {
+            labels: LOSS_LABEL,
+            datasets: [
+              { type: 'bar', label: '실제 낙찰가율 중앙값 (%)', data: [0, 1, 2, 3, 4].map(b => byBin[b]?.rate_median ?? null),
+                backgroundColor: 'rgba(47, 129, 247, 0.7)', borderColor: '#2f81f7', borderWidth: 1.5, borderRadius: 6 },
+              { type: 'line', label: 'V3 고정표 (%)', data: [0, 1, 2, 3, 4].map(b => V3_TABLE[b]),
+                borderColor: '#f85149', backgroundColor: '#f85149', borderDash: [4, 4], pointRadius: 3 },
+              { type: 'line', label: '그 회차 최저가율 (%)', data: [0, 1, 2, 3, 4].map(b => byBin[b]?.min_rate_median ?? null),
+                borderColor: '#8b949e', backgroundColor: '#8b949e', pointRadius: 2 },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } } },
+            scales: {
+              x: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { color: '#30363d' } },
+              y: { min: 0, ticks: { color: '#8b949e', callback: v => v + '%' }, grid: { color: '#30363d' } },
+            },
+          },
+        });
+      }
     }
 
     function toggleMap() {
