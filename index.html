@@ -2848,7 +2848,7 @@
               </div>
               ${item.bid_target ? `
               <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(163,113,247,0.2); font-size:13px; display:flex; justify-content:space-between;">
-                <div><strong>V3 목표가 대비 오차:</strong> <span style="color:${errColor}; font-weight:800;">${errVal > 0 ? '+' : ''}${errVal}%</span></div>
+                <div><strong>당시 목표가 대비 오차:</strong> <span style="color:${errColor}; font-weight:800;">${errVal > 0 ? '+' : ''}${errVal}%</span></div>
                 <div style="color:var(--text-sub);">목표가: ${safeFmt(item.bid_target)}</div>
               </div>` : ''}
             </div>
@@ -2902,7 +2902,7 @@
       if (item.bid_target || item.bid_strategy_text) {
         bodyHtml += `
           <div class="modal-section">
-            <div class="modal-section-title">🎯 AI 입찰 전략 (V3 엔진)</div>
+            <div class="modal-section-title">🎯 AI 입찰 전략 (${/V4 엔진/.test(item.bid_strategy_text || '') ? 'V4 엔진 · 실제 낙찰 통계' : 'V3 엔진'})</div>
             <div style="background:rgba(47,129,247,0.1); padding:12px; border-radius:8px; border:1px solid rgba(47,129,247,0.3);">
               <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
                 <div><span style="font-size:11px; color:var(--text-sub);">신뢰도:</span> <strong style="color:var(--text);">${item.bid_confidence || '-'}</strong></div>
@@ -3798,7 +3798,7 @@
 
     // ── 3단계: 낙찰 통계 창 ─────────────────────────────────────────────
     // auction_stats: (level, scope, loss_bin) 1행. loss_bin 4 = 4회 이상.
-    // V3 고정표(82/76/70/65/60%)와 나란히 보여 실제 값과의 차이를 확인한다.
+    // 예전 V3 고정표(82/76/70/65/60%)와 나란히 보여 실제 값과의 차이를 확인한다. (11-14부터 엔진은 V4)
     let statsRows = null;
     const V3_TABLE = { 0: 82, 1: 76, 2: 70, 3: 65, 4: 60 };
     const LOSS_LABEL = ['신건', '유찰 1회', '유찰 2회', '유찰 3회', '유찰 4회+'];
@@ -3892,7 +3892,7 @@
         '· 낙찰가율 = 낙찰가 ÷ 감정가. 최저가 대비 = 낙찰가 ÷ 그 회차 최저가(중앙값).<br>' +
         '· 이상치·지분·일괄·유찰 횟수 불확실 행은 제외. 노란 숫자는 표본 5건 미만.<br>' +
         '· 매각 비율은 유찰 기록이 쌓이는 중이라(11-14부터 유찰 보강 수집) 당분간 실제보다 높게 나옵니다.<br>' +
-        '· V3 표 = 지금 입찰가 엔진이 쓰는 고정 낙찰가율. 괄호는 실제 중앙값과의 차이(빨강 = 5%p 이상).';
+        '· V3 표 = 예전 입찰가 엔진의 고정 낙찰가율(11-14부터 V4가 이 통계로 추천가 계산). 괄호는 실제 중앙값과의 차이(빨강 = 5%p 이상).';
 
       if (charts.stats) charts.stats.destroy();
       const cv = document.getElementById('chartStats');
