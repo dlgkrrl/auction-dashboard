@@ -65,7 +65,8 @@ for (const g of groups.values()) {
     level: g.level, scope: g.scope, court: g.court, sgg: g.sgg, emd: g.emd, complex_name: g.complex_name, loss_bin: g.loss_bin,
     n_sold: n, n_fail: g.fail, sale_ratio: r1(n / (n + g.fail) * 100),
     rate_median: r1(q(g.rates, 0.5)), rate_q1: r1(q(g.rates, 0.25)), rate_q3: r1(q(g.rates, 0.75)),
-    min_rate_median: r1(q(g.mins, 0.5)), over_min_median: r1(q(g.over, 0.5), 2),
+    min_rate_median: r1(q(g.mins, 0.5)), over_min_median: r1(q(g.over, 0.5), 3),
+    over_min_q1: r1(q(g.over, 0.25), 3), over_min_q3: r1(q(g.over, 0.75), 3),   // 4단계 V4 엔진 범위용
     bidders_avg: g.bidders.length ? r1(g.bidders.reduce((a, b) => a + b, 0) / g.bidders.length) : null,
     period_from: g.dates[0], period_to: g.dates[g.dates.length - 1], run_id: runId, computed_at: computedAt,
   });
