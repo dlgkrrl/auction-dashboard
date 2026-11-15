@@ -2953,6 +2953,20 @@
                 </div>
                 <div style="font-size:11px; color:var(--text-sub); margin-top:6px;">비슷한 물건의 실제 낙찰가 분포 기준, 다른 응찰자보다 높게 쓸 확률(그 회차에 낙찰이 난다고 볼 때). 백테스트 오차 ±5%p 안팎.</div>
               </div>`; })() : ''}
+              ${(() => {   // 4단계 마무리: 하한·목표·상한으로 낙찰받았을 때 세후 순익 (ROI 시뮬레이터와 같은 계산, 현재 투자 조건 기준)
+                const pts = [['하한', item.bid_min], ['목표', item.bid_target], ['상한', item.bid_max]].filter(([, v]) => Number(v) > 0);
+                if (!pts.length) return '';
+                const signFmt = (n) => (n < 0 ? '-' : '+') + safeFmt(Math.abs(n));
+                const cells = pts.map(([label, v]) => {
+                  let r; try { r = calculateAuctionROI(item, { bidPrice: Number(v) }); } catch (e) { return ''; }
+                  const c = r.netProfit >= 0 ? 'var(--green)' : 'var(--red)';
+                  return `<div style="text-align:center;">${label}<br/><strong style="color:${c};">${signFmt(r.netProfit)}</strong><br/><span style="font-size:11px; color:var(--text-sub);">실투자 ${r.roiReal}</span></div>`;
+                }).join('');
+                return `<div style="font-size:12px; margin:-4px 0 12px; background:var(--surface); padding:10px; border-radius:6px;">
+                  <div style="color:var(--text-sub); margin-bottom:6px;">이 가격에 낙찰받으면 세후 순익 (ROI 시뮬레이터의 투자 조건 기준)</div>
+                  <div style="display:flex; justify-content:space-between;">${cells}</div>
+                </div>`;
+              })()}
               ${item.bid_strategy_text ? `<div style="font-size:13px; line-height:1.5; color:var(--text); border-top:1px solid var(--border); padding-top:8px; margin-top:8px;">${escapeHtml(item.bid_strategy_text).replace(/\n/g, '<br/>')}</div>` : ''}
             </div>
           </div>

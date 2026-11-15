@@ -116,22 +116,31 @@ function runEngineV4(s, minPrice, lossCount, statsRows) {
   const deep = est.used.filter((u) => Number((u.match(/\((\d+)건\)/) || [])[1]) >= 5).map((u) => u.split(' ')[0].replace(/\(.*/, ''));
   const confidence = deep.some((l) => l === '단지' || l === '읍면동') ? '높음' : deep.some((l) => l === '시군구' || l === '법원') ? '보통' : '낮음';
 
-  // GAP SCORE: V3와 같은 규칙 (목표가 vs 실거래 평균)
+  // 유찰 시 다음 회차 예상 (4단계 마무리): 창원·울산 모두 회차당 30% 저감(결과 데이터 최저가율 100→70→49→34.3 확인)
+  // V4 배수는 늘 1 이상이라 추천가가 최저가 아래로 내려가는 일은 없다. 대신 '이번에 안 쓰고 기다리면'을 보여준다.
+  const nextMin = Math.round(minPrice * 0.7);
+  const estN = V4.estimate(idx, { court: s.court, sgg, emd, complex_name: s.complex_name, loss_count: lossCount + 1 });
+  const nextTarget = estN.mult ? Math.max(Math.round(nextMin * estN.mult), nextMin) : null;
+  const nextDiff = nextTarget ? Math.round((nextTarget / target - 1) * 1000) / 10 : null;
+
+  // GAP SCORE V4 (4단계 마무리): 예상 낙찰가(목표가 = 낙찰가 중앙값 추정)와 시세의 차이 + 권리 위험 + 데이터 신뢰도
+  //   V3의 '유찰 횟수 가산점'은 뺐다 — 유찰로 최저가가 내려간 효과는 이미 예상 낙찰가에 들어 있어 이중 계산이었음
+  //   시세 차이 0~70 / 권리 0~20(인수금액 있거나 불명이면 −10) / 데이터 0~10
   const aiRisk = s.ai_risk || '주의';
   const tradeBase = num(s.real_trade_3m_avg) || num(s.real_trade_6m_avg) || num(s.real_trade_12m_avg);
   let gapAmt = null, gapRate = null, gapBaseScore = 0;
   if (target && tradeBase) {
     gapAmt = target - tradeBase;
     gapRate = Math.round((gapAmt / tradeBase) * 1000) / 10;
-    if (gapRate <= -20) gapBaseScore = 60; else if (gapRate <= -15) gapBaseScore = 52; else if (gapRate <= -10) gapBaseScore = 45;
-    else if (gapRate <= -5) gapBaseScore = 38; else if (gapRate <= 0) gapBaseScore = 30; else if (gapRate <= 5) gapBaseScore = 20; else if (gapRate <= 10) gapBaseScore = 10;
+    const steps = [[-25, 70], [-20, 62], [-15, 54], [-10, 45], [-5, 36], [0, 27], [5, 18], [10, 9]];
+    const hit = steps.find(([lim]) => gapRate <= lim);
+    gapBaseScore = hit ? hit[1] : 0;
   }
-  const riskScore = aiRisk === '안전' ? 20 : aiRisk === '주의' ? 10 : 0;
-  const compScore = lossCount >= 3 ? 20 : lossCount >= 2 ? 15 : lossCount >= 1 ? 10 : 5;
-  let dataPenalty = confidence === '낮음' ? 5 : 0;
-  if (!num(s.real_trade_3m_avg) && !num(s.real_trade_6m_avg)) dataPenalty += 5;
-  if (num(s.real_trade_sample_count) < 3) dataPenalty += 5;
-  const gapScore = Math.max(0, Math.min(100, gapBaseScore + riskScore + compScore - dataPenalty));
+  const inh = num(s.inherited_amount);
+  const riskScore = Math.max(0, (aiRisk === '안전' ? 20 : aiRisk === '주의' ? 10 : 0) - (inh > 0 || inh === -1 ? 10 : 0));
+  let dataScore = confidence === '높음' ? 10 : confidence === '보통' ? 6 : 0;
+  if (!tradeBase || num(s.real_trade_sample_count) < 3) dataScore = Math.max(0, dataScore - 5);
+  const gapScore = Math.max(0, Math.min(100, gapBaseScore + riskScore + dataScore));
   const gapGrade = gapScore >= 80 ? 'S' : gapScore >= 65 ? 'A' : gapScore >= 50 ? 'B' : gapScore >= 35 ? 'C' : 'D';
 
   const toEok = (v) => `${(Math.round(v / 1000000) / 100).toFixed(2)}억`;
@@ -146,6 +155,8 @@ function runEngineV4(s, minPrice, lossCount, statsRows) {
     `예상 낙찰가율: ${rateUsed}% (감정가 대비)\n` +
     `\n💰 추천 입찰가 범위\n  하한: ${toEok(lo)}\n  ★ 목표: *${toEok(target)}* (낙찰 확률 약 50%)\n  상한: ${toEok(hi)} (약 65%)\n` +
     `\n신뢰도: ${confidence}\n` +
+    (nextTarget ? `\n⏭️ 유찰되면 다음 회차: 최저가 ${toEok(nextMin)} → 예상 낙찰가 ${toEok(nextTarget)} (이번 목표가보다 ${nextDiff > 0 ? '+' : ''}${nextDiff}%) — 그 사이 다른 사람이 낙찰받을 수 있음\n` : '') +
+    (tradeBase ? `GAP: 예상 낙찰가가 시세(실거래 평균 ${toEok(tradeBase)})보다 ${gapRate <= 0 ? Math.abs(gapRate) + '% 낮음' : gapRate + '% 높음'} → ${gapGrade}급 ${gapScore}점\n` : 'GAP: 시세 자료 없음 → 시세 차이 점수 0\n') +
     (inherited > 0 ? `⚠️ 인수금액 ${toEok(inherited)} — 추천가는 시장 낙찰가 추정이며 인수금액은 별도 부담\n` : '') +
     (inherited === -1 ? '⚠️ 인수금액 불명 — 실제 부담 추가될 수 있음\n' : '') +
     (tenantDeposit > 0 ? `⚠️ 임차인 보증금 ${toEok(tenantDeposit)} — 대항력 여부 재확인 필요\n` : '');
