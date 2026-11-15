@@ -33,12 +33,19 @@ const MarketPrice = (() => {
     return rows;
   }
 
-  // 전용면적: 매각물건명세서의 '전유부분의 건물의 표시 … NN.NN㎡' (11-15 확인: area_m2 에는 대지권 면적이 들어간 물건이 많음)
+  // 전용면적 (11-15 확인: area_m2 에는 대지권 면적이 들어간 물건이 많음)
+  //   1) 매각물건명세서 '전유부분의 건물의 표시 … NN.NN㎡'
+  //   2) 건축물대장 칸(등기부 표제부 '전유부분의 건물의 표시 … ㎡' 또는 대장 전유부 '…층 / 구조 / 아파트 / NN.NN')
+  //   3) 감정평가서 구분건물 표 '전유면적 … 용도' 다음 첫 숫자
   function exclusiveArea(item) {
-    const s = String(item.doc_spec_text || '');
-    const m = s.match(/전유부분의\s*건물의\s*표시[\s\S]{0,160}?([\d,]+\.\d+)\s*㎡/);
-    const v = m ? Number(m[1].replace(/,/g, '')) : 0;
-    return v >= 10 && v <= 400 ? v : 0;
+    const ok = (v) => (v >= 10 && v <= 400 ? v : 0);
+    const num = (m, i = 1) => (m ? Number(String(m[i]).replace(/,/g, '')) : 0);
+    const spec = String(item.doc_spec_text || ''), ledger = String(item.doc_ledger_text || ''), appr = String(item.doc_appraisal_text || '');
+    const reg = /전유부분의\s*건물의\s*표시\s*\)?[\s\S]{0,300}?([\d,]+\.\d+)\s*㎡/;
+    return ok(num(spec.match(reg)))
+      || ok(num(ledger.match(reg)))
+      || ok(num(ledger.match(/\n\s*\d+층\s*\n[^\n]*\n\s*(?:아파트|다세대주택|연립주택|오피스텔|다세대|공동주택|도시형생활주택|주택)\s*\n\s*(\d{2,3}\.\d+)\s*\n/)))
+      || ok(num(appr.match(/전유면적[\s\S]{0,250}?용도\s*\n\s*\n?\s*(\d{2,3}\.\d+)\s*\n/)));
   }
 
   const monthsAgo = (ref, m) => { const d = new Date(ref); d.setMonth(d.getMonth() - m); return d.toISOString().slice(0, 10); };

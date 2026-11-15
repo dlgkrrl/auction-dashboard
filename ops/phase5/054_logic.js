@@ -26,10 +26,12 @@ for (const it of list) {
   if (!t) { summary.noType++; continue; }
   const get = (kind) => { const svc = Molit.SVC[t][kind]; return svc ? (pool.get(`${svc}|${a.lawd}`) || []) : []; };
   const site = Molit.sameSite([...get('trade'), ...get('rent')], it, a);
-  const calcItem = { ...it, area_m2: MarketPrice.exclusiveArea(it) || it.area_m2 };
+  const ex = MarketPrice.exclusiveArea(it);
+  const calcItem = { ...it, area_m2: ex || it.area_m2 };
   const m = MarketPrice.compute(calcItem, { ref, rows: site.rows, source: '국토부 실거래' });
   for (const k of Object.keys(m)) if (m[k] === null || m[k] === '') delete m[k];   // 빈 값으로 기존 전세·월세를 지우지 않게
   const patch = { Id: it.Id };
+  if (ex && Math.abs(ex / (Number(it.area_m2) || 1) - 1) > 0.05) { patch.area_m2 = ex; summary.areaFixed = (summary.areaFixed || 0) + 1; }
   if (m.market_price) { Object.assign(patch, m, MarketPrice.legacyAverages(calcItem, { ref, rows: site.rows }));
     if (site.scope !== '같은 단지') patch.market_basis += ' · 단지 매칭 실패(같은 읍면동)'; summary.market++; summary.byType[t] = (summary.byType[t] || 0) + 1; }
   else { patch.market_basis = `국토부 실거래에도 없음(${t}, ${a.sgg} ${a.emd})`; for (const f of ['jeonse_median', 'rent_deposit_median', 'rent_monthly_median']) if (m[f]) patch[f] = m[f]; }
