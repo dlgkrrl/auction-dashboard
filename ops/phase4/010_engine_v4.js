@@ -127,7 +127,8 @@ function runEngineV4(s, minPrice, lossCount, statsRows) {
   //   V3의 '유찰 횟수 가산점'은 뺐다 — 유찰로 최저가가 내려간 효과는 이미 예상 낙찰가에 들어 있어 이중 계산이었음
   //   시세 차이 0~70 / 권리 0~20(인수금액 있거나 불명이면 −10) / 데이터 0~10
   const aiRisk = s.ai_risk || '주의';
-  const tradeBase = num(s.real_trade_3m_avg) || num(s.real_trade_6m_avg) || num(s.real_trade_12m_avg);
+  // 5단계: 코드로 계산한 시세(market_price, 같은 단지·전용 ±10% 중앙값)를 먼저, 없으면 예전 실거래 평균 칸
+  const tradeBase = num(s.market_price) || num(s.real_trade_3m_avg) || num(s.real_trade_6m_avg) || num(s.real_trade_12m_avg);
   let gapAmt = null, gapRate = null, gapBaseScore = 0;
   if (target && tradeBase) {
     gapAmt = target - tradeBase;
@@ -139,7 +140,7 @@ function runEngineV4(s, minPrice, lossCount, statsRows) {
   const inh = num(s.inherited_amount);
   const riskScore = Math.max(0, (aiRisk === '안전' ? 20 : aiRisk === '주의' ? 10 : 0) - (inh > 0 || inh === -1 ? 10 : 0));
   let dataScore = confidence === '높음' ? 10 : confidence === '보통' ? 6 : 0;
-  if (!tradeBase || num(s.real_trade_sample_count) < 3) dataScore = Math.max(0, dataScore - 5);
+  if (!tradeBase || Math.max(num(s.market_sample_count), num(s.real_trade_sample_count)) < 3) dataScore = Math.max(0, dataScore - 5);
   const gapScore = Math.max(0, Math.min(100, gapBaseScore + riskScore + dataScore));
   const gapGrade = gapScore >= 80 ? 'S' : gapScore >= 65 ? 'A' : gapScore >= 50 ? 'B' : gapScore >= 35 ? 'C' : 'D';
 
@@ -156,7 +157,7 @@ function runEngineV4(s, minPrice, lossCount, statsRows) {
     `\n💰 추천 입찰가 범위\n  하한: ${toEok(lo)}\n  ★ 목표: *${toEok(target)}* (낙찰 확률 약 50%)\n  상한: ${toEok(hi)} (약 65%)\n` +
     `\n신뢰도: ${confidence}\n` +
     (nextTarget ? `\n⏭️ 유찰되면 다음 회차: 최저가 ${toEok(nextMin)} → 예상 낙찰가 ${toEok(nextTarget)} (이번 목표가보다 ${nextDiff > 0 ? '+' : ''}${nextDiff}%) — 그 사이 다른 사람이 낙찰받을 수 있음\n` : '') +
-    (tradeBase ? `GAP: 예상 낙찰가가 시세(실거래 평균 ${toEok(tradeBase)})보다 ${gapRate <= 0 ? Math.abs(gapRate) + '% 낮음' : gapRate + '% 높음'} → ${gapGrade}급 ${gapScore}점\n` : 'GAP: 시세 자료 없음 → 시세 차이 점수 0\n') +
+    (tradeBase ? `GAP: 예상 낙찰가가 시세(실거래 중앙값 ${toEok(tradeBase)})보다 ${gapRate <= 0 ? Math.abs(gapRate) + '% 낮음' : gapRate + '% 높음'} → ${gapGrade}급 ${gapScore}점\n` : 'GAP: 시세 자료 없음 → 시세 차이 점수 0\n') +
     (inherited > 0 ? `⚠️ 인수금액 ${toEok(inherited)} — 추천가는 시장 낙찰가 추정이며 인수금액은 별도 부담\n` : '') +
     (inherited === -1 ? '⚠️ 인수금액 불명 — 실제 부담 추가될 수 있음\n' : '') +
     (tenantDeposit > 0 ? `⚠️ 임차인 보증금 ${toEok(tenantDeposit)} — 대항력 여부 재확인 필요\n` : '');
@@ -170,17 +171,17 @@ function runEngineV4(s, minPrice, lossCount, statsRows) {
 }
 
 // ── 010 진입점: V4 우선, 통계가 없으면 아래 V3 ──
-const __d = $('Dify 결과 파싱').first().json;
+const __d = $('시세 계산').first().json;   // 5단계: 시세 계산 노드가 Dify 값 + 코드 시세 + 전용면적 보정을 넘김
 const __statsRows = $input.all().flatMap((i) => (i.json && i.json.list) || []);
 const __v4 = runEngineV4({
   appraisal_price: __d.감정가_숫자, location: __d.소재지, court: __d.법원, complex_name: __d.단지명, ai_risk: __d.ai_risk,
   real_trade_3m_avg: __d.real_trade_3m_avg, real_trade_6m_avg: __d.real_trade_6m_avg, real_trade_12m_avg: __d.real_trade_12m_avg,
-  real_trade_sample_count: __d.real_trade_sample_count, inherited_amount: __d.inherited_amount, tenant_deposit_total: __d.tenant_deposit_total,
+  real_trade_sample_count: __d.real_trade_sample_count, market_price: __d.market_price, market_sample_count: __d.market_sample_count, inherited_amount: __d.inherited_amount, tenant_deposit_total: __d.tenant_deposit_total,
 }, Number(__d.최저가_숫자) || 0, Number(__d.유찰횟수) || 0, __statsRows);
 if (__v4) return [{ json: { ...__d, ...__v4 } }];
 
 // ── V3 (통계가 없을 때만) ──
-const d = $('Dify 결과 파싱').first().json;
+const d = $('시세 계산').first().json;
 const stats = null; // 4단계: 단지명 복합통계 조회는 쓰지 않음 (V4가 통계를 못 찾을 때만 아래 V3 표 기반)
 
 const appraisal = d.감정가_숫자 || 0;

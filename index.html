@@ -1623,6 +1623,10 @@
       if (customOverrides.expectedSalePrice && Number(customOverrides.expectedSalePrice) > 0) {
         baseMarketPrice = Number(customOverrides.expectedSalePrice);
         marketPriceType = "manual";
+      } else if (Number(item.market_price) > 0) {
+        // 5단계: 코드로 계산한 시세(같은 단지·전용 ±10% 실거래 중앙값)
+        baseMarketPrice = Number(item.market_price);
+        marketPriceType = "market";
       } else if (item.real_trade_3m_avg && Number(item.real_trade_3m_avg) > 0) {
         baseMarketPrice = Number(item.real_trade_3m_avg);
         marketPriceType = "real_trade_3m";
@@ -1639,7 +1643,7 @@
 
       const expectedSalePrice = Number(customOverrides.expectedSalePrice ?? baseMarketPrice);
       const holdingMonths = Number(customOverrides.holdingMonths ?? profile.defaultHoldingMonths ?? 24);
-      const rentalDeposit = Number(customOverrides.rentalDeposit ?? (customOverrides.isJeonse ? Math.round(expectedSalePrice * 0.65) : 0));
+      const rentalDeposit = Number(customOverrides.rentalDeposit ?? (customOverrides.isJeonse ? (Number(item.jeonse_median) > 0 ? Number(item.jeonse_median) : Math.round(expectedSalePrice * 0.65)) : 0));
       const monthlyRent = Number(customOverrides.monthlyRent ?? 0);
       const isDepositInherited = Number(customOverrides.isDepositInherited ?? 1);
 
@@ -1742,6 +1746,7 @@
       'ai_risk', 'ai_recommend', 'ai_summary', 'ai_flags', 'gap_score', 'gap_score_grade',
       'bid_target', 'bid_min', 'bid_max', 'bid_rate_used', 'bid_strategy_text',
       'bid_confidence', 'real_trade_3m_avg', 'real_trade_6m_avg', 'real_trade_12m_avg',
+      'market_price', 'market_basis', 'market_sample_count', 'market_period', 'jeonse_median', 'rent_deposit_median', 'rent_monthly_median',
       'bid_vs_trade_gap_rate',
       'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
       'is_interested', 'is_hidden', 'is_share', 'court_url',
@@ -2656,6 +2661,9 @@
                 <span style="font-weight:600;">예상 매도가 (출구 시세)</span>
                 <span class="sim-val-display" id="simDisplaySale" style="color:var(--green); font-size:14px;">${fmt(roi.expectedSalePrice)}</span>
               </div>
+              <div style="font-size:11px; color:var(--text-sub); margin:-2px 0 6px;">${Number(item.market_price) > 0
+                ? `시세 ${fmt(item.market_price)} · ${escapeHtml(item.market_basis || '')} · ${escapeHtml(item.market_period || '')} ${item.market_sample_count || 0}건`
+                : (item.market_basis ? `시세 없음 (${escapeHtml(item.market_basis)}) — ${roi.marketPriceType === 'appraisal_discount' ? '감정가 할인값 사용' : '예전 실거래 평균 사용'}` : '')}</div>
               <div style="display:flex; gap:10px; align-items:center;">
                 <input type="range" class="sim-slider" id="simSliderSale"
                        min="${minSale}" max="${maxSale}" step="500000" value="${roi.expectedSalePrice}"
@@ -2680,6 +2688,12 @@
                 <input type="number" class="sim-input" id="simInputRent" step="50000" value="${roi.monthlyRent}" oninput="handleSimParamInput('monthlyRent', this.value)" />
               </div>
             </div>
+            ${(Number(item.jeonse_median) > 0 || Number(item.rent_monthly_median) > 0) ? `
+            <div style="font-size:11px; color:var(--text-sub); display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:-4px 0 6px;">
+              <span>실거래 중앙값:</span>
+              ${Number(item.jeonse_median) > 0 ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="applyRentPreset(${Number(item.jeonse_median)}, 0)">전세 ${fmt(item.jeonse_median)} 넣기</button>` : ''}
+              ${Number(item.rent_monthly_median) > 0 ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="applyRentPreset(${Number(item.rent_deposit_median) || 0}, ${Number(item.rent_monthly_median)})">월세 ${fmt(item.rent_deposit_median || 0)} / 월 ${fmt(item.rent_monthly_median)} 넣기</button>` : ''}
+            </div>` : ''}
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div class="sim-input-group">
@@ -2788,6 +2802,14 @@
       if (disp) disp.innerText = fmt(num);
 
       refreshROISimulatorResults(item);
+    }
+
+    // 5단계: 실거래 전세·월세 중앙값을 임대 조건에 바로 넣기
+    function applyRentPreset(deposit, monthly) {
+      const d = document.getElementById('simInputDeposit'), r = document.getElementById('simInputRent');
+      if (d) d.value = deposit; if (r) r.value = monthly;
+      modalSimOverrides.rentalDeposit = Number(deposit) || 0;
+      handleSimParamInput('monthlyRent', monthly);
     }
 
     function handleSimParamInput(key, val) {
