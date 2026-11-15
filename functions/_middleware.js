@@ -18,6 +18,10 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   const path = url.pathname;
 
+  // 레포의 운영 코드·계획 문서(ops/, docs/, n8n/ 등)는 사이트로 내보내지 않음 (11-15: 공개로 열려 있던 것 차단)
+  if (/^\/(ops|docs|n8n|_crawler_probe|asr_[^/]*)(\/|$)/i.test(path) || /^\/\.(git|gitignore)/.test(path) || /\.(md|py|sh)$/i.test(path)) {
+    return new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+  }
   if (!path.startsWith('/api/')) return next();
   if (path === '/api/login' || path === '/api/session') return next();
 
