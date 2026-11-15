@@ -2721,15 +2721,32 @@
 
           <!-- 우측: 결과 브레이크다운 (실시간 반응형 DOM) -->
           <div id="roiSimResultsContainer" style="background:#131c2b; border:1px solid #233348; border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:12px;">
-            ${buildROIResultsPaneHTML(roi)}
+            ${buildROIResultsPaneHTML(roi, item)}
           </div>
         </div>
       `;
     }
 
-    function buildROIResultsPaneHTML(roi) {
+    // 5단계: 보유기간 뒤 매도가 세 가지(연 −3% / 0% / +3%)로 세후 순익
+    function buildSaleScenariosHTML(roi, item) {
+      if (!item || !(roi.expectedSalePrice > 0)) return '';
+      const yrs = (roi.holdingMonths || 24) / 12;
+      const rows = [['비관', -0.03], ['기본', 0], ['낙관', 0.03]].map(([label, r]) => {
+        const sale = Math.round(roi.expectedSalePrice * Math.pow(1 + r, yrs));
+        const x = r === 0 ? roi : calculateAuctionROI(item, { ...modalSimOverrides, expectedSalePrice: sale }, currentProfile);
+        const c = x.netProfit >= 0 ? 'var(--green)' : 'var(--red)';
+        return `<div style="text-align:center;">${label} <span style="color:var(--text-sub);">(연 ${r > 0 ? '+' : ''}${Math.round(r * 100)}%)</span><br/>매도 ${fmt(sale)}<br/><strong style="color:${c};">${x.netProfit < 0 ? '-' : '+'}${fmt(Math.abs(x.netProfit))}</strong></div>`;
+      }).join('');
+      return `<div style="background:var(--surface); border:1px solid var(--border); padding:10px; border-radius:8px; font-size:12px;">
+          <div style="color:var(--text-sub); margin-bottom:6px;">${roi.holdingMonths}개월 뒤 매도가 시나리오 · 세후 순익 (현재 매도가 기준 연 ±3%)</div>
+          <div style="display:flex; justify-content:space-between; gap:6px;">${rows}</div>
+        </div>`;
+    }
+
+    function buildROIResultsPaneHTML(roi, item) {
       return `
         <div style="font-weight:700; font-size:14px; color:var(--yellow); border-bottom:1px solid #233348; padding-bottom:8px;">📊 최종 손익 및 ROI 계산 결과</div>
+        ${buildSaleScenariosHTML(roi, item)}
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <div style="background:var(--surface); border:1px solid ${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'}; padding:10px; border-radius:8px;">
@@ -2837,7 +2854,7 @@
       const roi = calculateAuctionROI(item, modalSimOverrides, currentProfile);
       const pane = document.getElementById("roiSimResultsContainer");
       if (pane) {
-        pane.innerHTML = buildROIResultsPaneHTML(roi);
+        pane.innerHTML = buildROIResultsPaneHTML(roi, item);
       }
     }
 
