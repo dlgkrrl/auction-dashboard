@@ -47,13 +47,10 @@ async def fetch_real_trades(uids, progress=None, time_budget=15 * 60):
                 uid = str(uid).strip()
                 item_url = f"{MY_AUCTION_BASE}/view/{uid}"
                 try:
-                    res = await page.request.get(item_url, headers={"Referer": f"{MY_AUCTION_BASE}/auction/search.php"}, timeout=30000)
-                    html = await res.text()
+                    # 기존 크롤러와 같게 상세 페이지를 실제로 연다(서버가 열람 세션을 확인하는 것으로 보임 — 11-15 원본 HTML만 받으면 빈 응답)
+                    await page.goto(item_url, wait_until="domcontentloaded", timeout=45000)
+                    html = await page.content()
                     form = extract_auctionv_form(html, "1")
-                    if not form:   # 원본 HTML에 호출이 없으면 실제로 열어서 다시
-                        await page.goto(item_url, wait_until="domcontentloaded", timeout=30000)
-                        html = await page.content()
-                        form = extract_auctionv_form(html, "1")
                     if not form:
                         out[uid] = {"status": "no_form", "text": "", "chars": 0}
                         continue
@@ -69,6 +66,8 @@ async def fetch_real_trades(uids, progress=None, time_budget=15 * 60):
                         rt_html = body.decode("euc-kr", errors="replace")
                     text = trim_real_trade_text(parse_real_trade_table(rt_html))
                     out[uid] = {"status": "ok" if "계약일" in text else "empty", "text": text, "chars": len(text)}
+                    if "계약일" not in text:
+                        out[uid]["raw_head"] = rt_html[:300]
                 except Exception as e:
                     logger.warning(f"[real-trade] {uid} 실패: {e}")
                     out[uid] = {"status": "error", "text": "", "chars": 0, "error": str(e)[:200]}

@@ -8,11 +8,11 @@ const fetchItems = node({ type: "n8n-nodes-base.httpRequest", version: 4.2, conf
     authentication: "predefinedCredentialType", nodeCredentialType: "nocoDbApiToken",
     sendQuery: true, queryParameters: { parameters: [
       { name: "where", value: "(status,eq,진행중)~or(status,eq,유찰)" },
-      { name: "fields", value: "Id,court_url,complex_name,area_m2,doc_spec_text,market_basis,is_hidden,is_share,is_bulk" },
+      { name: "fields", value: "Id,court_url,complex_name,area_m2,doc_spec_text,market_basis,market_price,is_hidden,is_share,is_bulk" },
       { name: "limit", value: "1000" } ] }, options: {} },
   credentials: { nocoDbApiToken: { id: "lh3tnFIzojQ5Uqea", name: "NocoDB account" } } } });
 
-const pick = node({ type: "n8n-nodes-base.code", version: 2, config: { name: "대상 고르기", parameters: { jsCode: "// 052 · 재수집 대상: 진행중(숨김·지분·일괄 제외) 중 051에서 '실거래 없음'으로 표시된 물건 → 상세번호(uid)\nconst list = ($input.first().json.list) || [];\nconst targets = list\n  .filter((it) => !it.is_hidden && !it.is_share && !it.is_bulk && /실거래 없음/.test(String(it.market_basis || '')))\n  .map((it) => {\n    const m = String(it.court_url || '').match(/\\/view\\/(\\d+)|idx=(\\d+)/);\n    return { Id: it.Id, uid: m ? (m[1] || m[2]) : '', complex_name: it.complex_name, area_m2: it.area_m2, doc_spec_text: it.doc_spec_text };\n  })\n  .filter((t) => t.uid);\nreturn [{ json: { targets, uids: targets.map((t) => t.uid) } }];\n" } } });
+const pick = node({ type: "n8n-nodes-base.code", version: 2, config: { name: "대상 고르기", parameters: { jsCode: "// 052 · 재수집 대상: 진행중(숨김·지분·일괄 제외) 중 아직 시세가 없는 물건(054 국토부로도 못 채운 것 포함) → 상세번호(uid)\nconst list = ($input.first().json.list) || [];\nconst targets = list\n  .filter((it) => !it.is_hidden && !it.is_share && !it.is_bulk && !(Number(it.market_price) > 0) && !/실거래 표에 매매 없음/.test(String(it.market_basis || '')))\n  .map((it) => {\n    const m = String(it.court_url || '').match(/\\/view\\/(\\d+)|idx=(\\d+)/);\n    return { Id: it.Id, uid: m ? (m[1] || m[2]) : '', complex_name: it.complex_name, area_m2: it.area_m2, doc_spec_text: it.doc_spec_text };\n  })\n  .filter((t) => t.uid);\nreturn [{ json: { targets, uids: targets.map((t) => t.uid) } }];\n" } } });
 
 const startJob = node({ type: "n8n-nodes-base.httpRequest", version: 4.2, config: {
   name: "재수집 시작",
