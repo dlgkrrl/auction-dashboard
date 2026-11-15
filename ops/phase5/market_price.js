@@ -33,6 +33,14 @@ const MarketPrice = (() => {
     return rows;
   }
 
+  // 전용면적: 매각물건명세서의 '전유부분의 건물의 표시 … NN.NN㎡' (11-15 확인: area_m2 에는 대지권 면적이 들어간 물건이 많음)
+  function exclusiveArea(item) {
+    const s = String(item.doc_spec_text || '');
+    const m = s.match(/전유부분의\s*건물의\s*표시[\s\S]{0,160}?([\d,]+\.\d+)\s*㎡/);
+    const v = m ? Number(m[1].replace(/,/g, '')) : 0;
+    return v >= 10 && v <= 400 ? v : 0;
+  }
+
   const monthsAgo = (ref, m) => { const d = new Date(ref); d.setMonth(d.getMonth() - m); return d.toISOString().slice(0, 10); };
 
   // 비교 거래 고르기: 같은 단지(이름이 맞는 행이 있으면) → 면적 ±10% → 최근 3·6·12·24개월 중 표본 minN건 이상인 가장 짧은 기간
@@ -44,7 +52,7 @@ const MarketPrice = (() => {
       const same = rows.filter((r) => { const n = normName(r.name); return n && (n.includes(cx) || cx.includes(n)); });
       if (same.length) { pool = same; nameMatched = true; }
     }
-    const area = Number(item.area_m2) || 0;
+    const area = exclusiveArea(item) || Number(item.area_m2) || 0;
     let areaNote;
     const near = area >= 10 ? pool.filter((r) => Math.abs(r.area / area - 1) <= 0.1) : [];
     if (near.length) { pool = near; areaNote = `전용 ${area}㎡ ±10%`; }
@@ -110,7 +118,7 @@ const MarketPrice = (() => {
     return res;
   }
 
-  return { parseHistory, pick, compute, legacyAverages, median, quant };
+  return { parseHistory, exclusiveArea, pick, compute, legacyAverages, median, quant };
 })();
 
 if (typeof module !== 'undefined') module.exports = MarketPrice;
