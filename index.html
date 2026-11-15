@@ -2691,8 +2691,8 @@
             ${(Number(item.jeonse_median) > 0 || Number(item.rent_monthly_median) > 0) ? `
             <div style="font-size:11px; color:var(--text-sub); display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:-4px 0 6px;">
               <span>실거래 중앙값:</span>
-              ${Number(item.jeonse_median) > 0 ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="applyRentPreset(${Number(item.jeonse_median)}, 0)">전세 ${fmt(item.jeonse_median)}로 놓기</button>` : ''}
-              ${Number(item.rent_monthly_median) > 0 ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="applyRentPreset(${Number(item.rent_deposit_median) || 0}, ${Number(item.rent_monthly_median)})">월세 ${fmt(item.rent_deposit_median || 0)} / 월 ${fmt(item.rent_monthly_median)}로 놓기</button>` : ''}
+              ${Number(item.jeonse_median) > 0 ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="applyRentPreset(${Number(item.jeonse_median)}, 0)">전세 ${fmt(item.jeonse_median)} 넣기</button>` : ''}
+              ${Number(item.rent_monthly_median) > 0 ? `<button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="applyRentPreset(${Number(item.rent_deposit_median) || 0}, ${Number(item.rent_monthly_median)})">월세 ${fmt(item.rent_deposit_median || 0)} / 월 ${fmt(item.rent_monthly_median)} 넣기</button>` : ''}
             </div>` : ''}
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
