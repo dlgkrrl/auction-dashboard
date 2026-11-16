@@ -111,7 +111,8 @@ export async function onRequestGet({ request, env }) {
       'doc_registry_text', 'doc_ledger_text', 'real_trade_history'];
     for (const row of data.list) {
       for (const f of DOC_FIELDS) {
-        if (f in row) row[f] = row[f] && String(row[f]).trim() ? true : '';
+        // '정보 없음'은 크롤러가 서류를 못 받았다는 표시 → 없음으로 취급 (6단계: 빠진 서류 표시·재수집 판단)
+        if (f in row) row[f] = row[f] && String(row[f]).trim() && String(row[f]).trim() !== '정보 없음' ? true : '';
       }
     }
   }
@@ -167,6 +168,14 @@ export async function onRequestPatch({ request, env }) {
 
   // 허용 필드만 NocoDB에 전달 (보안: 임의 필드 차단)
   const allowed = ['is_interested', 'interest_level', 'interested_at', 'status', 'memo', 'interest_memo', 'is_hidden'];
+  // 6단계: 상세 창의 [AI 권리분석 다시]·[서류 다시 수집] 요청 — 대기 표시만 허용 (n8n 059·058이 처리 후 바꿈)
+  for (const key of ['ai_reanalyze_status', 'refetch_status']) {
+    if (Object.prototype.hasOwnProperty.call(body, key) && !/^대기 · /.test(String(body[key] || ''))) {
+      return new Response(JSON.stringify({ error: `${key} 는 '대기 · …' 값만 넣을 수 있습니다` }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+    }
+  }
+  allowed.push('ai_reanalyze_status', 'refetch_status');
   const safeBody = {};
   for (const key of allowed) {
     if (Object.prototype.hasOwnProperty.call(body, key)) {

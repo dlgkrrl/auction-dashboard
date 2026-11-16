@@ -48,7 +48,7 @@ export async function onRequestPost({ request, env }) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'TheCalibration-AuctionDashboard/1.0',
+        'User-Agent': 'AuctionDashboard/1.0',
       },
       body: JSON.stringify({
         source: 'dashboard_manual_trigger',

@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>경매 의사결정 OS 2.0 — THE CALIBRATION</title>
-  <meta name="description" content="THE CALIBRATION 경매 물건 실시간 대시보드. GAP 스코어, AI 위험도, 3대 서류 수집 현황을 한눈에 파악합니다." />
+  <title>경매 의사결정 대시보드</title>
+  <meta name="description" content="경매 물건 실시간 대시보드. GAP 스코어, AI 위험도, 3대 서류 수집 현황을 한눈에 파악합니다." />
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- 카카오맵 API는 동적으로 로딩됩니다 -->
@@ -865,6 +865,7 @@
       border-top: 1px solid var(--border);
       display: flex;
       justify-content: flex-end;
+      flex-wrap: wrap;
       gap: 10px;
       background: var(--surface);
       border-radius: 0 0 16px 16px;
@@ -1116,7 +1117,7 @@
         <div class="logo-icon">🏛️</div>
         <div>
           <div class="logo-text">경매 대시보드</div>
-          <div class="logo-sub">THE CALIBRATION · V4.1</div>
+          <div class="logo-sub">개인 투자 도구 · V4.1</div>
         </div>
       </a>
       <div class="header-actions">
@@ -1165,7 +1166,7 @@
         </div>
       </div>
 
-      <!-- Charts (Opportunity Matrix & Calibration Radar) -->
+      <!-- Charts (Opportunity Matrix & 낙찰가율) -->
       <div class="charts-grid" role="region" aria-label="투자 의사결정 통계 차트">
         <div class="chart-card">
           <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
@@ -1178,11 +1179,11 @@
         </div>
         <div class="chart-card">
           <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>📊 유찰 횟수별 실전 낙찰가율 & 경쟁률 (Calibration)</span>
+            <span>📊 유찰 횟수별 실전 낙찰가율 & 경쟁률</span>
             <span style="font-size:11px; font-weight:normal; color:var(--yellow);" id="calibSampleCount">실제 낙찰 데이터 35건 분석</span>
           </div>
           <div class="chart-wrap" style="position:relative; height:240px;">
-            <canvas id="chartCalibration" aria-label="법원별 평균 낙찰가율 및 경쟁률 차트"></canvas>
+            <canvas id="chartBidRate" aria-label="법원별 평균 낙찰가율 및 경쟁률 차트"></canvas>
           </div>
         </div>
       </div>
@@ -1372,6 +1373,8 @@
     }
   </script>
   <script>
+    // 저장 키 이름 변경(예전 키 → 새 키, 한 번만 옮김)
+    try { ['PROFILE','KAKAO_KEY','LAST_CRAWL_TIME'].forEach(k => { const o = localStorage.getItem('THECALIBRATION_' + k); if (o !== null) { if (localStorage.getItem('AUCTION_DASH_' + k) === null) localStorage.setItem('AUCTION_DASH_' + k, o); localStorage.removeItem('THECALIBRATION_' + k); } }); } catch (e) {}
     // ─────────────────────────────────────────────────────
     // CONFIG — 클라이언트 설정
     // ✅ 보안: API 토큰은 Cloudflare 서버 환경변수에 보관됩니다.
@@ -1432,7 +1435,7 @@
 
     // 저장된 프로필 복원 (반드시 currentProfile 선언 뒤: 앞에 있으면 TDZ 에러가 나서 매번 기본값으로 돌아감)
     try {
-      const savedProfile = localStorage.getItem("THECALIBRATION_PROFILE");
+      const savedProfile = localStorage.getItem("AUCTION_DASH_PROFILE");
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
         if (parsed && typeof parsed === "object") {
@@ -1499,7 +1502,7 @@
       };
 
       try {
-        localStorage.setItem("THECALIBRATION_PROFILE", JSON.stringify(currentProfile));
+        localStorage.setItem("AUCTION_DASH_PROFILE", JSON.stringify(currentProfile));
       } catch (e) {}
 
       refreshProfileLabels();
@@ -1533,18 +1536,19 @@
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `HTTP ${res.status}`);
         }
-        showToast(nextState ? "👁️‍🗨️ 물건을 숨겼습니다 (NAS NocoDB 동기화)." : "↩️ 물건을 복원했습니다 (NAS NocoDB 동기화).");
+        showToast(nextState ? "👁️‍🗨️ 물건을 숨겼습니다." : "↩️ 물건을 복원했습니다.");
       } catch (err) {
         // 실패 시 롤백
         item.is_hidden = currentVal;
         applyFilters();
         showToast(`동기화 실패: ${err.message}`, true);
       }
+      refreshModalFooter(sid);
     }
 
 
     // ─────────────────────────────────────────────────────
-    // 🏛️ THE CALIBRATION ROI Calculation Engine (Embedded)
+    // 🏛️ ROI Calculation Engine (Embedded)
     // ─────────────────────────────────────────────────────
     const DEFAULT_PROFILE = {
       investorType: "no_house",
@@ -1751,7 +1755,8 @@
       'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
       'is_interested', 'is_hidden', 'is_share', 'court_url',
       'cancellation_standard', 'tenant_count', 'tenant_deposit_total', 'senior_lien_total',
-      'inherited_amount', 'docs_risk_flags', 'docs_status',
+      'inherited_amount', 'docs_risk_flags', 'docs_status', 'naver_url',
+      'ai_reanalyze_status', 'refetch_status',
       ...DOC_FIELDS,
       'status', 'actual_bid_price', 'actual_bid_rate', 'bidder_count', 'bid_engine_error'
     ].join(',');
@@ -1767,7 +1772,7 @@
       const res = await apiFetch(u.toString());
       if (!res.ok) throw new Error(`서류 로드 실패 (HTTP ${res.status})`);
       const row = ((await res.json()).list || [])[0] || {};
-      for (const f of DOC_FIELDS) item[f] = row[f] || '';
+      for (const f of DOC_FIELDS) item[f] = (row[f] && String(row[f]).trim() !== '정보 없음') ? row[f] : '';   // '정보 없음' = 못 받은 서류
       item.__docsLoaded = true;
     }
 
@@ -1809,7 +1814,7 @@
         // 🌟 KAKAO_MAP_API_KEY 로드
         if (fetched.KAKAO_MAP_API_KEY) {
           try {
-            localStorage.setItem('THECALIBRATION_KAKAO_KEY', fetched.KAKAO_MAP_API_KEY);
+            localStorage.setItem('AUCTION_DASH_KAKAO_KEY', fetched.KAKAO_MAP_API_KEY);
           } catch (e) {}
           loadKakaoMapScript(fetched.KAKAO_MAP_API_KEY).catch(e => console.warn("Map load err:", e));
         }
@@ -1868,7 +1873,7 @@
     }
 
     // ─────────────────────────────────────────────────────
-    // Charts (Opportunity Matrix & Calibration Radar)
+    // Charts (Opportunity Matrix & 낙찰가율)
     // ─────────────────────────────────────────────────────
     function updateCharts() {
       const activeItems = allItems.filter(i => {
@@ -1976,7 +1981,7 @@
                 const dataset = charts.opportunity.data.datasets[el.datasetIndex];
                 const itemPoint = dataset.data[el.index];
                 if (itemPoint?.rawItem?.Id) {
-                  openUnifiedModal(itemPoint.rawItem.Id, "roi");
+                  openUnifiedModal(itemPoint.rawItem.Id, "summary");
                 }
               }
             }
@@ -2052,10 +2057,10 @@
       const bidderData = labels.map(k => lossBins[k].bidders.length > 0
         ? (lossBins[k].bidders.reduce((x, y) => x + y, 0) / lossBins[k].bidders.length).toFixed(1) : 0);
 
-      if (charts.calibration) charts.calibration.destroy();
-      const calCanvas = document.getElementById("chartCalibration");
+      if (charts.bidRate) charts.bidRate.destroy();
+      const calCanvas = document.getElementById("chartBidRate");
       if (calCanvas) {
-        charts.calibration = new Chart(calCanvas, {
+        charts.bidRate = new Chart(calCanvas, {
           data: {
             labels,
             datasets: [
@@ -2496,6 +2501,7 @@
         applyFilters();
         showToast(`❌ 저장 실패: ${err.message}`, 'error');
       }
+      refreshModalFooter(sid);
     }
 
     // ─────────────────────────────────────────────────────
@@ -2524,7 +2530,7 @@
     }
 
     function openDetailModal(id) {
-      openUnifiedModal(id, 'roi');
+      openUnifiedModal(id, 'summary');
     }
 
     async function openUnifiedModal(id, initialTab) {
@@ -2540,7 +2546,7 @@
         modalSimOverrides = {};
       }
       currentDocItemId = id;
-      currentDocField = initialTab || 'roi';
+      currentDocField = initialTab || 'summary';
 
       const modalContainer = document.querySelector('#detailModal .modal-container');
       if (modalContainer) modalContainer.classList.add('modal-wide');
@@ -2561,8 +2567,8 @@
 
     function renderUnifiedModalContent(item) {
       const docFields = [
-        { key: 'roi', label: '💰 ROI 시뮬레이터', title: '실투자금 & 세후 순수익 시뮬레이터' },
-        { key: 'summary', label: '📊 종합 요약', title: 'AI 분석 및 물건 요약' },
+        { key: 'summary', label: '📊 종합 요약', title: '살지 말지 판단: 결론·위험·입찰가·예상 순익' },
+        { key: 'roi', label: '🧮 수익 계산기', title: '낙찰가·매도가·임대 조건을 바꿔 보며 세후 순익 계산' },
         { key: 'doc_spec_text', label: '📄 명세서', title: '매각물건명세서' },
         { key: 'doc_survey_text', label: '📄 현황조사', title: '현황조사서' },
         { key: 'doc_appraisal_text', label: '📄 감정평가', title: '감정평가서' },
@@ -2607,15 +2613,119 @@
 
       document.getElementById('modalBody').innerHTML = tabsHtml + bodyContentHtml;
 
-      document.getElementById('modalFooter').innerHTML = `
-        ${item.naver_url ? `<a class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; text-decoration:none;" href="${item.naver_url}" target="_blank">네이버 시세</a>` : ''}
-        ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 16px; font-size:12px; text-decoration:none;" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener">대법원 경매정보 가기 →</a>` : ''}
-        <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 16px; font-size:12px; cursor:pointer;" onclick="closeModal()">닫기</button>
-      `;
+      renderModalFooter(item);
     }
 
     
     
+
+    // ── 상세 창 아래 버튼: 관심·숨김 / AI 재분석·서류 재수집 / 외부 링크 ──
+    const isHiddenItem = (item) => Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김');
+    const BTN = 'background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:8px 14px; font-size:12px; cursor:pointer; text-decoration:none;';
+
+    function requestStateLabel(val) {
+      const v = String(val || '');
+      if (!v) return '';
+      return v;
+    }
+
+    function renderModalFooter(item) {
+      const starred = !!item.is_interested && item.is_interested !== 'false';
+      const hidden = isHiddenItem(item);
+      const aiState = String(item.ai_reanalyze_status || '');
+      const docState = String(item.refetch_status || '');
+      const aiBusy = /^(대기|분석중)/.test(aiState);
+      const docBusy = /^(대기|수집중)/.test(docState);
+      const missing = missingDocs(item);
+      document.getElementById('modalFooter').innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; width:100%;">
+          <button class="btn-sm btn-star ${starred ? 'starred' : ''}" style="padding:8px 14px; font-size:12px;" onclick="toggleStar('${item.Id}')" aria-pressed="${starred}">${starred ? '⭐ 관심 해제' : '☆ 관심 등록'}</button>
+          <button class="btn-sm" style="${BTN}" onclick="toggleHideItem('${item.Id}')">${hidden ? '↩️ 숨김 해제' : '👁️‍🗨️ 숨김'}</button>
+          <span style="width:1px; height:22px; background:var(--border); margin:0 2px;"></span>
+          <button class="btn-sm" style="${BTN}" ${aiBusy ? 'disabled' : ''} onclick="requestAiReanalyze('${item.Id}')" title="저장된 서류로 Dify 권리분석을 다시 돌립니다 (보통 10분 안)">🤖 AI 권리분석 다시</button>
+          <button class="btn-sm" style="${BTN}" ${docBusy ? 'disabled' : ''} onclick="requestDocRefetch('${item.Id}')" title="${missing.length ? '빠진 서류: ' + missing.join(', ') : '모든 서류가 있지만 다시 받을 수 있습니다'} · 크롤러가 켜지는 새벽(02:15)에 수집">📥 서류 다시 수집${missing.length ? ` <span style="color:var(--red);">(${missing.length}개 없음)</span>` : ''}</button>
+          <span style="flex:1;"></span>
+          ${item.naver_url ? `<a class="btn-sm" style="${BTN}" href="${safeUrl(item.naver_url)}" target="_blank" rel="noopener">네이버 시세</a>` : ''}
+          ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 14px; font-size:12px; text-decoration:none;" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener">대법원 경매정보 →</a>` : ''}
+          <button class="btn-sm" style="${BTN}" onclick="closeModal()">닫기</button>
+        </div>
+        ${(aiState || docState) ? `<div style="width:100%; font-size:11px; color:var(--text-sub); margin-top:6px; display:flex; gap:14px; flex-wrap:wrap;">
+          ${aiState ? `<span>🤖 AI 재분석: ${escapeHtml(aiState)}</span>` : ''}
+          ${docState ? `<span>📥 서류 재수집: ${escapeHtml(docState)}</span>` : ''}
+        </div>` : ''}`;
+    }
+
+    function refreshModalFooter(id) {
+      const modal = document.getElementById('detailModal');
+      if (!modal || !modal.classList.contains('show') || String(currentDocItemId) !== String(id)) return;
+      const item = allItems.find(i => String(i.Id) === String(id));
+      if (item) renderModalFooter(item);
+    }
+
+    const DOC_LABELS = { doc_spec_text: '명세서', doc_survey_text: '현황조사', doc_appraisal_text: '감정평가', doc_registry_text: '등기부', doc_ledger_text: '건축물대장' };
+    function missingDocs(item) {
+      return Object.entries(DOC_LABELS).filter(([k]) => !item[k]).map(([, v]) => v);
+    }
+
+    // 크롤러(browserless·auction-crawler)는 NAS 메모리 때문에 매일 00:50~04:00에만 켜짐.
+    // 그 안에서 012(01:00~), 043(02:00, 약 2분), 010(03:00~) 사이 빈 시간 02:15에 재수집(058)이 돈다.
+    function nextRefetchSlot(now = new Date()) {
+      const kst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+      const slot = new Date(kst); slot.setHours(2, 15, 0, 0);
+      if (kst >= slot) slot.setDate(slot.getDate() + 1);
+      const today = kst.getDate() === slot.getDate();
+      return `${today ? '오늘' : '내일'} 새벽 02:15`;
+    }
+
+    function kstStamp() {
+      const d = new Date(Date.now() + 9 * 3600e3);
+      return d.toISOString().slice(5, 16).replace('T', ' ');
+    }
+
+    async function patchItemFields(id, body) {
+      const res = await apiFetch(`/api/auction-data?id=${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
+    }
+
+    async function requestAiReanalyze(id) {
+      const item = allItems.find(i => String(i.Id) === String(id));
+      if (!item) return;
+      if (!item.doc_spec_text && !item.doc_registry_text) {
+        if (!confirm('명세서·등기부가 모두 없어 분석 결과가 부정확할 수 있습니다. 그래도 요청할까요? (먼저 [서류 다시 수집]을 권장)')) return;
+      }
+      const prev = item.ai_reanalyze_status;
+      item.ai_reanalyze_status = `대기 · ${kstStamp()} 요청`;
+      refreshModalFooter(id);
+      try {
+        await patchItemFields(id, { ai_reanalyze_status: item.ai_reanalyze_status });
+        showToast('🤖 AI 재분석 요청됨 — 10분 안에 결과가 반영됩니다(새로고침해서 확인).');
+      } catch (e) {
+        item.ai_reanalyze_status = prev; refreshModalFooter(id);
+        showToast(`❌ 요청 실패: ${e.message}`, true);
+      }
+    }
+
+    async function requestDocRefetch(id) {
+      const item = allItems.find(i => String(i.Id) === String(id));
+      if (!item) return;
+      const missing = missingDocs(item);
+      const slot = nextRefetchSlot();
+      const msg = `${missing.length ? '빠진 서류: ' + missing.join(', ') + '\n' : ''}크롤러는 새벽에만 켜져 있어 ${slot}에 수집합니다.\n받은 서류로 AI 권리분석·시세·입찰가도 다시 계산합니다(빈 서류로 기존 서류를 지우지 않음). 요청할까요?`;
+      if (!confirm(msg)) return;
+      const prev = item.refetch_status;
+      item.refetch_status = `대기 · ${kstStamp()} 요청 → ${slot} 수집 예정`;
+      refreshModalFooter(id);
+      try {
+        await patchItemFields(id, { refetch_status: item.refetch_status });
+        showToast(`📥 서류 재수집 예약됨 — ${slot}`);
+      } catch (e) {
+        item.refetch_status = prev; refreshModalFooter(id);
+        showToast(`❌ 요청 실패: ${e.message}`, true);
+      }
+    }
+
     let modalSimOverrides = {};
 
     function buildROISimulatorBody(item) {
@@ -2627,6 +2737,7 @@
       const maxSale = Math.round((roi.appraisalPrice || 100000000) * 1.6);
 
       return `
+        <div style="font-size:12px; color:var(--text-sub); margin-bottom:10px;">조건을 바꿔 보며 계산하는 곳입니다. 결론·위험·입찰 전략은 <a href="#" onclick="switchDocTab('summary'); return false;" style="color:var(--blue);">📊 종합 요약</a>에 있습니다.</div>
         <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:20px;" class="sim-responsive-grid">
           <!-- 좌측: 입력 컨트롤러 (슬라이더 + 직접입력 양방향 동기화) -->
           <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:14px;">
@@ -2884,6 +2995,52 @@
       out.textContent = p == null ? '-' : (won < Number(item.min_price) ? '최저가 미만' : `약 ${p}%`);
     }
 
+    // 6단계: 종합 요약 = "살지 말지" 판단(읽기 전용), 수익 계산기 = 조건을 바꿔 보는 도구
+    function buildVerdictCard(item, safeFmt) {
+      if (item.status === '낙찰') return '';
+      const target = Number(item.bid_target) || Number(item.min_price) || 0;
+      let roi = null;
+      try { roi = target > 0 ? calculateAuctionROI(item, { bidPrice: target }) : null; } catch (e) { roi = null; }
+      const market = Number(item.market_price) > 0 ? Number(item.market_price) : 0;
+      const discount = market > 0 && target > 0 ? Math.round((1 - target / market) * 100) : null;
+      const missing = missingDocs(item);
+      const risk = item.ai_risk || '미분석';
+      const riskColor = risk === '안전' ? 'var(--green)' : risk === '주의' ? 'var(--yellow)' : 'var(--red)';
+      const checks = [];
+      if (missing.length) checks.push(`빠진 서류 ${missing.join('·')} → [📥 서류 다시 수집]`);
+      if (!market) checks.push('시세 근거 없음 → 매도가는 감정가 할인값(추정)');
+      if (Number(item.inherited_amount) < 0 || item.inherited_amount == null) checks.push('인수금액을 AI가 판단 못함 → 명세서 직접 확인');
+      if (Number(item.inherited_amount) > 0) checks.push(`인수금액 ${safeFmt(item.inherited_amount)} 별도 현금 필요`);
+      if (roi && !roi.isBudgetOk) checks.push(`잔금 필요현금 ${safeFmt(roi.cashOnClosing)} — 내 예산 초과`);
+      const profitColor = roi && roi.netProfit >= 0 ? 'var(--green)' : 'var(--red)';
+      const cell = (label, val, color = 'var(--text)', sub = '') => `
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px;">
+          <div style="font-size:11px; color:var(--text-sub);">${label}</div>
+          <div style="font-size:16px; font-weight:800; color:${color};">${val}</div>
+          ${sub ? `<div style="font-size:10px; color:var(--text-sub);">${sub}</div>` : ''}
+        </div>`;
+      return `
+        <div class="modal-section">
+          <div class="modal-section-title">🧭 한눈에 결론</div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px;">
+            ${cell('AI 위험도', `${escapeHtml(risk)}`, riskColor, escapeHtml(item.ai_recommend || ''))}
+            ${cell(item.bid_target ? '목표 입찰가' : '최저가 (목표가 없음)', safeFmt(target), 'var(--blue)', item.bid_target ? `최저가 대비 ${Math.round(target / (Number(item.min_price) || target) * 100)}%` : '')}
+            ${cell('시세 대비', discount == null ? '-' : `${discount >= 0 ? discount + '% 싸게' : -discount + '% 비싸게'}`, discount == null ? 'var(--text-sub)' : discount >= 0 ? 'var(--green)' : 'var(--red)', market ? `시세 ${safeFmt(market)}` : '시세 없음')}
+            ${cell('목표가 낙찰 시 세후 순익', roi ? `${roi.netProfit < 0 ? '-' : '+'}${safeFmt(Math.abs(roi.netProfit))}` : '-', profitColor, roi ? `실투자 ROI ${roi.roiReal} · ${roi.holdingMonths}개월` : '')}
+            ${cell('잔금일 필요 현금', roi ? safeFmt(roi.cashOnClosing) : '-', roi && roi.isBudgetOk ? 'var(--green)' : 'var(--red)', roi ? (roi.isBudgetOk ? '예산 안' : '예산 초과') : '')}
+          </div>
+          ${checks.length ? `<ul style="margin:10px 0 0; padding-left:18px; font-size:12px; color:var(--yellow); line-height:1.6;">${checks.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul>` : `<div style="margin-top:10px; font-size:12px; color:var(--green);">✅ 서류·시세·인수금액 확인 항목 이상 없음</div>`}
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-sm" style="${BTN}" onclick="openCalculatorAt('${item.Id}', ${target})">🧮 이 가격으로 수익 계산기 열기 →</button>
+          </div>
+        </div>`;
+    }
+
+    function openCalculatorAt(id, bidPrice) {
+      if (String(currentDocItemId) === String(id) && bidPrice > 0) modalSimOverrides.bidPrice = Number(bidPrice);
+      switchDocTab('roi');
+    }
+
     function buildSummaryTabBody(item) {
       const safeFmt = (n) => {
         if (!n || n <= 0) return '-';
@@ -2891,7 +3048,7 @@
         return e > 0 ? (m > 0 ? `${e}억 ${m.toLocaleString()}만` : `${e}억`) : `${m.toLocaleString()}만`;
       };
 
-      let bodyHtml = '';
+      let bodyHtml = buildVerdictCard(item, safeFmt);
 
       if (item.status === '낙찰') {
         const errVal = item.bid_engine_error || 0;
@@ -2946,11 +3103,11 @@
               <div style="font-size:11px; color:var(--text-sub)">최저매각가 (${item.price_rate || 0}%)</div>
               <div style="font-weight:700; font-size:14px; color:var(--blue)">${safeFmt(item.min_price)}</div>
             </div>
-            ${item.real_trade_3m_avg || item.real_trade_6m_avg ? `
+            ${Number(item.market_price) > 0 || item.real_trade_3m_avg || item.real_trade_6m_avg ? `
             <div style="grid-column: 1 / -1; margin-top:8px; border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; align-items:center;">
               <div>
-                <div style="font-size:11px; color:var(--text-sub)">국토부 실거래가 (3개월 평균)</div>
-                <div style="font-weight:700; font-size:14px">${safeFmt(item.real_trade_3m_avg || item.real_trade_6m_avg)}</div>
+                <div style="font-size:11px; color:var(--text-sub)">${Number(item.market_price) > 0 ? `시세 (실거래 중앙값 · ${escapeHtml(item.market_period || '')} ${item.market_sample_count || 0}건)` : '실거래 (3개월)'}</div>
+                <div style="font-weight:700; font-size:14px">${safeFmt(Number(item.market_price) > 0 ? item.market_price : (item.real_trade_3m_avg || item.real_trade_6m_avg))}</div>
               </div>
               <div style="text-align:right;">
                 <div style="font-size:11px; color:var(--text-sub)">GAP SCORE / 시세 대비</div>
@@ -4077,7 +4234,7 @@
 
         // 캐시된 API 키가 있으면 즉시 로드 시도
         try {
-          const cachedKey = localStorage.getItem('THECALIBRATION_KAKAO_KEY');
+          const cachedKey = localStorage.getItem('AUCTION_DASH_KAKAO_KEY');
           if (cachedKey && !kakaoMapScriptPromise) {
             loadKakaoMapScript(cachedKey).then(() => {
               if (isMapMode) initMap();
@@ -4309,7 +4466,7 @@
 
     // 백그라운드에서 캐시된 키가 있으면 즉시 SDK 프리로드
     try {
-      const cachedKey = localStorage.getItem('THECALIBRATION_KAKAO_KEY');
+      const cachedKey = localStorage.getItem('AUCTION_DASH_KAKAO_KEY');
       if (cachedKey) {
         loadKakaoMapScript(cachedKey).catch(() => {});
       }
@@ -4319,7 +4476,7 @@
     // 크롤링 파이프라인 즉시 실행 & 10분 쿨다운 시스템
     // ─────────────────────────────────────────────────────
     const CRAWL_COOLDOWN_MS = 10 * 60 * 1000; // 10분 (600,000ms)
-    const CRAWL_STORAGE_KEY = 'THECALIBRATION_LAST_CRAWL_TIME';
+    const CRAWL_STORAGE_KEY = 'AUCTION_DASH_LAST_CRAWL_TIME';
     let crawlCooldownTimer = null;
 
     function initCrawlCooldown() {
