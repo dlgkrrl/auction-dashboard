@@ -309,6 +309,28 @@
     }
 
     /* ── Charts Row ── */
+    /* 7단계: 시장 온도계 */
+    .thermo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .thermo-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .thermo-title { font-weight: 700; font-size: 15px; }
+    .thermo-badge { font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid currentColor; }
+    .thermo-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .thermo-kpi { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+    .thermo-kpi .k-label { font-size: 11px; color: var(--text-sub); }
+    .thermo-kpi .k-val { font-size: 20px; font-weight: 800; margin: 2px 0; }
+    .thermo-kpi .k-delta { font-size: 11px; }
+    .thermo-body { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; }
+    .thermo-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .thermo-table th, .thermo-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: right; }
+    .thermo-table th:first-child, .thermo-table td:first-child { text-align: left; }
+    .thermo-table tr.clickable { cursor: pointer; }
+    .thermo-table tr.clickable:hover { background: var(--surface2); }
+    .thermo-table tr.sel { background: rgba(47,129,247,0.12); }
+    @media (max-width: 760px) {
+      .thermo-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .thermo-body { grid-template-columns: 1fr; }
+    }
+
     .charts-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1166,6 +1188,32 @@
         </div>
       </div>
 
+      <!-- 7단계: 시장 온도계 (낙찰 결과 테이블 기준, 최근 30일 vs 직전 30일) -->
+      <section class="thermo-card" id="marketThermo" aria-label="시장 온도계">
+        <div class="thermo-head">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="thermo-title">🌡️ 시장 온도계</span>
+            <span class="thermo-badge" id="thermoBadge" style="color:var(--text-sub);">계산 중…</span>
+            <span style="font-size:11px; color:var(--text-sub);" id="thermoBasis"></span>
+          </div>
+          <select id="thermoRegion" class="search-input" style="width:auto; min-width:150px; padding:6px 10px;" onchange="renderMarketThermo()" aria-label="지역 선택">
+            <option value="">전체 지역</option>
+          </select>
+        </div>
+        <div class="thermo-kpis" id="thermoKpis"></div>
+        <div class="thermo-body">
+          <div>
+            <div style="font-size:12px; color:var(--text-sub); margin-bottom:6px;">월별 경쟁 강도 — 최저가 대비 낙찰가 배수(선) · 낙찰 건수(막대)</div>
+            <div style="position:relative; height:220px;"><canvas id="chartThermo" aria-label="월별 최저가 대비 낙찰가 배수와 낙찰 건수"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-sub); margin-bottom:6px;">지역별 최근 90일 (배수 높은 순 · 누르면 그 지역만)</div>
+            <div id="thermoRegions"></div>
+          </div>
+        </div>
+        <div style="font-size:11px; color:var(--text-sub); margin-top:10px;">배수 = 낙찰가 ÷ 그 회차 최저가. 유찰 회차가 달라도 비교할 수 있는 경쟁 강도입니다(1.20 = 최저가보다 20% 높게 낙찰). 지분·일괄·이상치 제외. 결과 수집 범위가 우리 지역·조건 중심이라 시장 전체와 다를 수 있습니다.</div>
+      </section>
+
       <!-- Charts (Opportunity Matrix & 낙찰가율) -->
       <div class="charts-grid" role="region" aria-label="투자 의사결정 통계 차트">
         <div class="chart-card">
@@ -1829,6 +1877,7 @@
 
         updateStats();
         updateCharts();
+        try { renderMarketThermo(); } catch (e) { console.warn('시장 온도계 오류:', e); }
         applyFilters();
 
         const now = new Date(Date.now() + 9 * 3600000);
@@ -2463,6 +2512,148 @@
     }
 
     // ─────────────────────────────────────────────────────
+    // 7단계 · 시장 온도계: 최근 30일 vs 직전 30일 (기준일 = 결과 데이터의 마지막 매각일)
+    // ─────────────────────────────────────────────────────
+    function thermoRows() {
+      const isTrue = (v) => v === true || v === 1 || v === '1' || v === 'true';
+      const d10 = (v) => String(v || '').replace(/\./g, '-').slice(0, 10);
+      return (allResults || []).filter(r => !isTrue(r.is_outlier) && !isTrue(r.is_share) && !isTrue(r.is_bulk) && !isTrue(r.loss_count_suspect))
+        .map(r => {
+          const rate = Number(r.actual_bid_rate), mr = Number(r.min_price_rate);
+          return { date: d10(r.bid_date), type: r.result_type, sgg: String(r.sgg || '').trim(),
+            rate: rate > 5 && rate < 200 ? rate : 0, over: rate > 5 && rate < 200 && mr > 0 ? rate / mr : 0, bidders: Number(r.bidder_count) || 0 };
+        })
+        .filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && (r.type === '매각' || r.type === '유찰'));
+    }
+    const tMedian = (a) => { if (!a.length) return null; const v = [...a].sort((x, y) => x - y); const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
+    const tMean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    function thermoSummary(rows) {
+      const sold = rows.filter(r => r.type === '매각' && r.rate > 0);
+      return {
+        sold: sold.length, failed: rows.filter(r => r.type === '유찰').length,
+        rate: tMedian(sold.map(r => r.rate)), over: tMedian(sold.filter(r => r.over > 0).map(r => r.over)),
+        bidders: tMean(sold.filter(r => r.bidders > 0).map(r => r.bidders)),
+      };
+    }
+    const tShift = (d, days) => new Date(new Date(d + 'T00:00:00Z').getTime() + days * 86400e3).toISOString().slice(0, 10);
+
+    function renderMarketThermo() {
+      const box = document.getElementById('marketThermo');
+      if (!box) return;
+      const all = thermoRows();
+      if (!all.some(r => r.type === '매각' && r.rate > 0)) { box.style.display = 'none'; return; }
+      box.style.display = '';
+
+      // 지역 목록(최근 1년 매각 10건 이상)
+      const sel = document.getElementById('thermoRegion');
+      const region = sel.value;
+      const soldDates = all.filter(r => r.type === '매각' && r.rate > 0).map(r => r.date).sort();
+      const lastSold = soldDates[soldDates.length - 1], firstSold = soldDates[0];
+      const yearAgo = tShift(lastSold, -365);
+      const cnt = {};
+      all.forEach(r => { if (r.type === '매각' && r.rate > 0 && r.sgg && r.date > yearAgo) cnt[r.sgg] = (cnt[r.sgg] || 0) + 1; });
+      const regions = Object.entries(cnt).filter(([, n]) => n >= 10).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+      const optKey = regions.join('|');
+      if (sel.dataset.key !== optKey) {
+        sel.innerHTML = '<option value="">전체 지역</option>' + regions.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+        sel.dataset.key = optKey;
+        sel.value = regions.includes(region) ? region : '';
+      }
+      const rows = sel.value ? all.filter(r => r.sgg === sel.value) : all;
+
+      const cur = thermoSummary(rows.filter(r => r.date > tShift(lastSold, -30) && r.date <= lastSold));
+      const prev = thermoSummary(rows.filter(r => r.date > tShift(lastSold, -60) && r.date <= tShift(lastSold, -30)));
+
+      const fmtP = (v) => v == null ? '-' : `${v.toFixed(1)}%`;
+      const fmtX = (v) => v == null ? '-' : `${v.toFixed(2)}배`;
+      const fmtN = (v) => v == null ? '-' : `${v.toFixed(1)}명`;
+      const delta = (a, b, unit, digits) => {
+        if (a == null || b == null) return '<span style="color:var(--text-sub);">직전 30일 비교 불가</span>';
+        const d = a - b;
+        if (Math.abs(d) < Math.pow(10, -digits) / 2) return '<span style="color:var(--text-sub);">직전 30일과 같음</span>';
+        return `<span style="color:${d > 0 ? 'var(--red)' : 'var(--blue)'};">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(digits)}${unit}</span> <span style="color:var(--text-sub);">직전 30일 대비</span>`;
+      };
+      const kpi = (label, val, d, title = '') => `<div class="thermo-kpi" title="${title}"><div class="k-label">${label}</div><div class="k-val">${val}</div><div class="k-delta">${d}</div></div>`;
+      document.getElementById('thermoKpis').innerHTML =
+        kpi('최근 30일 낙찰', `${cur.sold}건`, delta(cur.sold, prev.sold, '건', 0), '매각된 건수') +
+        kpi('낙찰가율 중앙값 (감정가 대비)', fmtP(cur.rate), delta(cur.rate, prev.rate, '%p', 1)) +
+        kpi('최저가 대비 배수 (경쟁 강도)', fmtX(cur.over), delta(cur.over, prev.over, '배', 2), '낙찰가 ÷ 그 회차 최저가. 높을수록 경쟁이 셈') +
+        kpi('평균 응찰자', fmtN(cur.bidders), delta(cur.bidders, prev.bidders, '명', 1));
+
+      // 온도: 배수 0.05 변화 = 1점, 응찰자 1명 변화 = 1점
+      const badge = document.getElementById('thermoBadge');
+      let label = '표본 부족', color = 'var(--text-sub)', why = '최근·직전 30일 중 낙찰 5건 미만';
+      if (cur.sold >= 5 && prev.sold >= 5 && cur.over != null && prev.over != null) {
+        const score = (cur.over - prev.over) / 0.05 + ((cur.bidders ?? 0) - (prev.bidders ?? 0)) / 1.0;
+        if (score >= 1) { label = '🔥 과열 쪽'; color = 'var(--red)'; }
+        else if (score <= -1) { label = '🧊 냉각 쪽'; color = 'var(--blue)'; }
+        else { label = '🌤️ 보통'; color = 'var(--green)'; }
+        why = `점수 ${score.toFixed(1)} (배수 변화÷0.05 + 응찰자 변화). ±1 이상이면 과열·냉각`;
+        if (score >= 1) why += ' — 목표가보다 높게 써야 낙찰될 가능성';
+        if (score <= -1) why += ' — 하한가 근처 입찰 여지';
+      }
+      badge.textContent = label; badge.style.color = color; badge.title = why;
+      // 매각 비율은 낙찰 데이터가 있는 기간(첫 매각일 이후)만 — 유찰은 4월부터, 매각은 7월부터 쌓여 기간이 다름
+      const s90 = thermoSummary(rows.filter(r => r.date >= firstSold && r.date > tShift(lastSold, -90)));
+      const sr = (s90.sold + s90.failed) > 0 ? Math.round(s90.sold / (s90.sold + s90.failed) * 100) : null;
+      document.getElementById('thermoBasis').textContent = `기준일 ${lastSold} · ${sel.value || '전체 지역'}${sr != null ? ` · 최근 90일 매각 비율 ${sr}%(참고)` : ''}`;
+
+      // 월별 차트(최근 12개월, 첫 낙찰 달부터)
+      const months = [];
+      for (let i = 11; i >= 0; i--) { const d = new Date(lastSold.slice(0, 7) + '-01T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - i); months.push(d.toISOString().slice(0, 7)); }
+      const byM = months.map(m => thermoSummary(rows.filter(r => r.date.startsWith(m))));
+      const first = Math.max(0, byM.findIndex(s => s.sold > 0));
+      const ms = months.slice(first), bs = byM.slice(first);
+      if (charts.thermo) charts.thermo.destroy();
+      const cv = document.getElementById('chartThermo');
+      if (cv && typeof Chart !== 'undefined') {
+        charts.thermo = new Chart(cv, {
+          data: {
+            labels: ms.map(m => `${Number(m.slice(5))}월`),
+            datasets: [
+              { type: 'line', label: '배수 중앙값', data: bs.map(s => s.sold >= 3 && s.over ? +s.over.toFixed(2) : null), borderColor: '#f85149', backgroundColor: '#f85149', borderWidth: 2.5, pointRadius: 4, spanGaps: true, yAxisID: 'yOver', order: 1 },
+              { type: 'bar', label: '낙찰 건수', data: bs.map(s => s.sold), backgroundColor: 'rgba(139,148,158,0.35)', borderRadius: 4, yAxisID: 'yCnt', order: 2 },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } },
+              tooltip: { callbacks: { afterBody: (items) => { const s = bs[items[0].dataIndex]; return [`낙찰가율 중앙값 ${s.rate ? s.rate.toFixed(1) + '%' : '-'}`, `평균 응찰자 ${s.bidders ? s.bidders.toFixed(1) + '명' : '-'}`].concat(s.sold < 3 ? ['표본 3건 미만 — 배수 표시 안 함'] : []); } } } },
+            scales: {
+              x: { ticks: { color: '#8b949e' }, grid: { display: false } },
+              yOver: { position: 'left', ticks: { color: '#f85149', callback: (v) => v + '배' }, grid: { color: 'rgba(139,148,158,0.12)' } },
+              yCnt: { position: 'right', beginAtZero: true, ticks: { color: '#8b949e', precision: 0 }, grid: { display: false } },
+            },
+          },
+        });
+      }
+
+      // 지역 표(최근 90일, 낙찰 3건 이상, 배수 높은 순)
+      const from90 = tShift(lastSold, -90);
+      const regRows = Object.keys(cnt).map(g => ({ g, ...thermoSummary(all.filter(r => r.sgg === g && r.date > from90)) }))
+        .filter(x => x.sold >= 3 && x.over != null).sort((a, b) => b.over - a.over).slice(0, 8);
+      window.__thermoRegions = regRows.map(x => x.g);
+      document.getElementById('thermoRegions').innerHTML = regRows.length ? `
+        <table class="thermo-table">
+          <thead><tr><th>시군구</th><th>낙찰</th><th>낙찰가율</th><th>배수</th><th>응찰자</th></tr></thead>
+          <tbody>${regRows.map((x, i) => `
+            <tr class="clickable ${x.g === sel.value ? 'sel' : ''}" onclick="setThermoRegion(${i})">
+              <td>${escapeHtml(x.g)}</td><td>${x.sold}</td><td>${fmtP(x.rate)}</td>
+              <td style="color:${x.over >= 1.2 ? 'var(--red)' : x.over < 1.05 ? 'var(--blue)' : 'var(--text)'}; font-weight:700;">${fmtX(x.over)}</td><td>${fmtN(x.bidders)}</td>
+            </tr>`).join('')}</tbody>
+        </table>` : '<div style="font-size:12px; color:var(--text-sub);">최근 90일에 낙찰 3건 이상인 지역이 없습니다.</div>';
+    }
+
+    function setThermoRegion(i) {
+      const sel = document.getElementById('thermoRegion');
+      const g = (window.__thermoRegions || [])[i];
+      if (!sel || !g) return;
+      if (![...sel.options].some(o => o.value === g)) sel.add(new Option(g, g));
+      sel.value = sel.value === g ? '' : g;
+      renderMarketThermo();
+    }
+
+    // ─────────────────────────────────────────────────────
     // Starred (NocoDB 연동 — 낙관적 UI + PATCH 중계)
     // ─────────────────────────────────────────────────────
     async function toggleStar(id) {
@@ -2643,7 +2834,7 @@
           <button class="btn-sm" style="${BTN}" onclick="toggleHideItem('${item.Id}')">${hidden ? '↩️ 숨김 해제' : '👁️‍🗨️ 숨김'}</button>
           <span style="width:1px; height:22px; background:var(--border); margin:0 2px;"></span>
           <button class="btn-sm" style="${BTN}" ${aiBusy ? 'disabled' : ''} onclick="requestAiReanalyze('${item.Id}')" title="저장된 서류로 Dify 권리분석을 다시 돌립니다 (보통 10분 안)">🤖 AI 권리분석 다시</button>
-          <button class="btn-sm" style="${BTN}" ${docBusy ? 'disabled' : ''} onclick="requestDocRefetch('${item.Id}')" title="${missing.length ? '빠진 서류: ' + missing.join(', ') : '모든 서류가 있지만 다시 받을 수 있습니다'} · 크롤러가 켜지는 새벽(02:15)에 수집">📥 서류 다시 수집${missing.length ? ` <span style="color:var(--red);">(${missing.length}개 없음)</span>` : ''}</button>
+          <button class="btn-sm" style="${BTN}" ${docBusy ? 'disabled' : ''} onclick="requestDocRefetch('${item.Id}')" title="${missing.length ? '빠진 서류: ' + missing.join(', ') : '모든 서류가 있지만 다시 받을 수 있습니다'} · 크롤러가 켜지는 새벽(02:15)에 수집">📥 서류 다시 수집 예약${missing.length ? ` <span style="color:var(--red);">(${missing.length}개 없음)</span>` : ''}</button>
           <span style="flex:1;"></span>
           ${item.naver_url ? `<a class="btn-sm" style="${BTN}" href="${safeUrl(item.naver_url)}" target="_blank" rel="noopener">네이버 시세</a>` : ''}
           ${item.court_url ? `<a class="btn-sm btn-court" style="padding:8px 14px; font-size:12px; text-decoration:none;" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener">대법원 경매정보 →</a>` : ''}
@@ -3007,7 +3198,7 @@
       const risk = item.ai_risk || '미분석';
       const riskColor = risk === '안전' ? 'var(--green)' : risk === '주의' ? 'var(--yellow)' : 'var(--red)';
       const checks = [];
-      if (missing.length) checks.push(`빠진 서류 ${missing.join('·')} → [📥 서류 다시 수집]`);
+      if (missing.length) checks.push(`빠진 서류 ${missing.join('·')} → [📥 서류 다시 수집 예약]`);
       if (!market) checks.push('시세 근거 없음 → 매도가는 감정가 할인값(추정)');
       if (Number(item.inherited_amount) < 0 || item.inherited_amount == null) checks.push('인수금액을 AI가 판단 못함 → 명세서 직접 확인');
       if (Number(item.inherited_amount) > 0) checks.push(`인수금액 ${safeFmt(item.inherited_amount)} 별도 현금 필요`);
