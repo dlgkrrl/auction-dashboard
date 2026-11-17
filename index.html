@@ -9,7 +9,7 @@
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- 카카오맵 API는 동적으로 로딩됩니다 -->
-  <link rel="stylesheet" href="/styles.css?v=20261117a">
+  <link rel="stylesheet" href="/styles.css?v=20261117b">
 </head>
 
 <body>
@@ -45,183 +45,210 @@
     </header>
 
     <main>
-      <!-- Stats -->
-      <div class="stats-grid" id="statsGrid" role="region" aria-label="요약 통계">
-        <!-- 스켈레톤 -->
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:60px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:80px"></div>
-        </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:60px"></div>
-        </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:60px"></div>
-        </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:80px"></div>
-        </div>
-        <div class="stat-card">
-          <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
-          <div class="skeleton" style="height:12px;width:80px"></div>
-        </div>
+      <!-- 리뉴얼 2단계: 위쪽 탭 3개 -->
+      <nav class="main-tabs" role="tablist" aria-label="화면 선택">
+        <button class="main-tab" role="tab" data-tab="today" onclick="setMainTab('today')">오늘 할 일 <span class="tab-count" id="tabCountToday"></span></button>
+        <button class="main-tab" role="tab" data-tab="find" onclick="setMainTab('find')">물건 찾기 <span class="tab-count" id="tabCountFind"></span></button>
+        <button class="main-tab" role="tab" data-tab="market" onclick="setMainTab('market')">시장·엔진</button>
+      </nav>
+
+      <div class="tab-panel" id="panel-today" role="tabpanel">
+        <!-- 9단계: 내 투자 판단 (관심 물건) -->
+        <section class="thermo-card" id="myPicks" aria-label="내 관심 물건 판단">
+          <div class="thermo-head">
+            <span class="thermo-title" id="picksTitle">⭐ 내 관심 물건</span>
+            <div style="display:flex; gap:6px; align-items:center; font-size:var(--fs-sm); color:var(--text-sub);">
+              금리 가정
+              <button class="filter-btn active" data-bump="0" onclick="setPicksRate(0)">지금</button>
+              <button class="filter-btn" data-bump="1" onclick="setPicksRate(1)">+1%p</button>
+              <button class="filter-btn" data-bump="2" onclick="setPicksRate(2)">+2%p</button>
+            </div>
+          </div>
+          <div class="thermo-kpis" id="picksKpis"></div>
+          <div id="picksBody"></div>
+          <div style="font-size:var(--fs-xs); color:var(--text-sub); margin-top:8px;">목표가로 낙찰받았을 때 ⚙️ 투자 조건(가용자금·세금·보유기간) 기준 계산. 매각기일 가까운 순. 줄을 누르면 상세 창.</div>
+        </section>
+
+        <section class="thermo-card" id="todayBoard" aria-label="이번 주 기일과 새 물건">
+          <div class="today-cols">
+            <div>
+              <div class="today-head">📅 7일 안 매각기일 <span class="muted t-xs" id="todaySoonCount"></span></div>
+              <div class="mini-list" id="todaySoon"></div>
+            </div>
+            <div>
+              <div class="today-head">🆕 새로 들어온 물건 <span class="muted t-xs">최근 등록 순</span></div>
+              <div class="mini-list" id="todayNew"></div>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <!-- 9단계: 내 투자 판단 (관심 물건) -->
-      <section class="thermo-card" id="myPicks" aria-label="내 관심 물건 판단">
-        <div class="thermo-head">
-          <span class="thermo-title" id="picksTitle">⭐ 내 관심 물건</span>
-          <div style="display:flex; gap:6px; align-items:center; font-size:var(--fs-sm); color:var(--text-sub);">
-            금리 가정
-            <button class="filter-btn active" data-bump="0" onclick="setPicksRate(0)">지금</button>
-            <button class="filter-btn" data-bump="1" onclick="setPicksRate(1)">+1%p</button>
-            <button class="filter-btn" data-bump="2" onclick="setPicksRate(2)">+2%p</button>
+      <div class="tab-panel" id="panel-find" role="tabpanel">
+        <!-- Stats -->
+        <div class="stats-grid" id="statsGrid" role="region" aria-label="요약 통계">
+          <!-- 스켈레톤 -->
+          <div class="stat-card">
+            <div class="skeleton" style="height:28px;width:60px;margin-bottom:6px"></div>
+            <div class="skeleton" style="height:12px;width:80px"></div>
+          </div>
+          <div class="stat-card">
+            <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
+            <div class="skeleton" style="height:12px;width:60px"></div>
+          </div>
+          <div class="stat-card">
+            <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
+            <div class="skeleton" style="height:12px;width:60px"></div>
+          </div>
+          <div class="stat-card">
+            <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
+            <div class="skeleton" style="height:12px;width:80px"></div>
+          </div>
+          <div class="stat-card">
+            <div class="skeleton" style="height:28px;width:40px;margin-bottom:6px"></div>
+            <div class="skeleton" style="height:12px;width:80px"></div>
           </div>
         </div>
-        <div class="thermo-kpis" id="picksKpis"></div>
-        <div id="picksBody"></div>
-        <div style="font-size:var(--fs-xs); color:var(--text-sub); margin-top:8px;">목표가로 낙찰받았을 때 ⚙️ 투자 조건(가용자금·세금·보유기간) 기준 계산. 매각기일 가까운 순. 줄을 누르면 상세 창.</div>
-      </section>
 
-      <!-- 7단계: 시장 온도계 (낙찰 결과 테이블 기준, 최근 30일 vs 직전 30일) -->
-      <section class="thermo-card" id="marketThermo" aria-label="시장 온도계">
-        <div class="thermo-head">
-          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <span class="thermo-title">🌡️ 시장 온도계</span>
-            <span class="thermo-badge" id="thermoBadge" style="color:var(--text-sub);">계산 중…</span>
-            <span class="muted t-xs" id="thermoBasis"></span>
+        <!-- Filter Bar -->
+        <div class="filter-bar" role="search" aria-label="물건 필터">
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input id="searchInput" class="search-input" type="search" placeholder="단지명, 소재지, 사건번호 검색…" aria-label="물건 검색"
+              oninput="applyFilters()" />
           </div>
-          <select id="thermoRegion" class="search-input" style="width:auto; min-width:150px; padding:6px 10px;" onchange="renderMarketThermo()" aria-label="지역 선택">
-            <option value="">전체 지역</option>
+          <div class="filter-group" role="group" aria-label="상태 필터">
+            <button class="filter-btn" data-filter="status" data-value="all" onclick="setFilter('status','all',this)">전체</button>
+            <button class="filter-btn active" data-filter="status" data-value="진행중" onclick="setFilter('status','진행중',this)">진행중</button>
+            <button class="filter-btn" data-filter="status" data-value="낙찰" onclick="setFilter('status','낙찰',this)">낙찰</button>
+          </div>
+          <div class="filter-group" role="group" aria-label="AI 위험도 필터">
+            <button class="filter-btn active" data-filter="risk" data-value="all"
+              onclick="setFilter('risk','all',this)">전체</button>
+            <button class="filter-btn" data-filter="risk" data-value="안전" onclick="setFilter('risk','안전',this)">🟢
+              안전</button>
+            <button class="filter-btn" data-filter="risk" data-value="주의" onclick="setFilter('risk','주의',this)">🟡
+              주의</button>
+            <button class="filter-btn" data-filter="risk" data-value="위험" onclick="setFilter('risk','위험',this)">🔴
+              위험</button>
+          </div>
+          <div class="filter-group" role="group" aria-label="GAP 등급 필터">
+            <button class="filter-btn active" data-filter="gap" data-value="all" onclick="setFilter('gap','all',this)">GAP
+              전체</button>
+            <button class="filter-btn" data-filter="gap" data-value="S" onclick="setFilter('gap','S',this)">S급</button>
+            <button class="filter-btn" data-filter="gap" data-value="A" onclick="setFilter('gap','A',this)">A급</button>
+            <button class="filter-btn" data-filter="gap" data-value="B" onclick="setFilter('gap','B',this)">B급</button>
+          </div>
+          <div class="filter-group" role="group" aria-label="기타 필터">
+            <button class="filter-btn" data-filter="star" data-value="on" id="btnStar" onclick="toggleStarFilter(this)">⭐
+              관심만</button>
+            <button class="filter-btn" data-filter="urgent" data-value="on" id="btnUrgent"
+              onclick="toggleUrgentFilter(this)">🔥 7일 이내</button>
+            <button class="filter-btn" data-filter="budget" data-value="on" id="btnBudget"
+              onclick="toggleBudgetFilter(this)">🟢 2천만 이하</button>
+            <button class="filter-btn" data-filter="hidden" data-value="on" id="btnHidden"
+              onclick="toggleHiddenFilter(this)">🗑️ 숨긴물건</button>
+          </div>
+          <select class="sort-select" id="sortSelect" onchange="applyFilters()" aria-label="정렬 기준">
+            <option value="bid_date">입찰기일순</option>
+            <option value="gap_score">GAP 스코어순</option>
+            <option value="price_rate">최저가율순</option>
+            <option value="loss_count">유찰횟수순</option>
           </select>
         </div>
-        <div class="thermo-kpis" id="thermoKpis"></div>
-        <div class="thermo-body">
-          <div>
-            <div class="muted t-sm mb-6">월별 경쟁 강도 — 최저가 대비 낙찰가 배수(선) · 낙찰 건수(막대)</div>
-            <div style="position:relative; height:220px;"><canvas id="chartThermo" aria-label="월별 최저가 대비 낙찰가 배수와 낙찰 건수"></canvas></div>
-          </div>
-          <div>
-            <div class="muted t-sm mb-6">지역별 최근 90일 (배수 높은 순 · 누르면 그 지역만)</div>
-            <div id="thermoRegions"></div>
-          </div>
-        </div>
-        <div class="muted t-xs mt-10">배수 = 낙찰가 ÷ 그 회차 최저가. 유찰 회차가 달라도 비교할 수 있는 경쟁 강도입니다(1.20 = 최저가보다 20% 높게 낙찰). 지분·일괄·이상치 제외. 결과 수집 범위가 우리 지역·조건 중심이라 시장 전체와 다를 수 있습니다.</div>
-      </section>
 
-      <!-- Charts (Opportunity Matrix & 낙찰가율) -->
-      <div class="charts-grid" role="region" aria-label="투자 의사결정 통계 차트">
-        <div class="chart-card">
-          <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>🎯 투자 기회 매트릭스 (필요현금 vs 세후순익)</span>
-            <span style="font-size:var(--fs-xs); font-weight:600; color:var(--green);" id="matrixBudgetBadge">🟢 2,000만 이하 타겟</span>
-          </div>
-          <div class="chart-wrap" style="position:relative; height:240px;">
-            <canvas id="chartOpportunity" aria-label="잔금 필요현금 대비 세후 순수익 산점도"></canvas>
-          </div>
+        <!-- Count -->
+        <div style="font-size:var(--fs-sm);color:var(--text-sub);margin-bottom:12px" id="countLabel">불러오는 중…</div>
+
+        <!-- Map Filter Bar (지도 모드에서만 표시) -->
+        <div id="mapFilterBar" style="display:none; padding:8px 16px; background:var(--surface2); border:1px solid var(--border); border-bottom:none; border-radius:10px 10px 0 0; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-size:var(--fs-sm); color:var(--text-sub); font-weight:600;">🗺️ 지도 표시:</span>
+          <button class="filter-btn active" id="mapFilter-진행중" onclick="setMapFilter('진행중',this)">📍 진행중</button>
+          <button class="filter-btn" id="mapFilter-낙찰" onclick="setMapFilter('낙찰',this)">🔨 낙찰</button>
+          <button class="filter-btn" id="mapFilter-all" onclick="setMapFilter('all',this)">전체</button>
+          <span id="mapMarkerCount" style="font-size:var(--fs-xs); color:var(--text-sub); margin-left:auto; background:var(--surface3,#0d1117); padding:2px 8px; border-radius:10px;"></span>
         </div>
-        <div class="chart-card">
-          <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>📊 유찰 횟수별 실전 낙찰가율 & 경쟁률</span>
-            <span style="font-size:var(--fs-xs); font-weight:normal; color:var(--yellow);" id="calibSampleCount">실제 낙찰 데이터 35건 분석</span>
-          </div>
-          <div class="chart-wrap" style="position:relative; height:240px;">
-            <canvas id="chartBidRate" aria-label="법원별 평균 낙찰가율 및 경쟁률 차트"></canvas>
-          </div>
-        </div>
+
+        <!-- Map Container -->
+        <div id="mapContainer" role="region" aria-label="지도 뷰" style="border-radius:0 0 10px 10px;"></div>
+
+        <!-- Cards -->
+        <div class="cards-grid" id="cardsGrid" role="list" aria-label="경매 물건 목록"></div>
       </div>
 
-      <!-- 8단계: 입찰 엔진 성적표 -->
-      <section class="thermo-card" id="engineScore" aria-label="입찰 엔진 성적표" style="display:none;">
-        <div class="thermo-head">
-          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <span class="thermo-title">🎯 입찰 엔진 성적표</span>
-            <span class="muted t-xs" id="scoreBasis"></span>
+      <div class="tab-panel" id="panel-market" role="tabpanel">
+        <!-- 7단계: 시장 온도계 (낙찰 결과 테이블 기준, 최근 30일 vs 직전 30일) -->
+        <section class="thermo-card" id="marketThermo" aria-label="시장 온도계">
+          <div class="thermo-head">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span class="thermo-title">🌡️ 시장 온도계</span>
+              <span class="thermo-badge" id="thermoBadge" style="color:var(--text-sub);">계산 중…</span>
+              <span class="muted t-xs" id="thermoBasis"></span>
+            </div>
+            <select id="thermoRegion" class="search-input" style="width:auto; min-width:150px; padding:6px 10px;" onchange="renderMarketThermo()" aria-label="지역 선택">
+              <option value="">전체 지역</option>
+            </select>
           </div>
-          <span style="font-size:var(--fs-sm); font-weight:700;" id="scoreVerdict"></span>
-        </div>
-        <div class="thermo-kpis" id="scoreKpis"></div>
-        <div class="score-groups" id="scoreGroups"></div>
-        <div class="thermo-body">
-          <div>
-            <div class="muted t-sm mb-6">오차 분포 — 초록 ±5% 안 · 빨강 목표가가 낮았음 · 파랑 목표가가 높았음</div>
-            <div style="position:relative; height:200px;"><canvas id="chartScore" aria-label="목표가 대비 실제 낙찰가 오차 분포"></canvas></div>
+          <div class="thermo-kpis" id="thermoKpis"></div>
+          <div class="thermo-body">
+            <div>
+              <div class="muted t-sm mb-6">월별 경쟁 강도 — 최저가 대비 낙찰가 배수(선) · 낙찰 건수(막대)</div>
+              <div style="position:relative; height:220px;"><canvas id="chartThermo" aria-label="월별 최저가 대비 낙찰가 배수와 낙찰 건수"></canvas></div>
+            </div>
+            <div>
+              <div class="muted t-sm mb-6">지역별 최근 90일 (배수 높은 순 · 누르면 그 지역만)</div>
+              <div id="thermoRegions"></div>
+            </div>
           </div>
-          <div>
-            <div class="muted t-sm mb-6">크게 빗나간 물건 (누르면 상세)</div>
-            <div id="scoreMisses"></div>
-          </div>
-        </div>
-        <div class="muted t-xs mt-10">오차 = (실제 낙찰가 − 우리 목표가) ÷ 목표가. 목표가는 엔진이 '이 값이면 절반쯤 낙찰'로 잡은 값이라 오차 중앙값 0%, 목표가 낙찰 50% 근처가 잘 맞는 상태입니다. 우리가 추적한 물건만 들어갑니다.</div>
-      </section>
+          <div class="muted t-xs mt-10">배수 = 낙찰가 ÷ 그 회차 최저가. 유찰 회차가 달라도 비교할 수 있는 경쟁 강도입니다(1.20 = 최저가보다 20% 높게 낙찰). 지분·일괄·이상치 제외. 결과 수집 범위가 우리 지역·조건 중심이라 시장 전체와 다를 수 있습니다.</div>
+        </section>
 
-      <!-- Filter Bar -->
-      <div class="filter-bar" role="search" aria-label="물건 필터">
-        <div class="search-wrap">
-          <span class="search-icon" aria-hidden="true">🔍</span>
-          <input id="searchInput" class="search-input" type="search" placeholder="단지명, 소재지, 사건번호 검색…" aria-label="물건 검색"
-            oninput="applyFilters()" />
+        <!-- Charts (Opportunity Matrix & 낙찰가율) -->
+        <div class="charts-grid" role="region" aria-label="투자 의사결정 통계 차트">
+          <div class="chart-card">
+            <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>🎯 투자 기회 매트릭스 (필요현금 vs 세후순익)</span>
+              <span style="font-size:var(--fs-xs); font-weight:600; color:var(--green);" id="matrixBudgetBadge">🟢 2,000만 이하 타겟</span>
+            </div>
+            <div class="chart-wrap" style="position:relative; height:240px;">
+              <canvas id="chartOpportunity" aria-label="잔금 필요현금 대비 세후 순수익 산점도"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>📊 유찰 횟수별 실전 낙찰가율 & 경쟁률</span>
+              <span style="font-size:var(--fs-xs); font-weight:normal; color:var(--yellow);" id="calibSampleCount">실제 낙찰 데이터 35건 분석</span>
+            </div>
+            <div class="chart-wrap" style="position:relative; height:240px;">
+              <canvas id="chartBidRate" aria-label="법원별 평균 낙찰가율 및 경쟁률 차트"></canvas>
+            </div>
+          </div>
         </div>
-        <div class="filter-group" role="group" aria-label="상태 필터">
-          <button class="filter-btn" data-filter="status" data-value="all" onclick="setFilter('status','all',this)">전체</button>
-          <button class="filter-btn active" data-filter="status" data-value="진행중" onclick="setFilter('status','진행중',this)">진행중</button>
-          <button class="filter-btn" data-filter="status" data-value="낙찰" onclick="setFilter('status','낙찰',this)">낙찰</button>
-        </div>
-        <div class="filter-group" role="group" aria-label="AI 위험도 필터">
-          <button class="filter-btn active" data-filter="risk" data-value="all"
-            onclick="setFilter('risk','all',this)">전체</button>
-          <button class="filter-btn" data-filter="risk" data-value="안전" onclick="setFilter('risk','안전',this)">🟢
-            안전</button>
-          <button class="filter-btn" data-filter="risk" data-value="주의" onclick="setFilter('risk','주의',this)">🟡
-            주의</button>
-          <button class="filter-btn" data-filter="risk" data-value="위험" onclick="setFilter('risk','위험',this)">🔴
-            위험</button>
-        </div>
-        <div class="filter-group" role="group" aria-label="GAP 등급 필터">
-          <button class="filter-btn active" data-filter="gap" data-value="all" onclick="setFilter('gap','all',this)">GAP
-            전체</button>
-          <button class="filter-btn" data-filter="gap" data-value="S" onclick="setFilter('gap','S',this)">S급</button>
-          <button class="filter-btn" data-filter="gap" data-value="A" onclick="setFilter('gap','A',this)">A급</button>
-          <button class="filter-btn" data-filter="gap" data-value="B" onclick="setFilter('gap','B',this)">B급</button>
-        </div>
-        <div class="filter-group" role="group" aria-label="기타 필터">
-          <button class="filter-btn" data-filter="star" data-value="on" id="btnStar" onclick="toggleStarFilter(this)">⭐
-            관심만</button>
-          <button class="filter-btn" data-filter="urgent" data-value="on" id="btnUrgent"
-            onclick="toggleUrgentFilter(this)">🔥 7일 이내</button>
-          <button class="filter-btn" data-filter="budget" data-value="on" id="btnBudget"
-            onclick="toggleBudgetFilter(this)">🟢 2천만 이하</button>
-          <button class="filter-btn" data-filter="hidden" data-value="on" id="btnHidden"
-            onclick="toggleHiddenFilter(this)">🗑️ 숨긴물건</button>
-        </div>
-        <select class="sort-select" id="sortSelect" onchange="applyFilters()" aria-label="정렬 기준">
-          <option value="bid_date">입찰기일순</option>
-          <option value="gap_score">GAP 스코어순</option>
-          <option value="price_rate">최저가율순</option>
-          <option value="loss_count">유찰횟수순</option>
-        </select>
+
+        <!-- 8단계: 입찰 엔진 성적표 -->
+        <section class="thermo-card" id="engineScore" aria-label="입찰 엔진 성적표" style="display:none;">
+          <div class="thermo-head">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span class="thermo-title">🎯 입찰 엔진 성적표</span>
+              <span class="muted t-xs" id="scoreBasis"></span>
+            </div>
+            <span style="font-size:var(--fs-sm); font-weight:700;" id="scoreVerdict"></span>
+          </div>
+          <div class="thermo-kpis" id="scoreKpis"></div>
+          <div class="score-groups" id="scoreGroups"></div>
+          <div class="thermo-body">
+            <div>
+              <div class="muted t-sm mb-6">오차 분포 — 초록 ±5% 안 · 빨강 목표가가 낮았음 · 파랑 목표가가 높았음</div>
+              <div style="position:relative; height:200px;"><canvas id="chartScore" aria-label="목표가 대비 실제 낙찰가 오차 분포"></canvas></div>
+            </div>
+            <div>
+              <div class="muted t-sm mb-6">크게 빗나간 물건 (누르면 상세)</div>
+              <div id="scoreMisses"></div>
+            </div>
+          </div>
+          <div class="muted t-xs mt-10">오차 = (실제 낙찰가 − 우리 목표가) ÷ 목표가. 목표가는 엔진이 '이 값이면 절반쯤 낙찰'로 잡은 값이라 오차 중앙값 0%, 목표가 낙찰 50% 근처가 잘 맞는 상태입니다. 우리가 추적한 물건만 들어갑니다.</div>
+        </section>
+
       </div>
-
-      <!-- Count -->
-      <div style="font-size:var(--fs-sm);color:var(--text-sub);margin-bottom:12px" id="countLabel">불러오는 중…</div>
-
-      <!-- Map Filter Bar (지도 모드에서만 표시) -->
-      <div id="mapFilterBar" style="display:none; padding:8px 16px; background:var(--surface2); border:1px solid var(--border); border-bottom:none; border-radius:10px 10px 0 0; align-items:center; gap:8px; flex-wrap:wrap;">
-        <span style="font-size:var(--fs-sm); color:var(--text-sub); font-weight:600;">🗺️ 지도 표시:</span>
-        <button class="filter-btn active" id="mapFilter-진행중" onclick="setMapFilter('진행중',this)">📍 진행중</button>
-        <button class="filter-btn" id="mapFilter-낙찰" onclick="setMapFilter('낙찰',this)">🔨 낙찰</button>
-        <button class="filter-btn" id="mapFilter-all" onclick="setMapFilter('all',this)">전체</button>
-        <span id="mapMarkerCount" style="font-size:var(--fs-xs); color:var(--text-sub); margin-left:auto; background:var(--surface3,#0d1117); padding:2px 8px; border-radius:10px;"></span>
-      </div>
-
-      <!-- Map Container -->
-      <div id="mapContainer" role="region" aria-label="지도 뷰" style="border-radius:0 0 10px 10px;"></div>
-
-      <!-- Cards -->
-      <div class="cards-grid" id="cardsGrid" role="list" aria-label="경매 물건 목록"></div>
     </main>
 
     <!-- Toast -->
@@ -268,10 +295,10 @@
     </div>
   </div>
 
-  <script src="/js/auth.js?v=20261117a"></script>
-  <script src="/js/format.js?v=20261117a"></script>
-  <script src="/js/roi.js?v=20261117a"></script>
-  <script src="/js/app.js?v=20261117a"></script>
+  <script src="/js/auth.js?v=20261117b"></script>
+  <script src="/js/format.js?v=20261117b"></script>
+  <script src="/js/roi.js?v=20261117b"></script>
+  <script src="/js/app.js?v=20261117b"></script>
 
     <!-- Profile Settings Modal -->
     <div class="modal-overlay" id="profileModal" onclick="closeProfileModalOnOverlay(event)">

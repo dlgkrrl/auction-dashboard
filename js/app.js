@@ -758,126 +758,56 @@ function renderCards(items) {
     const specUrl = getDocUrl(item.pdf_spec_url);
     const appraisalUrl = getDocUrl(item.pdf_appraisal_url);
 
+    const roi = (() => { try { return calculateAuctionROI(item, {}, currentProfile); } catch (e) { return null; } })();
+    const docKeys = Object.keys(DOC_LABELS);
+    const docHave = docKeys.filter(k => item[k]).length;
+    const firstDoc = docKeys.find(k => item[k]);
+    const sold = item.status === '낙찰' || item.status === '매각';
+    const money = (n) => n == null || isNaN(n) ? '-' : `${n < 0 ? '-' : '+'}${fmt(Math.abs(n)) === '-' ? '0' : fmt(Math.abs(n))}`;
     return `
-<article class="item-card${isUrgent ? ' urgent' : ''}${isStarred ? ' interested' : ''}"
+<article class="item-card card-v2${isUrgent ? ' urgent' : ''}${isStarred ? ' interested' : ''}"
          role="listitem" aria-label="${escapeHtml(item.complex_name || item.case_no)} 물건 카드"
          onclick="openDetailModal('${item.Id}')">
   <div class="card-top">
-    <div>
+    <div style="min-width:0;">
       <div class="card-title">${escapeHtml(item.complex_name || '단지명 미확인')}</div>
-      <div class="card-sub">${escapeHtml((item.location || '').substring(0, 25))} | ${escapeHtml(item.area_m2 || '-')}㎡ | ${escapeHtml(item.floor || '-')}층</div>
+      <div class="card-sub">${escapeHtml((item.location || '').substring(0, 25))} · ${escapeHtml(item.area_m2 || '-')}㎡ · ${escapeHtml(item.floor || '-')}층</div>
     </div>
-    <div class="dday-chip ${ddayClass}" style="margin-left:10px;flex-shrink:0">${ddayText}</div>
+    <div class="dday-chip ${ddayClass}">${ddayText}</div>
   </div>
 
   <div class="badge-row">
     ${item.ai_risk ? `<span class="badge ${riskClass}">${escapeHtml(item.ai_risk)}</span>` : ''}
-    ${Number(item.inherited_amount) > 0 ? `<span class="badge" style="background:rgba(248,81,73,.12);color:var(--red);border:1px solid rgba(248,81,73,.4)" title="대항력 임차인 보증금 등 낙찰가 외 추가 부담">⚠️ 인수 ${fmt(item.inherited_amount)}</span>` : ''}
-    ${Number(item.inherited_amount) === -1 ? `<span class="badge" style="background:rgba(210,153,34,.12);color:var(--yellow);border:1px solid rgba(210,153,34,.4)" title="AI가 인수금액을 판단하지 못함 — 명세서 확인 필요">인수 불명</span>` : ''}
-    ${item.gap_score_grade ? `<span class="badge ${gapClass}">${item.gap_score_grade}급 ${item.gap_score || ''}점</span>` : ''}
-    ${item.loss_count > 0 ? `<span class="badge" style="background:#1c1c1c;color:var(--text-sub);border:1px solid var(--border)">${item.loss_count}회 유찰</span>` : ''}
-    ${item.is_interested ? `<span class="badge" style="background:rgba(163,113,247,.1);color:var(--purple);border:1px solid rgba(163,113,247,.3)">⭐ 관심</span>` : ''}
+    ${Number(item.inherited_amount) > 0 ? `<span class="badge badge-danger" title="대항력 임차인 보증금 등 낙찰가 외 추가 부담">인수 ${fmt(item.inherited_amount)}</span>` : ''}
+    ${Number(item.inherited_amount) === -1 ? `<span class="badge badge-warn" title="AI가 인수금액을 판단하지 못함 — 명세서 확인 필요">인수 불명</span>` : ''}
+    ${item.loss_count > 0 ? `<span class="badge badge-muted">유찰 ${item.loss_count}회</span>` : ''}
+    ${item.gap_score_grade ? `<span class="badge ${gapClass}">GAP ${item.gap_score_grade}</span>` : ''}
   </div>
 
-  <div class="price-row">
-    <div class="price-item">
-      <label>감정가</label>
-      <div class="val">${fmt(item.appraisal_price)}</div>
-    </div>
-    <div class="price-item">
-      <label>최저매각가 <span style="color:var(--text-sub);font-size:var(--fs-xs)">(${item.price_rate || 0}%)</span></label>
-      <div class="val" style="color:var(--blue)">${fmt(item.min_price)}</div>
-    </div>
-  </div>
-
-  <!-- Financial Twin Box (실투자금 & 세후 순수익) -->
-  ${(() => {
-    const roi = calculateAuctionROI(item, {}, currentProfile);
-    return `
-    <div style="background:#131c2b;border:1px solid #223249;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:var(--fs-sm);display:flex;flex-direction:column;gap:5px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span class="muted">💰 잔금일 당장 필요한 현금</span>
-        <span style="font-weight:700;color:${roi.isBudgetOk ? '#3fb950' : '#f85149'}">${fmt(roi.cashOnClosing)} ${roi.isBudgetOk ? '🟢' : '🔴'}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span class="muted">🤝 세입자 세팅 후 실투자금</span>
-        <span style="font-weight:700;color:var(--purple);">${roi.isPlusFee ? '0원 (무피/플피)' : fmt(roi.realCashNeeded)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #223249;padding-top:5px;">
-        <span class="muted">💵 예상 세후 순수익</span>
-        <span style="font-weight:700;color:var(--yellow);">+${fmt(roi.netProfit)} (${roi.roiReal})</span>
-      </div>
-    </div>
-    `;
-  })()}
-
-  ${item.bid_target ? `
-  <div style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm)">
-    🎯 추천 입찰가: <strong style="color:var(--green)">${fmt(item.bid_target)}</strong>
-    ${gapRateStr}
-  </div>` : ''}
-
-  ${item.status === '낙찰' ? `
-  <div style="background:rgba(163,113,247,.1);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm);border:1px solid rgba(163,113,247,.3)">
-    🔨 <strong>실제 낙찰가:</strong> ${fmt(item.actual_bid_price)} <span style="color:#a371f7">(${item.actual_bid_rate || 0}%)</span> / 👥 ${item.bidder_count || 0}명 응찰
-  </div>` : ''}
-
-  <div class="pdf-row">
-    <div class="pdf-chip ${item.doc_spec_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="매각물건명세서"
-         ${item.doc_spec_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_spec_text')"` : ''}>
-      ${item.doc_spec_text ? '✅' : '❌'} 명세
-    </div>
-    <div class="pdf-chip ${item.doc_survey_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="현황조사서"
-         ${item.doc_survey_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_survey_text')"` : ''}>
-      ${item.doc_survey_text ? '✅' : '❌'} 현황
-    </div>
-    <div class="pdf-chip ${item.doc_appraisal_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="감정평가서"
-         ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_appraisal_text')"` : ''}>
-      ${item.doc_appraisal_text ? '✅' : '❌'} 감정
-    </div>
-    <div class="pdf-chip ${item.doc_registry_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="등기사항전부증명서"
-         ${item.doc_registry_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_registry_text')"` : ''}>
-      ${item.doc_registry_text ? '✅' : '❌'} 등기
-    </div>
-    <div class="pdf-chip ${item.doc_ledger_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="건축물대장"
-         ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_ledger_text')"` : ''}>
-      ${item.doc_ledger_text ? '✅' : '❌'} 대장
-    </div>
-  </div>
-  <div class="pdf-row" style="margin-top:4px;">
-    <div class="pdf-chip ${item.real_trade_history ? 'pdf-ok clickable' : 'pdf-ng'}" title="실거래가 히스토리" style="width:100%"
-         ${item.real_trade_history ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'real_trade_history')"` : ''}>
-      ${item.real_trade_history 
-        ? ((item.real_trade_3m_avg > 0 || item.real_trade_6m_avg > 0 || item.real_trade_12m_avg > 0)
-            ? `✅ <b>실거래</b> <span style="font-weight:normal; font-size:var(--fs-xs); margin-left:4px;">(3개월: ${fmt(item.real_trade_3m_avg)} / 6개월: ${fmt(item.real_trade_6m_avg)} / 1년: ${fmt(item.real_trade_12m_avg)})</span>` 
-            : '✅ 국토부 실거래가 확인') 
-        : '❌ 실거래가 없음'}
-    </div>
-  </div>
+  ${sold ? `
+  <div class="card-metrics">
+    <div class="cm"><div class="cm-label">실제 낙찰가</div><div class="cm-val c-purple">${fmt(item.actual_bid_price)}</div></div>
+    <div class="cm"><div class="cm-label">감정가 대비</div><div class="cm-val">${item.actual_bid_rate ? fmtPct(Number(item.actual_bid_rate)) : '-'}</div></div>
+    <div class="cm"><div class="cm-label">응찰</div><div class="cm-val">${item.bidder_count || 0}명</div></div>
+  </div>` : `
+  <div class="card-metrics">
+    <div class="cm"><div class="cm-label">목표가</div><div class="cm-val c-blue">${roi ? fmt(roi.bidPrice) : '-'}</div><div class="cm-sub">${roi && Number(item.min_price) > 0 ? `최저가의 ${Math.round(roi.bidPrice / Number(item.min_price) * 100)}%` : ''}</div></div>
+    <div class="cm"><div class="cm-label">세후 순익</div><div class="cm-val ${roi && roi.netProfit >= 0 ? 'c-green' : 'c-red'}">${roi ? money(roi.netProfit) : '-'}</div><div class="cm-sub">${roi ? escapeHtml(String(roi.roiReal || '')) : ''}</div></div>
+    <div class="cm"><div class="cm-label">필요 현금</div><div class="cm-val ${roi && !roi.isBudgetOk ? 'c-red' : ''}">${roi ? fmt(roi.cashOnClosing) : '-'}</div><div class="cm-sub">${roi ? (roi.isBudgetOk ? '예산 안' : '예산 초과') : ''}</div></div>
+  </div>`}
 
   <div class="card-footer">
-    <div class="case-no">${escapeHtml(item.case_no || '-')}</div>
-    <div class="card-actions">
-      <button class="btn-sm btn-map" onclick="event.stopPropagation(); showOnMap('${item.Id}')" aria-label="지도에서 보기">🗺️ 지도</button>
-      <button class="btn-sm btn-star ${isStarred ? 'starred' : ''}"
-              id="star-${item.Id}"
-              onclick="event.stopPropagation();toggleStar('${item.Id}')"
-              aria-label="${isStarred ? '관심 해제' : '관심 등록'}"
-              aria-pressed="${isStarred}">
-        ${isStarred ? '⭐' : '☆'} ${isStarred ? '관심중' : '관심'}
-      </button>
-      <button class="btn-sm" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-sub); padding:5px 9px;"
-              onclick="event.stopPropagation(); toggleHideItem('${item.Id}')"
-              title="${isHidden ? '복원' : '대시보드에서 숨기기'}">
-        ${isHidden ? '↩️ 복원' : '👁️‍🗨️ 숨김'}
-      </button>
-      ${item.court_url ? `
-      <a class="btn-sm btn-court" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener"
-         onclick="event.stopPropagation()"
-         aria-label="${escapeHtml(item.case_no)} 법원경매 상세보기">
-        법원 →
-      </a>` : ''}
-    </div>
+    <span class="case-no">${escapeHtml(item.case_no || '-')}</span>
+    <button class="doc-count ${docHave === docKeys.length ? 'ok' : docHave ? 'part' : 'none'}"
+            ${firstDoc ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', '${firstDoc}')"` : 'disabled'}
+            title="서류 ${docHave}/${docKeys.length}${docHave < docKeys.length ? ' · 빠진 서류: ' + docKeys.filter(k => !item[k]).map(k => DOC_LABELS[k]).join(', ') : ''}">📄 ${docHave}/${docKeys.length}</button>
+    <span class="grow"></span>
+    <button class="icon-btn" onclick="event.stopPropagation(); showOnMap('${item.Id}')" aria-label="지도에서 보기" title="지도에서 보기">🗺️</button>
+    <button class="icon-btn btn-star ${isStarred ? 'starred' : ''}" id="star-${item.Id}"
+            onclick="event.stopPropagation();toggleStar('${item.Id}')"
+            aria-label="${isStarred ? '관심 해제' : '관심 등록'}" aria-pressed="${isStarred}" title="${isStarred ? '관심 해제' : '관심 등록'}">${isStarred ? '⭐' : '☆'}</button>
+    <button class="icon-btn" onclick="event.stopPropagation(); toggleHideItem('${item.Id}')"
+            aria-label="${isHidden ? '숨김 해제' : '숨기기'}" title="${isHidden ? '숨김 해제' : '대시보드에서 숨기기'}">${isHidden ? '↩️' : '🙈'}</button>
   </div>
 </article>`;
   }).join('');
@@ -1148,6 +1078,61 @@ function renderEngineScore() {
 let picksRateBump = 0;
 function setPicksRate(bump) { picksRateBump = bump; renderMyPicks(); }
 
+// ── 리뉴얼 2단계: 위쪽 탭 (오늘 할 일 / 물건 찾기 / 시장·엔진) ──
+const MAIN_TABS = ['today', 'find', 'market'];
+let currentMainTab = null;
+function setMainTab(tab, opts = {}) {
+  if (!MAIN_TABS.includes(tab)) tab = 'today';
+  currentMainTab = tab;
+  MAIN_TABS.forEach(t => {
+    const p = document.getElementById('panel-' + t);
+    if (p) p.hidden = t !== tab;
+  });
+  document.querySelectorAll('.main-tab').forEach(b => {
+    const on = b.dataset.tab === tab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on);
+  });
+  try { localStorage.setItem('AUCTION_DASH_TAB', tab); } catch (e) {}
+  if (!opts.noHash && location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
+  // 숨겨진 채로 그려진 차트는 크기가 0이라 보일 때 다시 맞춤
+  requestAnimationFrame(() => Object.values(charts || {}).forEach(c => { try { c && c.resize && c.resize(); } catch (e) {} }));
+  if (tab === 'find' && isMapMode && mapInstance && window.kakao && kakao.maps) { try { mapInstance.relayout(); } catch (e) {} }
+  if (!opts.noScroll) window.scrollTo({ top: 0 });
+}
+function initMainTab() {
+  let t = (location.hash || '').slice(1);
+  if (!MAIN_TABS.includes(t)) { try { t = localStorage.getItem('AUCTION_DASH_TAB'); } catch (e) { t = null; } }
+  setMainTab(MAIN_TABS.includes(t) ? t : 'today', { noScroll: true });
+}
+
+// 오늘 할 일: 7일 안 매각기일 + 새로 들어온 물건 (작은 카드 목록)
+function miniItemHTML(i, d) {
+  let r = null;
+  try { r = calculateAuctionROI(i, {}, currentProfile); } catch (e) {}
+  const riskC = i.ai_risk === '안전' ? 'c-green' : i.ai_risk === '주의' ? 'c-yellow' : 'c-red';
+  const dd = d == null ? '' : d === 0 ? '오늘' : `D-${d}`;
+  const star = !!i.is_interested && i.is_interested !== 'false';
+  return `<button class="mini-item" onclick="openDetailModal('${i.Id}')">
+    <div class="mi-top"><span class="mi-name">${star ? '⭐ ' : ''}${escapeHtml(i.complex_name || i.case_no || '-')}</span>${dd ? `<span class="mi-dday ${d <= 3 ? 'c-red' : ''}">${dd}</span>` : ''}</div>
+    <div class="mi-sub"><span class="${riskC}">${escapeHtml(i.ai_risk || '-')}</span> · 목표 ${r ? fmt(r.bidPrice) : '-'} · <span class="${r && r.netProfit >= 0 ? 'c-green' : 'c-red'}">순익 ${r ? (r.netProfit < 0 ? '-' : '+') + fmt(Math.abs(r.netProfit)) : '-'}</span> · 현금 <span class="${r && !r.isBudgetOk ? 'c-red' : ''}">${r ? fmt(r.cashOnClosing) : '-'}</span></div>
+  </button>`;
+}
+function renderTodayBoard() {
+  if (!document.getElementById('todayBoard') || !Array.isArray(allItems)) return;
+  const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const dday = (v) => { const s = String(v || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? Math.round((Date.parse(s) - Date.parse(today)) / 86400e3) : null; };
+  const active = allItems.filter(i => i.status === '진행중' && !isHiddenItem(i));
+  const soon = active.map(i => ({ i, d: dday(i.bid_date) })).filter(x => x.d != null && x.d >= 0 && x.d <= 7).sort((a, b) => a.d - b.d);
+  const fresh = [...active].sort((a, b) => Number(b.Id) - Number(a.Id)).slice(0, 6);
+  document.getElementById('todaySoonCount').textContent = soon.length ? `${soon.length}건` : '';
+  document.getElementById('todaySoon').innerHTML = soon.length ? soon.slice(0, 12).map(x => miniItemHTML(x.i, x.d)).join('') + (soon.length > 12 ? `<button class="mini-more" onclick="setMainTab('find')">+${soon.length - 12}건 더 · 물건 찾기에서 보기</button>` : '') : '<div class="muted t-sm">7일 안에 매각기일인 진행중 물건이 없습니다.</div>';
+  document.getElementById('todayNew').innerHTML = fresh.length ? fresh.map(i => miniItemHTML(i, dday(i.bid_date))).join('') : '<div class="muted t-sm">진행중 물건이 없습니다.</div>';
+  const starN = active.filter(i => !!i.is_interested && i.is_interested !== 'false').length;
+  const tc = document.getElementById('tabCountToday'); if (tc) tc.textContent = (starN + soon.length) ? String(starN + soon.length) : '';
+  const tf = document.getElementById('tabCountFind'); if (tf) tf.textContent = active.length ? String(active.length) : '';
+}
+
 function renderMyPicks() {
   const box = document.getElementById('myPicks');
   if (!box || !Array.isArray(allItems)) return;
@@ -1198,6 +1183,7 @@ function renderMyPicks() {
         </tr>`).join('')}</tbody>
     </table></div>` : '<div class="muted t-sm">예산 안·순익 플러스·위험 아님 조건에 맞는 진행중 물건이 없습니다. 물건 창에서 ☆ 관심 등록하면 여기 모입니다.</div>';
   document.querySelectorAll('#myPicks [data-bump]').forEach(b => b.classList.toggle('active', Number(b.dataset.bump) === picksRateBump));
+  try { renderTodayBoard(); } catch (e) { console.warn('오늘 할 일 오류:', e); }
 }
 
 // ─────────────────────────────────────────────────────
@@ -1316,18 +1302,23 @@ function renderUnifiedModalContent(item) {
     { key: 'real_trade_history', label: '📈 실거래가', title: '실거래가 내역' },
   ];
 
-  let tabsHtml = '<div class="doc-tab-bar">';
-  docFields.forEach(f => {
-    const hasData = (f.key === 'summary' || f.key === 'roi') ? true : !!item[f.key];
-    const isActive = f.key === currentDocField;
-    tabsHtml += `
-      <button class="doc-tab ${isActive ? 'active' : ''} ${!hasData ? 'disabled' : ''}"
-              ${hasData ? `onclick="switchDocTab('${f.key}')"` : 'disabled'}
-              title="${f.title}">
-        ${f.label} ${f.key === 'summary' ? '' : (hasData ? '✅' : '❌')}
-      </button>`;
-  });
-  tabsHtml += '</div>';
+  const docOnly = docFields.filter(f => f.key !== 'summary' && f.key !== 'roi');
+  const docHave = Object.keys(DOC_LABELS).filter(k => item[k]).length; // 카드와 같게: 서류 5종 기준 (실거래가 제외)
+  const inDocs = docOnly.some(f => f.key === currentDocField);
+  const firstDoc = (docOnly.find(f => item[f.key]) || {}).key;
+  const mainTab = (key, label, title, active, enabled = true) => `
+      <button class="doc-tab ${active ? 'active' : ''} ${enabled ? '' : 'disabled'}" ${enabled ? `onclick="switchDocTab('${key}')"` : 'disabled'} title="${title}">${label}</button>`;
+  let tabsHtml = '<div class="doc-tab-bar doc-tab-bar-v2">'
+    + mainTab('summary', '📊 요약', docFields[0].title, currentDocField === 'summary')
+    + mainTab('roi', '🧮 계산기', docFields[1].title, currentDocField === 'roi')
+    + mainTab(inDocs ? currentDocField : firstDoc, `📄 서류 <span class="tab-count">${docHave}/${Object.keys(DOC_LABELS).length}</span>`, '명세서·현황조사·감정평가·등기부·대장·실거래가', inDocs, !!firstDoc)
+    + '</div>';
+  if (inDocs) {
+    tabsHtml += '<div class="doc-subtabs">' + docOnly.map(f => {
+      const has = !!item[f.key];
+      return `<button class="doc-subtab ${f.key === currentDocField ? 'active' : ''}" ${has ? `onclick="switchDocTab('${f.key}')"` : 'disabled'} title="${f.title}${has ? '' : ' (없음)'}">${f.label.replace(/^\S+\s/, '')}${has ? '' : ' ✕'}</button>`;
+    }).join('') + '</div>';
+  }
 
   let bodyContentHtml = '';
 
@@ -1376,18 +1367,19 @@ function renderModalFooter(item) {
   const docBusy = /^(대기|수집중)/.test(docState);
   const missing = missingDocs(item);
   document.getElementById('modalFooter').innerHTML = `
-    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; width:100%;">
-      <button class="btn-sm btn-star ${starred ? 'starred' : ''} btn-pad" onclick="toggleStar('${item.Id}')" aria-pressed="${starred}">${starred ? '⭐ 관심 해제' : '☆ 관심 등록'}</button>
-      <button class="btn-sm btn-ghost btn-pad" onclick="toggleHideItem('${item.Id}')">${hidden ? '↩️ 숨김 해제' : '👁️‍🗨️ 숨김'}</button>
-      <span style="width:1px; height:22px; background:var(--border); margin:0 2px;"></span>
-      <button class="btn-sm btn-ghost btn-pad" ${aiBusy ? 'disabled' : ''} onclick="requestAiReanalyze('${item.Id}')" title="저장된 서류로 Dify 권리분석을 다시 돌립니다 (보통 10분 안)">🤖 AI 권리분석 다시</button>
-      <button class="btn-sm btn-ghost btn-pad" ${docBusy ? 'disabled' : ''} onclick="requestDocRefetch('${item.Id}')" title="${missing.length ? '빠진 서류: ' + missing.join(', ') : '모든 서류가 있지만 다시 받을 수 있습니다'} · 크롤러가 켜지는 새벽(02:15)에 수집">📥 서류 다시 수집 예약${missing.length ? ` <span class="c-red">(${missing.length}개 없음)</span>` : ''}</button>
-      <span class="grow"></span>
-      ${item.naver_url ? `<a class="btn-sm btn-ghost btn-pad" href="${safeUrl(item.naver_url)}" target="_blank" rel="noopener">네이버 시세</a>` : ''}
-      ${item.court_url ? `<a class="btn-sm btn-court btn-pad" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener">대법원 경매정보 →</a>` : ''}
-      <button class="btn-sm btn-ghost btn-pad" onclick="closeModal()">닫기</button>
+    <div class="mf-row" id="mfRow">
+      <button class="btn-sm btn-pad btn-star ${starred ? 'starred' : ''}" onclick="toggleStar('${item.Id}')" aria-pressed="${starred}">${starred ? '⭐ 관심 해제' : '☆ 관심 등록'}</button>
+      <button class="btn-sm btn-ghost btn-pad" onclick="toggleHideItem('${item.Id}')">${hidden ? '↩️ 숨김 해제' : '🙈 숨김'}</button>
+      <button class="btn-sm btn-ghost btn-pad mf-toggle" onclick="document.getElementById('mfRow').classList.toggle('open')" aria-label="버튼 더 보기">⋯ 더보기${missing.length ? ' <span class="c-red">●</span>' : ''}</button>
+      <span class="mf-sep mf-more"></span>
+      <button class="btn-sm btn-ghost btn-pad mf-more" ${aiBusy ? 'disabled' : ''} onclick="requestAiReanalyze('${item.Id}')" title="저장된 서류로 Dify 권리분석을 다시 돌립니다 (보통 10분 안)">🤖 AI 권리분석 다시</button>
+      <button class="btn-sm btn-ghost btn-pad mf-more" ${docBusy ? 'disabled' : ''} onclick="requestDocRefetch('${item.Id}')" title="${missing.length ? '빠진 서류: ' + missing.join(', ') : '모든 서류가 있지만 다시 받을 수 있습니다'} · 크롤러가 켜지는 새벽(02:15)에 수집">📥 서류 다시 수집 예약${missing.length ? ` <span class="c-red">(${missing.length}개 없음)</span>` : ''}</button>
+      <span class="grow mf-gap"></span>
+      ${item.naver_url ? `<a class="btn-sm btn-ghost btn-pad mf-more" href="${safeUrl(item.naver_url)}" target="_blank" rel="noopener">네이버 시세</a>` : ''}
+      ${item.court_url ? `<a class="btn-sm btn-court btn-pad mf-more" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener">대법원 경매정보 →</a>` : ''}
+      <button class="btn-sm btn-ghost btn-pad mf-close" onclick="closeModal()">닫기</button>
     </div>
-    ${(aiState || docState) ? `<div style="width:100%; font-size:var(--fs-xs); color:var(--text-sub); margin-top:6px; display:flex; gap:14px; flex-wrap:wrap;">
+    ${(aiState || docState) ? `<div class="mf-status">
       ${aiState ? `<span>🤖 AI 재분석: ${escapeHtml(aiState)}</span>` : ''}
       ${docState ? `<span>📥 서류 재수집: ${escapeHtml(docState)}</span>` : ''}
     </div>` : ''}`;
@@ -1475,7 +1467,7 @@ function buildROISimulatorBody(item) {
   const maxSale = Math.round((roi.appraisalPrice || 100000000) * 1.6);
 
   return `
-    <div class="muted t-sm mb-10">조건을 바꿔 보며 계산하는 곳입니다. 결론·위험·입찰 전략은 <a href="#" onclick="switchDocTab('summary'); return false;" class="c-blue">📊 종합 요약</a>에 있습니다.</div>
+    <div class="muted t-sm mb-10">조건을 바꿔 보며 계산하는 곳입니다. 결론·위험·입찰 전략은 <a href="#" onclick="switchDocTab('summary'); return false;" class="c-blue">📊 요약</a>에 있습니다.</div>
     <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:20px;" class="sim-responsive-grid">
       <!-- 좌측: 입력 컨트롤러 (슬라이더 + 직접입력 양방향 동기화) -->
       <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:14px;">
@@ -2904,6 +2896,7 @@ function renderStats() {
 }
 
 function toggleMap() {
+  if (currentMainTab !== 'find') setMainTab('find');
   isMapMode = !isMapMode;
   const btn = document.getElementById('btnToggleMap');
   const mapContainer = document.getElementById('mapContainer');
@@ -3141,6 +3134,8 @@ function openCourt(url, caseNo) {
 }
 
 function showOnMap(id) {
+  closeModal();
+  setMainTab('find');
   if (!isMapMode) toggleMap();
   mapSingleItem = String(id);
   updateMapMarkers();
@@ -3317,6 +3312,7 @@ async function handleRunCrawl() {
 // Init
 // ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  initMainTab();
   refreshProfileLabels();
   loadData();
   initCrawlCooldown();

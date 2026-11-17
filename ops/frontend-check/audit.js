@@ -21,7 +21,7 @@ const probe = () => {
     // 짧은 글자가 2줄 이상: 버튼·뱃지·라벨·표 머리·칩 등 (직접 텍스트가 있는 요소)
     const own = [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
     const text = (e.innerText || '').trim().replace(/\s+/g, ' ');
-    if (own && text.length <= 24 && !/\n/.test(e.innerText.trim())) {
+    if (own && text.length <= 24 && [...text].length > 2 && !/\n/.test(e.innerText.trim())) {
       const cs = getComputedStyle(e);
       let lh = parseFloat(cs.lineHeight); if (isNaN(lh)) lh = parseFloat(cs.fontSize) * 1.25;
       const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
@@ -47,6 +47,16 @@ const probe = () => {
     await p.goto(process.env.URL || 'http://localhost:8765/', { waitUntil: 'networkidle' }); await p.waitForTimeout(2200);
     const main = await p.evaluate(probe);
     await p.screenshot({ path: `${D}/a_${w}_main.png`, fullPage: true });
+    // 리뉴얼 2단계: 위쪽 탭이 있으면 탭마다 따로 검사
+    const tabs = {};
+    if (await p.evaluate(() => typeof setMainTab === 'function')) {
+      for (const t of ['find', 'market']) {
+        await p.evaluate((t) => setMainTab(t), t); await p.waitForTimeout(500);
+        tabs[t] = await p.evaluate(probe);
+        await p.screenshot({ path: `${D}/a_${w}_${t}.png`, fullPage: true });
+      }
+      await p.evaluate(() => setMainTab('today'));
+    }
     await p.evaluate(() => openDetailModal(2)); await p.waitForTimeout(700);
     const modal = await p.evaluate(probe);
     await p.screenshot({ path: `${D}/a_${w}_modal.png` });
@@ -58,14 +68,14 @@ const probe = () => {
     try { await p.evaluate(() => openStatsModal()); await p.waitForTimeout(600); stats = await p.evaluate(probe); await p.screenshot({ path: `${D}/a_${w}_stats.png` }); await p.evaluate(() => closeStatsModal()); } catch (e) { stats = { error: e.message }; }
     let prof = null;
     try { await p.evaluate(() => openProfileModal()); await p.waitForTimeout(400); prof = await p.evaluate(probe); await p.screenshot({ path: `${D}/a_${w}_profile.png` }); } catch (e) { prof = { error: e.message }; }
-    report[w] = { errs, main, modal, roi, stats, prof };
+    report[w] = { errs, main, ...tabs, modal, roi, stats, prof };
     await p.close();
   }
   fs.writeFileSync(`${D}/audit.json`, JSON.stringify(report, null, 1));
   for (const w of WIDTHS) {
     const r = report[w];
     console.log(`\n=== ${w}px  페이지 폭 ${r.main.scrollWidth} ${r.errs.length ? 'JS오류 ' + r.errs.join('|') : ''}`);
-    for (const k of ['main', 'modal', 'roi', 'stats', 'prof']) {
+    for (const k of ['main', 'find', 'market', 'modal', 'roi', 'stats', 'prof']) {
       const x = r[k]; if (!x || x.error) { console.log(k, x && x.error); continue; }
       console.log(`[${k}] 넘침 ${x.overflow.length} · 줄바꿈 ${x.wraps.length} · 잘림 ${x.clipped.length} · 가로스크롤칸 ${x.scrollers.join(', ')}`);
     }
