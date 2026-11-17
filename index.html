@@ -1122,7 +1122,14 @@
       .header-actions .last-updated {
         display: none;
       }
+
+      /* 휴대폰: 헤더 버튼·필터 줄바꿈, 새 카드 안 내용이 화면 밖으로 밀리지 않게 */
+      header { height: auto; min-height: 60px; padding: 8px 16px; flex-wrap: wrap; gap: 8px; }
+      .header-actions { flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+      .filter-group { flex-wrap: wrap; }
     }
+    .thermo-body > div, .score-groups > div, .thermo-kpis > div, .charts-grid > .chart-card { min-width: 0; }
+    #thermoRegions, #scoreMisses { overflow-x: auto; }
 
     @media (max-width: 480px) {
       .stats-grid {
