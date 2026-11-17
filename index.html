@@ -1136,6 +1136,29 @@
         grid-template-columns: repeat(3, 1fr);
       }
     }
+    /* ── 11-17 프론트 점검 1순위 수정: 짧은 글자 줄바꿈·칸 넘침 ── */
+    .btn-sm, .filter-btn, .badge, .doc-tab, .thermo-badge, .case-no, .profile-badge-btn,
+    .btn-refresh, .modal-footer .btn-sm, .thermo-table th, .thermo-table td { white-space: nowrap; }
+    .card-footer { flex-wrap: wrap; gap: 8px; }
+    .card-actions { flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .sim-input { width: 100%; min-width: 0; box-sizing: border-box; }
+    .sim-input-group { min-width: 0; }
+    #profileModal .modal-body > div[style*="grid"] > div { min-width: 0; }
+    .btn-primary, .btn-secondary { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .btn-primary { background: var(--blue); color: #fff; border: 1px solid var(--blue); }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .stats-table th, .stats-table td { white-space: nowrap; }
+    .stats-table { min-width: 560px; }
+    #roiSimResultsContainer td:last-child { white-space: nowrap; padding-left: 8px; }
+    .score-groups { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .pdf-chip { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 360px) { .pdf-row { flex-wrap: wrap; } .pdf-chip { flex: 1 0 28%; } }
+    .chart-title { flex-wrap: wrap; gap: 4px 8px; }
+    @media (max-width: 480px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .stat-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    }
   </style>
 </head>
 
@@ -3502,7 +3525,7 @@
         bodyHtml += `
           <div class="modal-section">
             <div class="modal-section-title">🤖 AI 권리분석 요약</div>
-            <div class="modal-text" style="border-left: 3px solid ${riskColor}; padding-left: 12px; background: rgba(0,0,0,0.2);">
+            <div class="modal-text" style="border-left: 3px solid ${riskColor}; padding-left: 12px; background: rgba(0,0,0,0.2); white-space: normal;">
               <strong style="color:${riskColor}">${escapeHtml(item.ai_risk || '미분석')} | ${escapeHtml(item.ai_recommend || '')}</strong><br/>
               ${escapeHtml(item.ai_summary || '')}
               ${item.ai_flags ? `<br/><br/><span style="color:var(--text-sub)">🚩 특이사항: ${escapeHtml(item.ai_flags)}</span>` : ''}
@@ -5022,7 +5045,7 @@
         <div class="modal-header">
           <div>
             <div class="modal-title">⚙️ 나의 투자 조건 & 가용자금 설정</div>
-            <div class="modal-subtitle">설정한 기준에 따라 전체 62개 물건의 실투자금과 순수익이 즉시 재계산됩니다.</div>
+            <div class="modal-subtitle">설정한 기준으로 모든 물건의 실투자금과 순수익을 다시 계산합니다.</div>
           </div>
           <button class="modal-close" onclick="closeProfileModal()">×</button>
         </div>
