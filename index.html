@@ -1190,6 +1190,22 @@
         </div>
       </div>
 
+      <!-- 9단계: 내 투자 판단 (관심 물건) -->
+      <section class="thermo-card" id="myPicks" aria-label="내 관심 물건 판단">
+        <div class="thermo-head">
+          <span class="thermo-title" id="picksTitle">⭐ 내 관심 물건</span>
+          <div style="display:flex; gap:6px; align-items:center; font-size:12px; color:var(--text-sub);">
+            금리 가정
+            <button class="filter-btn active" data-bump="0" onclick="setPicksRate(0)">지금</button>
+            <button class="filter-btn" data-bump="1" onclick="setPicksRate(1)">+1%p</button>
+            <button class="filter-btn" data-bump="2" onclick="setPicksRate(2)">+2%p</button>
+          </div>
+        </div>
+        <div class="thermo-kpis" id="picksKpis"></div>
+        <div id="picksBody"></div>
+        <div style="font-size:11px; color:var(--text-sub); margin-top:8px;">목표가로 낙찰받았을 때 ⚙️ 투자 조건(가용자금·세금·보유기간) 기준 계산. 매각기일 가까운 순. 줄을 누르면 상세 창.</div>
+      </section>
+
       <!-- 7단계: 시장 온도계 (낙찰 결과 테이블 기준, 최근 30일 vs 직전 30일) -->
       <section class="thermo-card" id="marketThermo" aria-label="시장 온도계">
         <div class="thermo-head">
@@ -1584,6 +1600,7 @@
       closeProfileModal();
       updateStats();
       updateCharts();
+      try { renderMyPicks(); } catch (e) {}
       applyFilters();
       showToast(`나의 투자 조건(가용자금 ${(currentProfile.availableCash/10000).toLocaleString()}만원)이 즉시 저장 및 반영되었습니다.`);
     }
@@ -1618,6 +1635,7 @@
         showToast(`동기화 실패: ${err.message}`, true);
       }
       refreshModalFooter(sid);
+      try { renderMyPicks(); } catch (e) {}
     }
 
 
@@ -1903,6 +1921,7 @@
 
         updateStats();
         updateCharts();
+        try { renderMyPicks(); } catch (e) { console.warn('관심 물건 표 오류:', e); }
         try { renderMarketThermo(); } catch (e) { console.warn('시장 온도계 오류:', e); }
         try { renderEngineScore(); } catch (e) { console.warn('엔진 성적표 오류:', e); }
         applyFilters();
@@ -2797,6 +2816,65 @@
     }
 
     // ─────────────────────────────────────────────────────
+    // 9단계 · 내 투자 판단: 관심 물건(진행중)을 목표가 기준으로 한 표에. 금리 변화(+0/+1/+2%p) 민감도
+    //  관심 물건이 없으면 '관심 등록 후보'(진행중·예산 안·순익 높은 순 5건)
+    // ─────────────────────────────────────────────────────
+    let picksRateBump = 0;
+    function setPicksRate(bump) { picksRateBump = bump; renderMyPicks(); }
+
+    function renderMyPicks() {
+      const box = document.getElementById('myPicks');
+      if (!box || !Array.isArray(allItems)) return;
+      const isStar = (i) => !!i.is_interested && i.is_interested !== 'false' && i.is_interested !== 0;
+      const active = allItems.filter(i => i.status === '진행중' && !isHiddenItem(i));
+      const baseRate = Number(currentProfile.loanInterestRate) || 0.05;
+      const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+      const dday = (d) => { const s = String(d || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null; return Math.round((Date.parse(s) - Date.parse(today)) / 86400e3); };
+      const calc = (i) => {
+        let r0, r1;
+        try { r0 = calculateAuctionROI(i, { loanInterestRate: baseRate + picksRateBump / 100 }); r1 = calculateAuctionROI(i, { loanInterestRate: baseRate + (picksRateBump + 1) / 100 }); } catch (e) { return null; }
+        const market = Number(i.market_price) > 0 ? Number(i.market_price) : 0;
+        return { i, r: r0, sens: r1.netProfit - r0.netProfit, d: dday(i.bid_date), disc: market && r0.bidPrice ? (1 - r0.bidPrice / market) * 100 : null };
+      };
+      let rows = active.filter(isStar).map(calc).filter(Boolean);
+      const starred = rows.length > 0;
+      if (!starred) {
+        rows = active.map(calc).filter(x => x && x.r.isBudgetOk && x.r.netProfit > 0 && x.i.ai_risk !== '위험')
+          .sort((a, b) => b.r.netProfit - a.r.netProfit).slice(0, 5);
+      } else {
+        rows.sort((a, b) => (a.d ?? 999) - (b.d ?? 999));
+      }
+      document.getElementById('picksTitle').textContent = starred ? `⭐ 내 관심 물건 ${rows.length}건` : '⭐ 관심 등록 후보 (관심 물건 없음)';
+      const budgetOk = rows.filter(x => x.r.isBudgetOk).length;
+      const plus = rows.filter(x => x.r.netProfit > 0).length;
+      const soon = rows.filter(x => x.d != null && x.d >= 0 && x.d <= 7).length;
+      const kpi = (label, val, sub) => `<div class="thermo-kpi"><div class="k-label">${label}</div><div class="k-val">${val}</div><div class="k-delta" style="color:var(--text-sub);">${sub}</div></div>`;
+      document.getElementById('picksKpis').innerHTML = rows.length ? (
+        kpi('예산 안', `${budgetOk} / ${rows.length}`, `가용자금 ${fmt(currentProfile.availableCash)} 기준`) +
+        kpi('목표가 낙찰 시 순익 플러스', `${plus} / ${rows.length}`, `금리 ${((baseRate * 100) + picksRateBump).toFixed(1)}% 기준`) +
+        kpi('7일 안 매각기일', `${soon}건`, soon ? '입찰 준비 확인' : '급한 물건 없음') +
+        kpi('금리 +1%p 영향', fmt(Math.abs(rows.reduce((s, x) => s + x.sens, 0))) , '목록 전체 순익 감소 합계')
+      ) : '';
+      document.getElementById('picksBody').innerHTML = rows.length ? `
+        <div style="overflow-x:auto;"><table class="thermo-table" style="min-width:640px;">
+          <thead><tr><th>물건</th><th>기일</th><th>위험</th><th>목표가</th><th>시세 대비</th><th>필요 현금</th><th>세후 순익</th><th>금리 +1%p</th><th>ROI</th></tr></thead>
+          <tbody>${rows.map(({ i, r, sens, d, disc }) => `
+            <tr class="clickable" onclick="openDetailModal('${i.Id}')">
+              <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(i.location || '')}">${escapeHtml(i.complex_name || i.case_no || '-')}</td>
+              <td style="color:${d != null && d <= 7 ? 'var(--red)' : 'var(--text)'};">${d == null ? '-' : d < 0 ? '지남' : d === 0 ? '오늘' : `D-${d}`}</td>
+              <td style="color:${i.ai_risk === '안전' ? 'var(--green)' : i.ai_risk === '주의' ? 'var(--yellow)' : 'var(--red)'};">${escapeHtml(i.ai_risk || '-')}</td>
+              <td>${fmt(r.bidPrice)}</td>
+              <td style="color:${disc == null ? 'var(--text-sub)' : disc >= 0 ? 'var(--green)' : 'var(--red)'};">${disc == null ? '시세 없음' : `${disc >= 0 ? '-' : '+'}${Math.abs(disc).toFixed(0)}%`}</td>
+              <td style="color:${r.isBudgetOk ? 'var(--text)' : 'var(--red)'};">${fmt(r.cashOnClosing)}${r.isBudgetOk ? '' : ' ⚠️'}</td>
+              <td style="color:${r.netProfit >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${r.netProfit < 0 ? '-' : '+'}${fmt(Math.abs(r.netProfit))}</td>
+              <td style="color:var(--text-sub);">${sens < 0 ? '-' : '+'}${fmt(Math.abs(sens))}</td>
+              <td>${escapeHtml(String(r.roiReal || '-'))}</td>
+            </tr>`).join('')}</tbody>
+        </table></div>` : '<div style="font-size:12px; color:var(--text-sub);">예산 안·순익 플러스·위험 아님 조건에 맞는 진행중 물건이 없습니다. 물건 창에서 ☆ 관심 등록하면 여기 모입니다.</div>';
+      document.querySelectorAll('#myPicks [data-bump]').forEach(b => b.classList.toggle('active', Number(b.dataset.bump) === picksRateBump));
+    }
+
+    // ─────────────────────────────────────────────────────
     // Starred (NocoDB 연동 — 낙관적 UI + PATCH 중계)
     // ─────────────────────────────────────────────────────
     async function toggleStar(id) {
@@ -2836,6 +2914,7 @@
         showToast(`❌ 저장 실패: ${err.message}`, 'error');
       }
       refreshModalFooter(sid);
+      try { renderMyPicks(); } catch (e) {}
     }
 
     // ─────────────────────────────────────────────────────
