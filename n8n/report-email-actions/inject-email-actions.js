@@ -49,9 +49,11 @@ const actionRow = (item) => {
 let html = report.html || '';
 let injected = 0;
 
+// 행 찾기: "HTML 리포트 생성"이 행마다 남기는 <!--item:Id--> 표식으로 찾는다.
+// (예전엔 사건번호로 찾아서, 한 사건에 물건이 여러 개면 형제 물건의 AI 요약이 모든 행에 중복 삽입됐음)
 for (const item of list) {
-  if (!item.case_no || !item.Id) continue;
-  const marker = `사건: ${item.case_no}</div>`;
+  if (!item.Id) continue;
+  const marker = `<!--item:${item.Id}-->`;
   let from = 0;
   while (true) {
     const at = html.indexOf(marker, from);
