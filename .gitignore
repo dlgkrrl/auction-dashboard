@@ -15,3 +15,4 @@ ops/phase2/backup_*.json
 
 # 4단계 운영 백업(워크플로우·데이터 원본)
 ops/phase4/backup/
+ops/frontend-check/out/
