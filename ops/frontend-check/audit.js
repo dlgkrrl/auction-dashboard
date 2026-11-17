@@ -44,7 +44,7 @@ const probe = () => {
   for (const w of WIDTHS) {
     const p = await b.newPage({ viewport: { width: w, height: 900 } });
     const errs = []; p.on('pageerror', e => errs.push(e.message));
-    await p.goto('http://localhost:8765/', { waitUntil: 'networkidle' }); await p.waitForTimeout(2200);
+    await p.goto(process.env.URL || 'http://localhost:8765/', { waitUntil: 'networkidle' }); await p.waitForTimeout(2200);
     const main = await p.evaluate(probe);
     await p.screenshot({ path: `${D}/a_${w}_main.png`, fullPage: true });
     await p.evaluate(() => openDetailModal(2)); await p.waitForTimeout(700);

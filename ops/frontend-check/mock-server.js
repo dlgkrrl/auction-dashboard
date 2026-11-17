@@ -14,7 +14,9 @@ for(let d=0;d<200;d++){const date=new Date(Date.UTC(2026,10,15)-d*86400e3).toISO
  results.push({case_no:'2025타경'+(9000+d*2+k),item_no:'1',bid_date:date,result_type:(d+k)%5?'매각':'유찰',sgg:g,min_price_rate:mr,actual_bid_rate:rate.toFixed(1),bidder_count:3+((d+k)%4),loss_count:(d+k)%4,
   actual_bid_price:Math.round(1.5e8*rate/100),our_bid_target:d%3===0?Math.round(1.5e8*mr/100*1.18):null,engine_version:d%2?'v4':'v3',source:'tracked'});}}
 http.createServer((q,r)=>{const u=new URL(q.url,'http://x');
- if(u.pathname==='/'||u.pathname==='/index.html'){r.setHeader('content-type','text/html');return r.end(fs.readFileSync(require('path').join(__dirname,'../../index.html')));}
+ const ROOT=process.env.ROOT||require('path').join(__dirname,'../..');
+ if(u.pathname==='/'||u.pathname==='/index.html'){r.setHeader('content-type','text/html');return r.end(fs.readFileSync(ROOT+'/index.html'));}
+ if(/^\/(styles\.css|js\/[a-z0-9_-]+\.js)$/.test(u.pathname)){const f=ROOT+u.pathname;if(fs.existsSync(f)){r.setHeader('content-type',u.pathname.endsWith('.css')?'text/css':'text/javascript');return r.end(fs.readFileSync(f));}}
  if(u.pathname==='/api/session'){r.setHeader('content-type','application/json');return r.end('{"ok":true,"loggedIn":true}');}
  if(u.pathname.startsWith('/api/')){let b='';q.on('data',c=>b+=c);q.on('end',()=>{r.setHeader('content-type','application/json');
   if(q.method==='PATCH'){return r.end('{}');}
@@ -24,4 +26,4 @@ http.createServer((q,r)=>{const u=new URL(q.url,'http://x');
   if(/Id,eq,/.test(w)){const id=+w.match(/Id,eq,(\d+)/)[1];return r.end(JSON.stringify({list:[{Id:id,doc_spec_text:'매각물건명세서 본문',doc_survey_text:'현황',doc_appraisal_text:'감정',doc_registry_text:'정보 없음',doc_ledger_text:'',real_trade_history:'계약일\t기준\n'}]}));}
   if(/is_hidden,eq/.test(w))return r.end('{"list":[],"pageInfo":{"isLastPage":true}}');
   r.end(JSON.stringify({list:items,pageInfo:{isLastPage:true}}));});return;}
- r.statusCode=404;r.end();}).listen(8765);
+ r.statusCode=404;r.end();}).listen(+process.env.PORT||8765);
