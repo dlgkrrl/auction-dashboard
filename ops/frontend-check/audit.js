@@ -55,6 +55,13 @@ const probe = () => {
         tabs[t] = await p.evaluate(probe);
         await p.screenshot({ path: `${D}/a_${w}_${t}.png`, fullPage: true });
       }
+      // 휴대폰 필터 시트
+      if (w <= 600 && await p.evaluate(() => typeof openFilterSheet === 'function')) {
+        await p.evaluate(() => { setMainTab('find'); openFilterSheet(); }); await p.waitForTimeout(400);
+        tabs.sheet = await p.evaluate(probe);
+        await p.screenshot({ path: `${D}/a_${w}_sheet.png` });
+        await p.evaluate(() => closeFilterSheet());
+      }
       await p.evaluate(() => setMainTab('today'));
     }
     await p.evaluate(() => openDetailModal(2)); await p.waitForTimeout(700);
@@ -75,8 +82,8 @@ const probe = () => {
   for (const w of WIDTHS) {
     const r = report[w];
     console.log(`\n=== ${w}px  페이지 폭 ${r.main.scrollWidth} ${r.errs.length ? 'JS오류 ' + r.errs.join('|') : ''}`);
-    for (const k of ['main', 'find', 'market', 'modal', 'roi', 'stats', 'prof']) {
-      const x = r[k]; if (!x || x.error) { console.log(k, x && x.error); continue; }
+    for (const k of ['main', 'find', 'sheet', 'market', 'modal', 'roi', 'stats', 'prof']) {
+      const x = r[k]; if (!x) continue; if (x.error) { console.log(k, x.error); continue; }
       console.log(`[${k}] 넘침 ${x.overflow.length} · 줄바꿈 ${x.wraps.length} · 잘림 ${x.clipped.length} · 가로스크롤칸 ${x.scrollers.join(', ')}`);
     }
   }

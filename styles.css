@@ -1254,3 +1254,55 @@ main {
 .item-card { min-width: 0; }
 @media (max-width: 400px) { .item-card.card-v2 { padding: 14px; } }
 
+/* ── 리뉴얼 3단계: 휴대폰 맞춤 ── */
+.sheet-head, .sheet-foot, .filter-sheet-btn, .filter-backdrop, .picks-cards { display: none; }
+.filter-sheet-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 20px; padding: 7px 14px; font-size: var(--fs-md); font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; flex-shrink: 0; }
+.pc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 8px; margin-top: 6px; }
+.pc-grid > div { min-width: 0; display: flex; flex-direction: column; }
+.pc-grid span { font-size: var(--fs-xs); color: var(--text-sub); white-space: nowrap; }
+.pc-grid b { font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  /* 필터: 검색창 + [필터] 버튼만, 나머지는 아래에서 올라오는 시트 */
+  .filter-bar { flex-wrap: nowrap; }
+  .filter-bar .search-wrap { flex: 1; min-width: 0; }
+  .filter-sheet-btn { display: inline-flex; align-items: center; gap: 6px; }
+  .filter-bar:not(.sheet-open) > .filter-group, .filter-bar:not(.sheet-open) > .sort-select { display: none; }
+  .filter-bar.sheet-open { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1001; margin: 0; background: var(--surface); border-top: 1px solid var(--border); border-radius: 16px 16px 0 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 14px; max-height: 82vh; overflow-y: auto; box-shadow: 0 -10px 30px rgba(0,0,0,.4); animation: sheetUp .18s ease-out; }
+  .filter-bar.sheet-open > .search-wrap, .filter-bar.sheet-open > .filter-sheet-btn { display: none; }
+  .filter-bar.sheet-open > .sheet-head { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-lg); }
+  .filter-bar.sheet-open > .filter-group { flex-wrap: wrap; }
+  .filter-bar.sheet-open > .filter-group::before { content: attr(aria-label); display: block; width: 100%; font-size: var(--fs-xs); color: var(--text-sub); margin-bottom: 2px; }
+  .filter-bar.sheet-open > .sort-select { width: 100%; }
+  .filter-bar.sheet-open > .sheet-foot { display: flex; gap: 8px; position: sticky; bottom: 0; background: var(--surface); padding-top: 6px; }
+  .filter-bar.sheet-open > .sheet-foot .btn-primary { flex: 1; padding: 11px; }
+  .filter-backdrop.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; }
+
+  /* 관심 물건: 표 대신 카드 */
+  #picksBody .table-scroll { display: none; }
+  #picksBody .picks-cards { display: flex; flex-direction: column; gap: 6px; }
+
+  /* 통계 표: 회차·낙찰·중앙값·응찰자 4칸만 */
+  .stats-table { min-width: 0 !important; }
+  #statsTable tr:not(.ns) > :is(th, td):is(:nth-child(3), :nth-child(4), :nth-child(6), :nth-child(7), :nth-child(8), :nth-child(10)) { display: none; }
+  #statsTable tr.ns > td:nth-child(3) { display: none; }
+}
+@keyframes sheetUp { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (max-width: 360px) {
+  .thermo-kpi .k-label, .stat-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* 계산기·낙찰 확률: 좁은 화면에서 칸 밖으로 나가지 않게 */
+.sim-responsive-grid > * { min-width: 0; }
+.sim-slider { min-width: 0; }
+.wp-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; color: var(--text-sub); }
+.wp-row > span, .wp-input > span { white-space: nowrap; }
+.wp-input { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+@media (max-width: 600px) {
+  .sim-responsive-grid > div { padding: 12px !important; }
+  .sim-responsive-grid input.sim-input[style*="130px"] { width: 104px !important; }
+}
+
+#roiSimResultsContainer table { width: 100%; }
+#roiSimResultsContainer table { table-layout: fixed; }
+#roiSimResultsContainer td:not(:last-child), #roiSimResultsContainer th:not(:last-child) { white-space: normal; overflow-wrap: anywhere; }
+#roiSimResultsContainer td:last-child { width: 40%; }
