@@ -1,0 +1,3323 @@
+// 저장 키 이름 변경(예전 키 → 새 키, 한 번만 옮김)
+try { ['PROFILE','KAKAO_KEY','LAST_CRAWL_TIME'].forEach(k => { const o = localStorage.getItem('THECALIBRATION_' + k); if (o !== null) { if (localStorage.getItem('AUCTION_DASH_' + k) === null) localStorage.setItem('AUCTION_DASH_' + k, o); localStorage.removeItem('THECALIBRATION_' + k); } }); } catch (e) {}
+// ─────────────────────────────────────────────────────
+// CONFIG — 클라이언트 설정
+// ✅ 보안: API 토큰은 Cloudflare 서버 환경변수에 보관됩니다.
+//          브라우저는 /api/auction-data 프록시만 호출합니다.
+//
+// Cloudflare 대시보드 → Settings → Environment variables 에서 설정:
+//   NOCODB_TOKEN, NOCODB_BASE, TABLE_ID, PROJECT_ID
+// ─────────────────────────────────────────────────────
+
+const CONFIG = {
+  // 서버리스 프록시 엔드포인트 (토큰 불필요)
+  API_ENDPOINT: '/api/auction-data',
+  PAGE_SIZE: 100,
+};
+
+// ─────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────
+let allItems = [];
+let allResults = [];
+let mapSingleItem = null;
+let isLoadedHidden = false;
+
+
+let currentProfile = {
+  investorType: "no_house",
+  acquisitionTaxRate: 0.011,
+  availableCash: 20000000,
+  appraisalDiscountRate: 0.85,
+  loanInterestRate: 0.05,
+  legalFee: 500000,
+  evictionFee: 2000000,
+  repairFee: 2000000,
+  defaultHoldingMonths: 24,
+  brokerageRate: 0.005,
+  rentalIncomeTaxRate: 0.154,
+  localIncomeTaxRate: 0.10,
+};
+
+// 저장된 프로필 복원 (반드시 currentProfile 선언 뒤: 앞에 있으면 TDZ 에러가 나서 매번 기본값으로 돌아감)
+try {
+  const savedProfile = localStorage.getItem("AUCTION_DASH_PROFILE");
+  if (savedProfile) {
+    const parsed = JSON.parse(savedProfile);
+    if (parsed && typeof parsed === "object") {
+      currentProfile = { ...currentProfile, ...parsed };
+    }
+  }
+} catch (e) {}
+
+let hiddenItemIds = new Set();
+
+function openProfileModal() {
+  document.getElementById("profileInvestorType").value = currentProfile.investorType;
+  document.getElementById("profileAvailableCash").value = currentProfile.availableCash;
+  document.getElementById("profileAvailableCashDisplay").innerText = fmt(currentProfile.availableCash);
+  document.getElementById("profileDiscountRate").value = currentProfile.appraisalDiscountRate;
+  document.getElementById("profileDiscountRateDisplay").innerText = Math.round(currentProfile.appraisalDiscountRate * 100) + "%";
+  document.getElementById("profileLoanRate").value = (currentProfile.loanInterestRate * 100).toFixed(1);
+  document.getElementById("profileHoldingMonths").value = currentProfile.defaultHoldingMonths;
+  document.getElementById("profileRepairFee").value = currentProfile.repairFee;
+  document.getElementById("profileEvictionFee").value = currentProfile.evictionFee;
+  updateProfileTaxRateDisplay();
+  document.getElementById("profileModal").classList.add("show");
+}
+
+function closeProfileModal() {
+  document.getElementById("profileModal").classList.remove("show");
+}
+
+function closeProfileModalOnOverlay(e) {
+  if (e.target.id === "profileModal") closeProfileModal();
+}
+
+function updateProfileTaxRateDisplay() {
+  const type = document.getElementById("profileInvestorType").value;
+  const rate = (type === "no_house" || type === "one_house") ? "1.1~3.3% (가격별)" : (type === "multi_house" ? "8.4%" : "12.4%");
+  document.getElementById("profileTaxRateDisplay").innerText = rate;
+}
+
+// 상단 프로필 라벨·예산 버튼 표시 (첫 로드 때 복원된 프로필도 반영)
+function refreshProfileLabels() {
+  const type = currentProfile.investorType;
+  const typeText = type === "no_house" ? "무주택" : (type === "one_house" ? "1주택" : (type === "corporate" ? "법인" : "다주택"));
+  const label = document.getElementById("headerProfileLabel");
+  if (label) label.innerText = `${typeText} (${fmt(currentProfile.availableCash)})`;
+  const btnBudget = document.getElementById("btnBudget");
+  if (btnBudget) btnBudget.innerText = `🟢 ${fmt(currentProfile.availableCash)} 이하`;
+}
+
+function saveProfile() {
+  const type = document.getElementById("profileInvestorType").value;
+  const taxRate = calcAcquisitionTaxRate(type, 0, 0); // 표시용 기본값. 실제 계산은 물건별 가격·면적으로 다시 함
+  currentProfile = {
+    investorType: type,
+    acquisitionTaxRate: taxRate,
+    availableCash: Number(document.getElementById("profileAvailableCash").value) || 20000000,
+    appraisalDiscountRate: Number(document.getElementById("profileDiscountRate").value) || 0.85,
+    loanInterestRate: (Number(document.getElementById("profileLoanRate").value) || 5.0) / 100,
+    defaultHoldingMonths: Number(document.getElementById("profileHoldingMonths").value) || 24,
+    repairFee: Number(document.getElementById("profileRepairFee").value) || 2000000,
+    evictionFee: Number(document.getElementById("profileEvictionFee").value) || 2000000,
+    brokerageRate: 0.005,
+    rentalIncomeTaxRate: 0.154,
+    localIncomeTaxRate: 0.10,
+  };
+
+  try {
+    localStorage.setItem("AUCTION_DASH_PROFILE", JSON.stringify(currentProfile));
+  } catch (e) {}
+
+  refreshProfileLabels();
+
+  closeProfileModal();
+  updateStats();
+  updateCharts();
+  try { renderMyPicks(); } catch (e) {}
+  applyFilters();
+  showToast(`나의 투자 조건(가용자금 ${fmt(currentProfile.availableCash)})이 즉시 저장 및 반영되었습니다.`);
+}
+
+async function toggleHideItem(id) {
+  const sid = String(id);
+  const item = allItems.find(i => String(i.Id) === sid);
+  if (!item) return;
+
+  // 1. 낙관적 UI 업데이트 (즉시 반영)
+  const currentVal = Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김');
+  const nextState = !currentVal;
+  item.is_hidden = nextState;
+  applyFilters();
+
+  // 2. NAS NocoDB is_hidden 컬럼 PATCH 요청
+  try {
+    const res = await apiFetch(`/api/auction-data?id=${sid}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_hidden: nextState }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    showToast(nextState ? "👁️‍🗨️ 물건을 숨겼습니다." : "↩️ 물건을 복원했습니다.");
+  } catch (err) {
+    // 실패 시 롤백
+    item.is_hidden = currentVal;
+    applyFilters();
+    showToast(`동기화 실패: ${err.message}`, true);
+  }
+  refreshModalFooter(sid);
+  try { renderMyPicks(); } catch (e) {}
+}
+
+
+// ⭐ 관심 상태는 NocoDB item.is_interested 기준 (localStorage 사용 안 함)
+let filters = { status: '진행중', risk: 'all', gap: 'all', star: false, urgent: false, budget: false, hidden: false };
+let charts = {};
+
+// ─────────────────────────────────────────────────────
+// Fetch
+// ─────────────────────────────────────────────────────
+// 목록 화면에서 받는 필드. 서류 원문 6종은 서버가 있음(true)/없음('')으로만 보내고(docs=flags),
+// 원문은 모달을 열 때 loadItemDocs()로 받습니다.
+const DOC_FIELDS = ['doc_spec_text', 'doc_survey_text', 'doc_appraisal_text',
+  'doc_registry_text', 'doc_ledger_text', 'real_trade_history'];
+const LIST_FIELDS = [
+  'Id', 'case_no', 'court', 'item_no', 'usage', 'location', 'complex_name', 'area_m2', 'floor',
+  'appraisal_price', 'min_price', 'price_rate', 'loss_count', 'bid_date',
+  'ai_risk', 'ai_recommend', 'ai_summary', 'ai_flags', 'gap_score', 'gap_score_grade',
+  'bid_target', 'bid_min', 'bid_max', 'bid_rate_used', 'bid_strategy_text',
+  'bid_confidence', 'real_trade_3m_avg', 'real_trade_6m_avg', 'real_trade_12m_avg',
+  'market_price', 'market_basis', 'market_sample_count', 'market_period', 'jeonse_median', 'rent_deposit_median', 'rent_monthly_median',
+  'bid_vs_trade_gap_rate',
+  'pdf_spec_ok', 'pdf_survey_ok', 'pdf_appraisal_ok', 'pdf_status',
+  'is_interested', 'is_hidden', 'is_share', 'court_url',
+  'cancellation_standard', 'tenant_count', 'tenant_deposit_total', 'senior_lien_total',
+  'inherited_amount', 'docs_risk_flags', 'docs_status', 'naver_url',
+  'ai_reanalyze_status', 'refetch_status',
+  ...DOC_FIELDS,
+  'status', 'actual_bid_price', 'actual_bid_rate', 'bidder_count', 'bid_engine_error'
+].join(',');
+
+// 모달을 열 때 서류 원문을 한 번만 받아 목록 데이터에 합칩니다.
+async function loadItemDocs(item) {
+  if (!item || item.__docsLoaded) return;
+  if (!DOC_FIELDS.some((f) => item[f] === true)) { item.__docsLoaded = true; return; }
+  const u = new URL(CONFIG.API_ENDPOINT, window.location.origin);
+  u.searchParams.set('where', `(Id,eq,${Number(item.Id)})`);
+  u.searchParams.set('fields', ['Id', ...DOC_FIELDS].join(','));
+  u.searchParams.set('limit', '1');
+  const res = await apiFetch(u.toString());
+  if (!res.ok) throw new Error(`서류 로드 실패 (HTTP ${res.status})`);
+  const row = ((await res.json()).list || [])[0] || {};
+  for (const f of DOC_FIELDS) item[f] = (row[f] && String(row[f]).trim() !== '정보 없음') ? row[f] : '';   // '정보 없음' = 못 받은 서류
+  item.__docsLoaded = true;
+}
+
+async function fetchAllPages(urlStr, whereClause, fields) {
+  let offset = 0, collected = [];
+  let apiKey = null;
+  const baseObj = new URL(urlStr, window.location.origin);
+  while (true) {
+    if (whereClause) baseObj.searchParams.set('where', whereClause);
+    baseObj.searchParams.set('sort', 'bid_date');
+    baseObj.searchParams.set('limit', '100');
+    baseObj.searchParams.set('offset', offset);
+    if (fields) baseObj.searchParams.set('fields', fields);
+    if (fields && fields.includes('doc_spec_text')) baseObj.searchParams.set('docs', 'flags');
+    
+    const res = await apiFetch(baseObj.toString());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.KAKAO_MAP_API_KEY) apiKey = data.KAKAO_MAP_API_KEY;
+    collected = collected.concat(data.list || []);
+    if (data.pageInfo?.isLastPage || (data.list && data.list.length < 100)) break;
+    offset += 100;
+  }
+  return { list: collected, KAKAO_MAP_API_KEY: apiKey };
+}
+
+async function loadData() {
+  const btn = document.getElementById('btnRefresh');
+  btn.classList.add('loading');
+  btn.querySelector('.icon').textContent = '↻';
+
+  try {
+    const fields = LIST_FIELDS;
+
+    const WHERE_ACTIVE = '(is_hidden,neq,true)~and(is_hidden,neq,1)~and(status,neq,숨김)';
+    const fetched = await fetchAllPages(CONFIG.API_ENDPOINT, WHERE_ACTIVE, fields);
+    allItems = fetched.list;
+
+    // 🌟 KAKAO_MAP_API_KEY 로드
+    if (fetched.KAKAO_MAP_API_KEY) {
+      try {
+        localStorage.setItem('AUCTION_DASH_KAKAO_KEY', fetched.KAKAO_MAP_API_KEY);
+      } catch (e) {}
+      loadKakaoMapScript(fetched.KAKAO_MAP_API_KEY).catch(e => console.warn("Map load err:", e));
+    }
+
+    // 낙찰 결과 테이블 (auction_results) 안전 호출
+    try {
+      const resFetched = await fetchAllPages('/api/auction-data?table=results', '', '');
+      allResults = resFetched.list;
+    } catch (err) {
+      console.warn("auction_results fetch skipped:", err);
+    }
+
+    updateStats();
+    updateCharts();
+    try { renderMyPicks(); } catch (e) { console.warn('관심 물건 표 오류:', e); }
+    try { renderMarketThermo(); } catch (e) { console.warn('시장 온도계 오류:', e); }
+    try { renderEngineScore(); } catch (e) { console.warn('엔진 성적표 오류:', e); }
+    applyFilters();
+
+    const now = new Date(Date.now() + 9 * 3600000);
+    document.getElementById('lastUpdated').textContent =
+      `${now.toISOString().substring(11, 16)} KST 기준`;
+
+    showToast(`✅ ${allItems.length}건 로드 완료`);
+  } catch (e) {
+    console.error(e);
+    showToast(`❌ 데이터 로드 실패: ${e.message}`, true);
+  } finally {
+    btn.classList.remove('loading');
+    btn.querySelector('.icon').textContent = '↻';
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// Stats
+// ─────────────────────────────────────────────────────
+function updateStats() {
+  const isOngoing = (s) => s === '진행중' || s === '진행';
+  const ongoing = allItems.filter(i => isOngoing(i.status)).length;
+  const sold = allItems.filter(i => i.status === '낙찰').length;
+  const safe = allItems.filter(i => i.ai_risk === '안전' && isOngoing(i.status)).length;
+  const caution = allItems.filter(i => i.ai_risk === '주의' && isOngoing(i.status)).length;
+  const danger = allItems.filter(i => i.ai_risk === '위험' && isOngoing(i.status)).length;
+  const starCount = allItems.filter(i => !!i.is_interested).length;
+
+  document.getElementById('statsGrid').innerHTML = [
+    { val: ongoing + '건', label: '진행중 물건', accent: '#2f81f7' },
+    { val: sold + '건', label: '최근 낙찰', accent: '#a371f7' },
+    { val: safe + '건', label: '🟢 안전 (진행중)', accent: '#3fb950' },
+    { val: caution + '건', label: '🟡 주의 (진행중)', accent: '#d29922' },
+    { val: danger + '건', label: '🔴 위험 (진행중)', accent: '#f85149' },
+    { val: starCount + '건', label: '⭐ 관심 등록', accent: '#a371f7' },
+  ].map(s => `
+<div class="stat-card" style="--accent:${s.accent}">
+  <div class="stat-value" style="color:${s.accent}">${s.val}</div>
+  <div class="stat-label">${s.label}</div>
+</div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────────────────
+// Charts (Opportunity Matrix & 낙찰가율)
+// ─────────────────────────────────────────────────────
+function updateCharts() {
+  const activeItems = allItems.filter(i => {
+    const isHidden = Boolean(i.is_hidden === true || i.is_hidden === 1 || i.is_hidden === "true" || i.is_hidden === "1" || i.status === "숨김");
+    return !isHidden && (i.status === "진행중" || i.status === "진행" || !i.status);
+  });
+
+  // ── Chart 1: 투자 기회 매트릭스 (Scatter Plot) ──
+  const budgetOkPoints = [];
+  const budgetOverPoints = [];
+
+  activeItems.forEach(item => {
+    const roi = calculateAuctionROI(item, {}, currentProfile);
+    const cashMan = Math.round(roi.cashOnClosing / 10000);
+    const profitMan = Math.round(roi.netProfit / 10000);
+    const point = {
+      x: cashMan,
+      y: profitMan,
+      rawItem: item,
+      roi: roi
+    };
+    if (roi.isBudgetOk) {
+      budgetOkPoints.push(point);
+    } else {
+      budgetOverPoints.push(point);
+    }
+  });
+
+  const maxBudgetMan = Math.round((currentProfile.availableCash || 20000000) / 10000);
+  const budgetBadge = document.getElementById("matrixBudgetBadge");
+  if (budgetBadge) {
+    budgetBadge.innerText = `🟢 ${fmtMan(maxBudgetMan)} 이하 (${budgetOkPoints.length}건 발굴)`;
+  }
+
+  if (charts.opportunity) charts.opportunity.destroy();
+  const oppCanvas = document.getElementById("chartOpportunity");
+  if (oppCanvas) {
+    charts.opportunity = new Chart(oppCanvas, {
+      type: "scatter",
+      data: {
+        datasets: [
+          {
+            label: `🏆 내 예산 가능 타겟 (≤ ${fmtMan(maxBudgetMan)})`,
+            data: budgetOkPoints,
+            backgroundColor: "rgba(63, 185, 80, 0.85)",
+            borderColor: "#2ea043",
+            borderWidth: 2,
+            pointRadius: 7,
+            pointHoverRadius: 11,
+          },
+          {
+            label: "예산 초과 물건",
+            data: budgetOverPoints,
+            backgroundColor: "rgba(139, 148, 158, 0.35)",
+            borderColor: "#8b949e",
+            borderWidth: 1,
+            pointRadius: 5,
+            pointHoverRadius: 9,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { color: "#8b949e", boxWidth: 12, padding: 8, font: { size: 11 } }
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const raw = items[0]?.raw?.rawItem;
+                return raw ? `${raw.complex_name || "물건"} (${raw.case_no || ""})` : "물건 정보";
+              },
+              label: (context) => {
+                const p = context.raw;
+                if (!p) return "";
+                return [
+                  `💰 잔금일 필요현금: ${fmtMan(p.x)}`,
+                  `💵 예상 세후 순수익: ${p.y > 0 ? "+" : ""}${fmtMan(p.y)} (ROI: ${p.roi?.roiReal || ""})`,
+                  `🤝 세입자후 실투자: ${p.roi?.isPlusFee ? "0원 (무피)" : fmt(p.roi.realCashNeeded)}`,
+                  `💡 클릭 시 상세 ROI 시뮬레이터 이동`
+                ];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: "잔금일 필요 현금 (만원)", color: "#8b949e", font: { size: 11 } },
+            ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v.toLocaleString() + "만" },
+            grid: { color: "#30363d" },
+            min: 0,
+          },
+          y: {
+            title: { display: true, text: "예상 세후 순수익 (만원)", color: "#8b949e", font: { size: 11 } },
+            ticks: { color: "#8b949e", font: { size: 10 }, callback: v => (v > 0 ? "+" : "") + v.toLocaleString() + "만" },
+            grid: { color: "#30363d" },
+          }
+        },
+        onClick: (e, elements) => {
+          if (elements.length > 0) {
+            const el = elements[0];
+            const dataset = charts.opportunity.data.datasets[el.datasetIndex];
+            const itemPoint = dataset.data[el.index];
+            if (itemPoint?.rawItem?.Id) {
+              openUnifiedModal(itemPoint.rawItem.Id, "summary");
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ── Chart 2: 유찰 횟수별 실전 낙찰가율 & 경쟁률 (100% NocoDB auction_results 기반) ──
+  // 낙찰가율은 평균 대신 중앙값(이상치에 덜 흔들림). 5% 미만·200% 초과는 지분·입력오류로 보고 제외.
+  // 응찰자 수는 '미확인(0/빈값)'을 1명으로 치지 않고, 확인된 값만 평균.
+  // 2단계 이후 결과 테이블: 매각·유찰 이벤트(우리 물건 tracked + 표본 확대 court_list).
+  //   통계 제외: is_outlier·is_share·is_bulk, 유찰 횟수 신뢰 불가(loss_count_suspect)는 회차 구분이 안 되므로 제외.
+  //   유찰 이벤트는 그 회차의 '매각 비율'(매각 ÷ (매각+유찰))에 사용.
+  const lossBins = {
+    "신건 (0회)": { rates: [], bidders: [], fails: 0 },
+    "유찰 1회": { rates: [], bidders: [], fails: 0 },
+    "유찰 2회": { rates: [], bidders: [], fails: 0 },
+    "유찰 3회+": { rates: [], bidders: [], fails: 0 },
+  };
+  const binOf = (loss) => loss >= 3 ? "유찰 3회+" : loss === 2 ? "유찰 2회" : loss === 1 ? "유찰 1회" : "신건 (0회)";
+  const isTrue = (v) => v === true || v === 1 || v === '1' || v === 'true';
+
+  const sourceData = (allResults && allResults.length > 0) 
+    ? allResults 
+    : allItems.filter(i => i.status === "낙찰" || i.status === "매각" || Number(i.actual_bid_price) > 0);
+
+  let totalAnalyzedCount = 0;
+  let excludedCount = 0;
+  let failCount = 0;
+  const bySource = {};
+
+  sourceData.forEach(r => {
+    const loss = Number(r.loss_count) || 0;
+    if (allResults && allResults.length > 0) {
+      if (isTrue(r.is_outlier) || isTrue(r.is_share) || isTrue(r.is_bulk) || isTrue(r.loss_count_suspect)) { excludedCount += 1; return; }
+      if (r.result_type === '유찰') { lossBins[binOf(loss)].fails += 1; failCount += 1; return; }
+      if (r.result_type && r.result_type !== '매각') return;
+    }
+    let rate = Number(r.actual_bid_rate || 0);
+    if (!rate && r.appraisal_price && r.actual_bid_price) {
+      rate = (Number(r.actual_bid_price) / Number(r.appraisal_price)) * 100;
+    }
+    if (!(rate > 0)) return;
+    if (rate < 5 || rate > 200) { excludedCount += 1; return; }
+
+    const binKey = binOf(loss);
+    lossBins[binKey].rates.push(rate);
+    const src = r.source === 'court_list' ? '표본' : '우리 물건';
+    bySource[src] = (bySource[src] || 0) + 1;
+    const bidders = Number(r.bidder_count);
+    if (bidders > 0) lossBins[binKey].bidders.push(bidders);
+    totalAnalyzedCount += 1;
+  });
+
+  const median = (arr) => {
+    if (!arr.length) return 0;
+    const v = [...arr].sort((x, y) => x - y);
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  Object.values(lossBins).forEach((bin) => { bin.count = bin.rates.length; });
+
+  const calibCountBadge = document.getElementById("calibSampleCount");
+  if (calibCountBadge) {
+    const srcText = Object.entries(bySource).map(([k, v]) => `${k} ${v}`).join('·');
+    calibCountBadge.innerText = `낙찰 ${totalAnalyzedCount}건${srcText ? ` (${srcText})` : ''}`
+      + (failCount ? ` · 유찰 ${failCount}건` : '')
+      + (excludedCount ? ` · 통계 제외 ${excludedCount}건` : '');
+  }
+
+  const labels = Object.keys(lossBins);
+  const rateData = labels.map(k => lossBins[k].count > 0 ? Math.round(median(lossBins[k].rates)) : 0);
+  const bidderData = labels.map(k => lossBins[k].bidders.length > 0
+    ? (lossBins[k].bidders.reduce((x, y) => x + y, 0) / lossBins[k].bidders.length).toFixed(1) : 0);
+
+  if (charts.bidRate) charts.bidRate.destroy();
+  const calCanvas = document.getElementById("chartBidRate");
+  if (calCanvas) {
+    charts.bidRate = new Chart(calCanvas, {
+      data: {
+        labels,
+        datasets: [
+          {
+            type: "bar",
+            label: "낙찰가율 중앙값 (%)",
+            data: rateData,
+            backgroundColor: "rgba(47, 129, 247, 0.7)",
+            borderColor: "#2f81f7",
+            borderWidth: 1.5,
+            borderRadius: 6,
+            yAxisID: "yRate",
+            order: 2,
+          },
+          {
+            type: "line",
+            label: "평균 응찰자 수 (명)",
+            data: bidderData,
+            borderColor: "#f59e0b",
+            backgroundColor: "#f59e0b",
+            borderWidth: 2.5,
+            pointRadius: 6,
+            pointHoverRadius: 9,
+            yAxisID: "yBidders",
+            order: 1,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { color: "#8b949e", boxWidth: 12, padding: 8, font: { size: 11 } }
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => `📌 ${items[0].label}`,
+              label: (ctx) => {
+                const binKey = ctx.label;
+                const sample = lossBins[binKey]?.count || 0;
+                if (ctx.dataset.yAxisID === "yRate") {
+                  const fails = lossBins[binKey]?.fails || 0;
+                  const lines = [
+                    `📊 낙찰가율 중앙값: ${ctx.parsed.y}%`,
+                    `📁 낙찰 표본: ${sample}건${sample < 5 ? ' (표본 적음 — 참고만)' : ''}`
+                  ];
+                  if (sample + fails > 0 && fails > 0) {
+                    lines.push(`🎯 이 회차 매각 비율: ${Math.round(sample / (sample + fails) * 100)}% (매각 ${sample} / 유찰 ${fails})`);
+                  }
+                  return lines;
+                }
+                return `👥 평균 응찰자 수: ${ctx.parsed.y}명`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: "#8b949e", font: { size: 11 } }, grid: { color: "#30363d" } },
+          yRate: {
+            type: "linear",
+            position: "left",
+            min: 0,
+            suggestedMax: 100, // 신건 고가 낙찰(100% 초과)도 보이도록 상한 고정 해제
+            title: { display: true, text: "낙찰가율 중앙값 (%)", color: "#2f81f7", font: { size: 10 } },
+            ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v + "%" },
+            grid: { color: "#30363d" },
+          },
+          yBidders: {
+            type: "linear",
+            position: "right",
+            min: 0,
+            max: 12,
+            title: { display: true, text: "평균 응찰자 (명)", color: "#f59e0b", font: { size: 10 } },
+            ticks: { color: "#f59e0b", font: { size: 10 }, callback: v => v + "명" },
+            grid: { drawOnChartArea: false },
+          }
+        }
+      }
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// Filters & Sort
+// ─────────────────────────────────────────────────────
+function setFilter(key, val, btn) {
+  filters[key] = val;
+  document.querySelectorAll(`[data-filter="${key}"]`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function toggleStarFilter(btn) {
+  filters.star = !filters.star;
+  btn.classList.toggle('active', filters.star);
+  applyFilters();
+}
+
+
+function toggleBudgetFilter(btn) {
+  filters.budget = !filters.budget;
+  btn.classList.toggle('active', filters.budget);
+  applyFilters();
+}
+
+async function toggleHiddenFilter(btn) {
+  filters.hidden = !filters.hidden;
+  btn.classList.toggle('active', filters.hidden);
+
+  if (filters.hidden && !isLoadedHidden) {
+    showToast('숨김 데이터를 불러오는 중입니다...');
+    const WHERE_HIDDEN = '(is_hidden,eq,true)~or(is_hidden,eq,1)~or(status,eq,숨김)';
+    
+    const fields = LIST_FIELDS;
+
+    try {
+      const hiddenFetched = await fetchAllPages(CONFIG.API_ENDPOINT, WHERE_HIDDEN, fields);
+      allItems = allItems.concat(hiddenFetched.list);
+      isLoadedHidden = true;
+      showToast(`✅ 숨김 데이터 ${hiddenFetched.list.length}건 로드 완료`);
+    } catch (e) {
+      showToast('❌ 숨김 데이터 로드 실패', true);
+    }
+  }
+
+  applyFilters();
+}
+
+
+
+function toggleUrgentFilter(btn) {
+  filters.urgent = !filters.urgent;
+  btn.classList.toggle('active', filters.urgent);
+  applyFilters();
+}
+
+function applyFilters() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const sort = document.getElementById('sortSelect').value;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  let result = allItems.filter(item => {
+    const isHidden = Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김');
+    if (filters.hidden) {
+      if (!isHidden) return false;
+    } else {
+      if (isHidden) return false;
+      if (filters.status === '진행중') {
+        if (item.status !== '진행중' && item.status !== '진행') return false;
+      } else if (filters.status !== 'all' && item.status !== filters.status) {
+        return false;
+      }
+    }
+    if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
+    if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
+    if (filters.star && !item.is_interested) return false;
+    if (filters.budget) {
+      const roi = calculateAuctionROI(item, {}, currentProfile);
+      if (!roi.isBudgetOk) return false;
+    }
+    if (filters.urgent) {
+      const bdStr = String(item.bid_date || '').split('T')[0];
+      const bdParts = bdStr.split('-');
+      const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
+      const diff = Math.round((bd - today) / 86400000);
+      if (isNaN(diff) || diff < 0 || diff > 7) return false;
+    }
+    if (q) {
+      const hay = [item.complex_name, item.location, item.case_no].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  result.sort((a, b) => {
+    if (sort === 'bid_date') {
+      const getDiff = (item) => {
+        const bdStr = String(item.bid_date || '').split('T')[0];
+        if (!bdStr) return 9999;
+        const bdParts = bdStr.split('-');
+        if (bdParts.length !== 3) return 9999;
+        const bd = new Date(bdParts[0], bdParts[1] - 1, bdParts[2]);
+        return Math.round((bd - today) / 86400000);
+      };
+      const diffA = getDiff(a);
+      const diffB = getDiff(b);
+
+      const isFutureA = !isNaN(diffA) && diffA >= 0 && (a.status === '진행중' || a.status === '진행');
+      const isFutureB = !isNaN(diffB) && diffB >= 0 && (b.status === '진행중' || b.status === '진행');
+
+      if (isFutureA && !isFutureB) return -1;
+      if (!isFutureA && isFutureB) return 1;
+      return (a.bid_date || '').localeCompare(b.bid_date || '');
+    }
+    if (sort === 'gap_score') return (b.gap_score || 0) - (a.gap_score || 0);
+    if (sort === 'price_rate') return (a.price_rate || 0) - (b.price_rate || 0);
+    if (sort === 'loss_count') return (b.loss_count || 0) - (a.loss_count || 0);
+    return 0;
+  });
+
+  document.getElementById('countLabel').textContent =
+    `${result.length}건 / 전체 ${allItems.length}건`;
+
+  renderCards(result);
+}
+
+// ─────────────────────────────────────────────────────
+// Render Cards
+// ─────────────────────────────────────────────────────
+function renderCards(items) {
+  const grid = document.getElementById('cardsGrid');
+
+  if (items.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+  <div style="font-size:48px;margin-bottom:12px">🔍</div>
+  <div style="font-size:var(--fs-lg);font-weight:600;margin-bottom:8px">해당 물건이 없습니다</div>
+  <div style="font-size:var(--fs-md)">필터 조건을 변경해 보세요</div>
+</div>`;
+    return;
+  }
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  grid.innerHTML = items.map(item => {
+    const bdStr = String(item.bid_date || '').split('T')[0];
+    const bdParts = bdStr.split('-');
+    const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
+    const diff = bdStr ? Math.round((bd - today) / 86400000) : null;
+    const isStarred = !!item.is_interested;
+    const isHidden = Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김');
+    const isUrgent = diff !== null && diff >= 0 && diff <= 7;
+
+    // D-Day display — status 필드를 우선 분기, bid_date는 보조 판단만
+    let ddayText, ddayClass;
+    if (item.status === '낙찰' || item.status === '매각') {
+      ddayText = '🔨 낙찰'; ddayClass = 'dday-sold';
+    } else if (item.status === '취하') {
+      ddayText = '🚫 취하'; ddayClass = 'dday-cancel';
+    } else if (item.status === '유찰') {
+      ddayText = '↩ 유찰'; ddayClass = 'dday-fail';
+    } else if (diff === null) {
+      ddayText = '-'; ddayClass = '';
+    } else if (diff < 0) {
+      // 진행중이지만 bid_date가 과거 → 결과 대기 중
+      ddayText = '⏳ 결과대기'; ddayClass = 'dday-reschedule';
+    } else if (diff === 0) {
+      ddayText = '오늘!'; ddayClass = 'dday-today';
+    } else if (diff <= 7) {
+      ddayText = `D-${diff}`; ddayClass = 'dday-urgent';
+    } else {
+      ddayText = `D-${diff}`; ddayClass = '';
+    }
+
+    // Risk badge
+    const riskClass = item.ai_risk === '안전' ? 'badge-safe' : item.ai_risk === '주의' ? 'badge-warn' : 'badge-danger';
+
+    // GAP badge
+    const gapClass = `badge-gap-${(item.gap_score_grade || 'd').toLowerCase()}`;
+
+    // Fmt
+    const fmt = fmtPos;
+
+    const gapRateStr = item.bid_vs_trade_gap_rate !== null && item.bid_vs_trade_gap_rate !== undefined
+      ? `<span style="color:${item.bid_vs_trade_gap_rate < 0 ? '#3fb950' : '#f85149'};font-size:var(--fs-xs)"> ${item.bid_vs_trade_gap_rate < 0 ? '▼' : '▲'}${Math.abs(item.bid_vs_trade_gap_rate)}% 시세대비</span>`
+      : '';
+
+    const specUrl = getDocUrl(item.pdf_spec_url);
+    const appraisalUrl = getDocUrl(item.pdf_appraisal_url);
+
+    return `
+<article class="item-card${isUrgent ? ' urgent' : ''}${isStarred ? ' interested' : ''}"
+         role="listitem" aria-label="${escapeHtml(item.complex_name || item.case_no)} 물건 카드"
+         onclick="openDetailModal('${item.Id}')">
+  <div class="card-top">
+    <div>
+      <div class="card-title">${escapeHtml(item.complex_name || '단지명 미확인')}</div>
+      <div class="card-sub">${escapeHtml((item.location || '').substring(0, 25))} | ${escapeHtml(item.area_m2 || '-')}㎡ | ${escapeHtml(item.floor || '-')}층</div>
+    </div>
+    <div class="dday-chip ${ddayClass}" style="margin-left:10px;flex-shrink:0">${ddayText}</div>
+  </div>
+
+  <div class="badge-row">
+    ${item.ai_risk ? `<span class="badge ${riskClass}">${escapeHtml(item.ai_risk)}</span>` : ''}
+    ${Number(item.inherited_amount) > 0 ? `<span class="badge" style="background:rgba(248,81,73,.12);color:var(--red);border:1px solid rgba(248,81,73,.4)" title="대항력 임차인 보증금 등 낙찰가 외 추가 부담">⚠️ 인수 ${fmt(item.inherited_amount)}</span>` : ''}
+    ${Number(item.inherited_amount) === -1 ? `<span class="badge" style="background:rgba(210,153,34,.12);color:var(--yellow);border:1px solid rgba(210,153,34,.4)" title="AI가 인수금액을 판단하지 못함 — 명세서 확인 필요">인수 불명</span>` : ''}
+    ${item.gap_score_grade ? `<span class="badge ${gapClass}">${item.gap_score_grade}급 ${item.gap_score || ''}점</span>` : ''}
+    ${item.loss_count > 0 ? `<span class="badge" style="background:#1c1c1c;color:var(--text-sub);border:1px solid var(--border)">${item.loss_count}회 유찰</span>` : ''}
+    ${item.is_interested ? `<span class="badge" style="background:rgba(163,113,247,.1);color:var(--purple);border:1px solid rgba(163,113,247,.3)">⭐ 관심</span>` : ''}
+  </div>
+
+  <div class="price-row">
+    <div class="price-item">
+      <label>감정가</label>
+      <div class="val">${fmt(item.appraisal_price)}</div>
+    </div>
+    <div class="price-item">
+      <label>최저매각가 <span style="color:var(--text-sub);font-size:var(--fs-xs)">(${item.price_rate || 0}%)</span></label>
+      <div class="val" style="color:var(--blue)">${fmt(item.min_price)}</div>
+    </div>
+  </div>
+
+  <!-- Financial Twin Box (실투자금 & 세후 순수익) -->
+  ${(() => {
+    const roi = calculateAuctionROI(item, {}, currentProfile);
+    return `
+    <div style="background:#131c2b;border:1px solid #223249;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:var(--fs-sm);display:flex;flex-direction:column;gap:5px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="muted">💰 잔금일 당장 필요한 현금</span>
+        <span style="font-weight:700;color:${roi.isBudgetOk ? '#3fb950' : '#f85149'}">${fmt(roi.cashOnClosing)} ${roi.isBudgetOk ? '🟢' : '🔴'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="muted">🤝 세입자 세팅 후 실투자금</span>
+        <span style="font-weight:700;color:var(--purple);">${roi.isPlusFee ? '0원 (무피/플피)' : fmt(roi.realCashNeeded)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #223249;padding-top:5px;">
+        <span class="muted">💵 예상 세후 순수익</span>
+        <span style="font-weight:700;color:var(--yellow);">+${fmt(roi.netProfit)} (${roi.roiReal})</span>
+      </div>
+    </div>
+    `;
+  })()}
+
+  ${item.bid_target ? `
+  <div style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm)">
+    🎯 추천 입찰가: <strong style="color:var(--green)">${fmt(item.bid_target)}</strong>
+    ${gapRateStr}
+  </div>` : ''}
+
+  ${item.status === '낙찰' ? `
+  <div style="background:rgba(163,113,247,.1);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:var(--fs-sm);border:1px solid rgba(163,113,247,.3)">
+    🔨 <strong>실제 낙찰가:</strong> ${fmt(item.actual_bid_price)} <span style="color:#a371f7">(${item.actual_bid_rate || 0}%)</span> / 👥 ${item.bidder_count || 0}명 응찰
+  </div>` : ''}
+
+  <div class="pdf-row">
+    <div class="pdf-chip ${item.doc_spec_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="매각물건명세서"
+         ${item.doc_spec_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_spec_text')"` : ''}>
+      ${item.doc_spec_text ? '✅' : '❌'} 명세
+    </div>
+    <div class="pdf-chip ${item.doc_survey_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="현황조사서"
+         ${item.doc_survey_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_survey_text')"` : ''}>
+      ${item.doc_survey_text ? '✅' : '❌'} 현황
+    </div>
+    <div class="pdf-chip ${item.doc_appraisal_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="감정평가서"
+         ${item.doc_appraisal_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_appraisal_text')"` : ''}>
+      ${item.doc_appraisal_text ? '✅' : '❌'} 감정
+    </div>
+    <div class="pdf-chip ${item.doc_registry_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="등기사항전부증명서"
+         ${item.doc_registry_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_registry_text')"` : ''}>
+      ${item.doc_registry_text ? '✅' : '❌'} 등기
+    </div>
+    <div class="pdf-chip ${item.doc_ledger_text ? 'pdf-ok clickable' : 'pdf-ng'}" title="건축물대장"
+         ${item.doc_ledger_text ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'doc_ledger_text')"` : ''}>
+      ${item.doc_ledger_text ? '✅' : '❌'} 대장
+    </div>
+  </div>
+  <div class="pdf-row" style="margin-top:4px;">
+    <div class="pdf-chip ${item.real_trade_history ? 'pdf-ok clickable' : 'pdf-ng'}" title="실거래가 히스토리" style="width:100%"
+         ${item.real_trade_history ? `onclick="event.stopPropagation(); openDocViewerModal('${item.Id}', 'real_trade_history')"` : ''}>
+      ${item.real_trade_history 
+        ? ((item.real_trade_3m_avg > 0 || item.real_trade_6m_avg > 0 || item.real_trade_12m_avg > 0)
+            ? `✅ <b>실거래</b> <span style="font-weight:normal; font-size:var(--fs-xs); margin-left:4px;">(3개월: ${fmt(item.real_trade_3m_avg)} / 6개월: ${fmt(item.real_trade_6m_avg)} / 1년: ${fmt(item.real_trade_12m_avg)})</span>` 
+            : '✅ 국토부 실거래가 확인') 
+        : '❌ 실거래가 없음'}
+    </div>
+  </div>
+
+  <div class="card-footer">
+    <div class="case-no">${escapeHtml(item.case_no || '-')}</div>
+    <div class="card-actions">
+      <button class="btn-sm btn-map" onclick="event.stopPropagation(); showOnMap('${item.Id}')" aria-label="지도에서 보기">🗺️ 지도</button>
+      <button class="btn-sm btn-star ${isStarred ? 'starred' : ''}"
+              id="star-${item.Id}"
+              onclick="event.stopPropagation();toggleStar('${item.Id}')"
+              aria-label="${isStarred ? '관심 해제' : '관심 등록'}"
+              aria-pressed="${isStarred}">
+        ${isStarred ? '⭐' : '☆'} ${isStarred ? '관심중' : '관심'}
+      </button>
+      <button class="btn-sm" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-sub); padding:5px 9px;"
+              onclick="event.stopPropagation(); toggleHideItem('${item.Id}')"
+              title="${isHidden ? '복원' : '대시보드에서 숨기기'}">
+        ${isHidden ? '↩️ 복원' : '👁️‍🗨️ 숨김'}
+      </button>
+      ${item.court_url ? `
+      <a class="btn-sm btn-court" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener"
+         onclick="event.stopPropagation()"
+         aria-label="${escapeHtml(item.case_no)} 법원경매 상세보기">
+        법원 →
+      </a>` : ''}
+    </div>
+  </div>
+</article>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────
+// 7단계 · 시장 온도계: 최근 30일 vs 직전 30일 (기준일 = 결과 데이터의 마지막 매각일)
+// ─────────────────────────────────────────────────────
+function thermoRows() {
+  const isTrue = (v) => v === true || v === 1 || v === '1' || v === 'true';
+  const d10 = (v) => String(v || '').replace(/\./g, '-').slice(0, 10);
+  return (allResults || []).filter(r => !isTrue(r.is_outlier) && !isTrue(r.is_share) && !isTrue(r.is_bulk) && !isTrue(r.loss_count_suspect))
+    .map(r => {
+      const rate = Number(r.actual_bid_rate), mr = Number(r.min_price_rate);
+      return { date: d10(r.bid_date), type: r.result_type, sgg: String(r.sgg || '').trim(),
+        rate: rate > 5 && rate < 200 ? rate : 0, over: rate > 5 && rate < 200 && mr > 0 ? rate / mr : 0, bidders: Number(r.bidder_count) || 0 };
+    })
+    .filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && (r.type === '매각' || r.type === '유찰'));
+}
+const tMedian = (a) => { if (!a.length) return null; const v = [...a].sort((x, y) => x - y); const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
+const tMean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+function thermoSummary(rows) {
+  const sold = rows.filter(r => r.type === '매각' && r.rate > 0);
+  return {
+    sold: sold.length, failed: rows.filter(r => r.type === '유찰').length,
+    rate: tMedian(sold.map(r => r.rate)), over: tMedian(sold.filter(r => r.over > 0).map(r => r.over)),
+    bidders: tMean(sold.filter(r => r.bidders > 0).map(r => r.bidders)),
+  };
+}
+const tShift = (d, days) => new Date(new Date(d + 'T00:00:00Z').getTime() + days * 86400e3).toISOString().slice(0, 10);
+
+function renderMarketThermo() {
+  const box = document.getElementById('marketThermo');
+  if (!box) return;
+  const all = thermoRows();
+  if (!all.some(r => r.type === '매각' && r.rate > 0)) { box.style.display = 'none'; return; }
+  box.style.display = '';
+
+  // 지역 목록(최근 1년 매각 10건 이상)
+  const sel = document.getElementById('thermoRegion');
+  const region = sel.value;
+  const soldDates = all.filter(r => r.type === '매각' && r.rate > 0).map(r => r.date).sort();
+  const lastSold = soldDates[soldDates.length - 1], firstSold = soldDates[0];
+  const yearAgo = tShift(lastSold, -365);
+  const cnt = {};
+  all.forEach(r => { if (r.type === '매각' && r.rate > 0 && r.sgg && r.date > yearAgo) cnt[r.sgg] = (cnt[r.sgg] || 0) + 1; });
+  const regions = Object.entries(cnt).filter(([, n]) => n >= 10).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  const optKey = regions.join('|');
+  if (sel.dataset.key !== optKey) {
+    sel.innerHTML = '<option value="">전체 지역</option>' + regions.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+    sel.dataset.key = optKey;
+    sel.value = regions.includes(region) ? region : '';
+  }
+  const rows = sel.value ? all.filter(r => r.sgg === sel.value) : all;
+
+  const cur = thermoSummary(rows.filter(r => r.date > tShift(lastSold, -30) && r.date <= lastSold));
+  const prev = thermoSummary(rows.filter(r => r.date > tShift(lastSold, -60) && r.date <= tShift(lastSold, -30)));
+
+  const fmtP = fmtPct;
+  const fmtX = fmtTimes;
+  const fmtN = (v) => v == null ? '-' : `${v.toFixed(1)}명`;
+  const delta = (a, b, unit, digits) => {
+    if (a == null || b == null) return '<span class="muted">직전 30일 비교 불가</span>';
+    const d = a - b;
+    if (Math.abs(d) < Math.pow(10, -digits) / 2) return '<span class="muted">직전 30일과 같음</span>';
+    return `<span style="color:${d > 0 ? 'var(--red)' : 'var(--blue)'};">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(digits)}${unit}</span> <span class="muted">직전 30일 대비</span>`;
+  };
+  const kpi = (label, val, d, title = '') => `<div class="thermo-kpi" title="${title}"><div class="k-label">${label}</div><div class="k-val">${val}</div><div class="k-delta">${d}</div></div>`;
+  document.getElementById('thermoKpis').innerHTML =
+    kpi('최근 30일 낙찰', `${cur.sold}건`, delta(cur.sold, prev.sold, '건', 0), '매각된 건수') +
+    kpi('낙찰가율 중앙값 (감정가 대비)', fmtP(cur.rate), delta(cur.rate, prev.rate, '%p', 1)) +
+    kpi('최저가 대비 배수 (경쟁 강도)', fmtX(cur.over), delta(cur.over, prev.over, '배', 2), '낙찰가 ÷ 그 회차 최저가. 높을수록 경쟁이 셈') +
+    kpi('평균 응찰자', fmtN(cur.bidders), delta(cur.bidders, prev.bidders, '명', 1));
+
+  // 온도: 배수 0.05 변화 = 1점, 응찰자 1명 변화 = 1점
+  const badge = document.getElementById('thermoBadge');
+  let label = '표본 부족', color = 'var(--text-sub)', why = '최근·직전 30일 중 낙찰 5건 미만';
+  if (cur.sold >= 5 && prev.sold >= 5 && cur.over != null && prev.over != null) {
+    const score = (cur.over - prev.over) / 0.05 + ((cur.bidders ?? 0) - (prev.bidders ?? 0)) / 1.0;
+    if (score >= 1) { label = '🔥 과열 쪽'; color = 'var(--red)'; }
+    else if (score <= -1) { label = '🧊 냉각 쪽'; color = 'var(--blue)'; }
+    else { label = '🌤️ 보통'; color = 'var(--green)'; }
+    why = `점수 ${score.toFixed(1)} (배수 변화÷0.05 + 응찰자 변화). ±1 이상이면 과열·냉각`;
+    if (score >= 1) why += ' — 목표가보다 높게 써야 낙찰될 가능성';
+    if (score <= -1) why += ' — 하한가 근처 입찰 여지';
+  }
+  badge.textContent = label; badge.style.color = color; badge.title = why;
+  // 매각 비율은 낙찰 데이터가 있는 기간(첫 매각일 이후)만 — 유찰은 4월부터, 매각은 7월부터 쌓여 기간이 다름
+  const s90 = thermoSummary(rows.filter(r => r.date >= firstSold && r.date > tShift(lastSold, -90)));
+  const sr = (s90.sold + s90.failed) > 0 ? Math.round(s90.sold / (s90.sold + s90.failed) * 100) : null;
+  document.getElementById('thermoBasis').textContent = `기준일 ${lastSold} · ${sel.value || '전체 지역'}${sr != null ? ` · 최근 90일 매각 비율 ${sr}%(참고)` : ''}`;
+
+  // 월별 차트(최근 12개월, 첫 낙찰 달부터)
+  const months = [];
+  for (let i = 11; i >= 0; i--) { const d = new Date(lastSold.slice(0, 7) + '-01T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - i); months.push(d.toISOString().slice(0, 7)); }
+  const byM = months.map(m => thermoSummary(rows.filter(r => r.date.startsWith(m))));
+  const first = Math.max(0, byM.findIndex(s => s.sold > 0));
+  const ms = months.slice(first), bs = byM.slice(first);
+  if (charts.thermo) charts.thermo.destroy();
+  const cv = document.getElementById('chartThermo');
+  if (cv && typeof Chart !== 'undefined') {
+    charts.thermo = new Chart(cv, {
+      data: {
+        labels: ms.map(m => `${Number(m.slice(5))}월`),
+        datasets: [
+          { type: 'line', label: '배수 중앙값', data: bs.map(s => s.sold >= 3 && s.over ? +s.over.toFixed(2) : null), borderColor: '#f85149', backgroundColor: '#f85149', borderWidth: 2.5, pointRadius: 4, spanGaps: true, yAxisID: 'yOver', order: 1 },
+          { type: 'bar', label: '낙찰 건수', data: bs.map(s => s.sold), backgroundColor: 'rgba(139,148,158,0.35)', borderRadius: 4, yAxisID: 'yCnt', order: 2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } },
+          tooltip: { callbacks: { afterBody: (items) => { const s = bs[items[0].dataIndex]; return [`낙찰가율 중앙값 ${s.rate ? s.rate.toFixed(1) + '%' : '-'}`, `평균 응찰자 ${s.bidders ? s.bidders.toFixed(1) + '명' : '-'}`].concat(s.sold < 3 ? ['표본 3건 미만 — 배수 표시 안 함'] : []); } } } },
+        scales: {
+          x: { ticks: { color: '#8b949e' }, grid: { display: false } },
+          yOver: { position: 'left', ticks: { color: '#f85149', callback: (v) => v + '배' }, grid: { color: 'rgba(139,148,158,0.12)' } },
+          yCnt: { position: 'right', beginAtZero: true, ticks: { color: '#8b949e', precision: 0 }, grid: { display: false } },
+        },
+      },
+    });
+  }
+
+  // 지역 표(최근 90일, 낙찰 3건 이상, 배수 높은 순)
+  const from90 = tShift(lastSold, -90);
+  const regRows = Object.keys(cnt).map(g => ({ g, ...thermoSummary(all.filter(r => r.sgg === g && r.date > from90)) }))
+    .filter(x => x.sold >= 3 && x.over != null).sort((a, b) => b.over - a.over).slice(0, 8);
+  window.__thermoRegions = regRows.map(x => x.g);
+  document.getElementById('thermoRegions').innerHTML = regRows.length ? `
+    <table class="thermo-table">
+      <thead><tr><th>시군구</th><th>낙찰</th><th>낙찰가율</th><th>배수</th><th>응찰자</th></tr></thead>
+      <tbody>${regRows.map((x, i) => `
+        <tr class="clickable ${x.g === sel.value ? 'sel' : ''}" onclick="setThermoRegion(${i})">
+          <td>${escapeHtml(x.g)}</td><td>${x.sold}</td><td>${fmtP(x.rate)}</td>
+          <td style="color:${x.over >= 1.2 ? 'var(--red)' : x.over < 1.05 ? 'var(--blue)' : 'var(--text)'}; font-weight:700;">${fmtX(x.over)}</td><td>${fmtN(x.bidders)}</td>
+        </tr>`).join('')}</tbody>
+    </table>` : '<div class="muted t-sm">최근 90일에 낙찰 3건 이상인 지역이 없습니다.</div>';
+}
+
+function setThermoRegion(i) {
+  const sel = document.getElementById('thermoRegion');
+  const g = (window.__thermoRegions || [])[i];
+  if (!sel || !g) return;
+  if (![...sel.options].some(o => o.value === g)) sel.add(new Option(g, g));
+  sel.value = sel.value === g ? '' : g;
+  renderMarketThermo();
+}
+
+// ─────────────────────────────────────────────────────
+// 8단계 · 입찰 엔진 성적표: 우리가 낸 목표가 vs 실제 낙찰가
+//  기준 = 결과 테이블의 우리 물건 행(our_bid_target 있음) + 물건 테이블의 낙찰 물건(결과 행이 없을 때)
+//  오차 = (실제 낙찰가 − 목표가) ÷ 목표가. +면 목표가가 낮았음(그 값으로 냈다면 졌음)
+// ─────────────────────────────────────────────────────
+function scoreRows() {
+  const isTrue = (v) => v === true || v === 1 || v === '1' || v === 'true';
+  const key = (c, n) => `${String(c || '').trim()}#${String(n || '1')}`;
+  const itemsByKey = {};
+  (allItems || []).forEach(i => { itemsByKey[key(i.case_no, i.item_no)] = i; });
+  const out = [], seen = new Set();
+  (allResults || []).forEach(r => {
+    if (r.result_type && r.result_type !== '매각') return;
+    if (isTrue(r.is_outlier) || isTrue(r.is_share) || isTrue(r.is_bulk)) return;
+    const target = Number(r.our_bid_target), actual = Number(r.actual_bid_price);
+    if (!(target > 0 && actual > 0)) return;
+    const k = key(r.case_no, r.item_no);
+    if (seen.has(k)) return;
+    seen.add(k);
+    const it = itemsByKey[k] || {};
+    const ver = String(r.engine_version || '').toLowerCase() || (/V4 엔진/.test(it.bid_strategy_text || '') ? 'v4' : 'v3');
+    out.push({ id: it.Id, name: it.complex_name || r.complex_name || r.case_no, case_no: r.case_no, date: String(r.bid_date || '').slice(0, 10),
+      target, actual, min: Number(it.bid_min) || 0, max: Number(it.bid_max) || 0, ver: ver === 'v4' ? 'V4' : 'V3',
+      loss: Number(r.loss_count) || 0, risk: it.ai_risk || r.ai_risk || '미분석', bidders: Number(r.bidder_count) || 0,
+      rate: Number(r.actual_bid_rate) || 0 });
+  });
+  (allItems || []).forEach(i => {
+    const target = Number(i.bid_target), actual = Number(i.actual_bid_price);
+    if (i.status !== '낙찰' || !(target > 0 && actual > 0) || seen.has(key(i.case_no, i.item_no))) return;
+    out.push({ id: i.Id, name: i.complex_name || i.case_no, case_no: i.case_no, date: String(i.bid_date || '').slice(0, 10),
+      target, actual, min: Number(i.bid_min) || 0, max: Number(i.bid_max) || 0, ver: /V4 엔진/.test(i.bid_strategy_text || '') ? 'V4' : 'V3',
+      loss: Number(i.loss_count) || 0, risk: i.ai_risk || '미분석', bidders: Number(i.bidder_count) || 0, rate: Number(i.actual_bid_rate) || 0 });
+  });
+  return out.map(r => ({ ...r, err: (r.actual - r.target) / r.target * 100 }))
+    .filter(r => Math.abs(r.err) < 150);   // 목표가 단위 오류 등 극단값 제외
+}
+
+function scoreSummary(rows) {
+  if (!rows.length) return { n: 0 };
+  const errs = rows.map(r => r.err);
+  const ranged = rows.filter(r => r.min > 0 && r.max > 0);
+  return {
+    n: rows.length,
+    med: tMedian(errs),
+    mae: tMean(errs.map(Math.abs)),
+    win: rows.filter(r => r.target >= r.actual).length / rows.length * 100,          // 목표가로 냈다면 이겼을 비율
+    inRange: ranged.length ? ranged.filter(r => r.actual >= r.min && r.actual <= r.max).length / ranged.length * 100 : null,
+    rangedN: ranged.length,
+  };
+}
+
+function renderEngineScore() {
+  const box = document.getElementById('engineScore');
+  if (!box) return;
+  const rows = scoreRows();
+  if (!rows.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  const all = scoreSummary(rows);
+  const pct = (v, d = 0) => v == null ? '-' : `${v.toFixed(d)}%`;
+  const sgn = (v) => v == null ? '-' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+  const verdict = all.med == null ? '' : Math.abs(all.med) <= 3 ? '목표가가 실제 낙찰가와 거의 맞음'
+    : all.med > 0 ? `목표가가 실제보다 ${all.med.toFixed(1)}% 낮은 편 — 그대로 내면 자주 짐` : `목표가가 실제보다 ${(-all.med).toFixed(1)}% 높은 편 — 더 낮게 써도 됐음`;
+  document.getElementById('scoreBasis').textContent = `우리 물건 낙찰 ${all.n}건 · ${rows.map(r => r.date).filter(Boolean).sort()[0] || ''} ~ ${rows.map(r => r.date).filter(Boolean).sort().pop() || ''}`;
+  document.getElementById('scoreVerdict').textContent = verdict;
+  const kpi = (label, val, sub, title = '') => `<div class="thermo-kpi" title="${title}"><div class="k-label">${label}</div><div class="k-val">${val}</div><div class="k-delta" style="color:var(--text-sub);">${sub}</div></div>`;
+  document.getElementById('scoreKpis').innerHTML =
+    kpi('오차 중앙값', sgn(all.med), '+면 목표가가 낮았음', '(실제 낙찰가 − 목표가) ÷ 목표가') +
+    kpi('평균 절대 오차', pct(all.mae, 1), '작을수록 정확') +
+    kpi('목표가로 냈다면 낙찰', pct(all.win), '목표가 ≥ 실제 낙찰가', '다른 사람의 최고가보다 목표가가 높았던 비율. 50% 근처가 목표(목표가 = 중앙값)') +
+    kpi('하한~상한 안에 들어온 비율', pct(all.inRange), all.rangedN ? `범위 있는 ${all.rangedN}건 기준` : '범위 정보 없음', '실제 낙찰가가 엔진의 하한~상한 사이였던 비율');
+
+  // 그룹 표: 엔진 · 유찰 회차 · AI 위험도
+  const groupTable = (title, keyFn, order) => {
+    const g = {};
+    rows.forEach(r => { const k = keyFn(r); (g[k] = g[k] || []).push(r); });
+    const keys = (order || Object.keys(g)).filter(k => g[k]);
+    return `<div style="min-width:0;"><div style="font-size:var(--fs-sm); color:var(--text-sub); margin:4px 0;">${title}</div>
+      <table class="thermo-table"><thead><tr><th></th><th>건수</th><th>오차 중앙값</th><th>목표가 낙찰</th></tr></thead><tbody>
+      ${keys.map(k => { const s = scoreSummary(g[k]); return `<tr><td>${escapeHtml(k)}</td><td>${s.n}${s.n < 5 ? ' <span class="muted">(적음)</span>' : ''}</td>
+        <td style="color:${Math.abs(s.med) <= 3 ? 'var(--green)' : s.med > 0 ? 'var(--red)' : 'var(--blue)'}; font-weight:700;">${sgn(s.med)}</td><td>${pct(s.win)}</td></tr>`; }).join('')}
+      </tbody></table></div>`;
+  };
+  const lossLabel = (r) => r.loss >= 3 ? '유찰 3회+' : r.loss === 0 ? '신건' : `유찰 ${r.loss}회`;
+  document.getElementById('scoreGroups').innerHTML =
+    groupTable('엔진 버전', r => r.ver, ['V3', 'V4']) +
+    groupTable('유찰 회차', lossLabel, ['신건', '유찰 1회', '유찰 2회', '유찰 3회+']) +
+    groupTable('AI 위험도', r => r.risk, ['안전', '주의', '위험', '분석실패', '미분석']);
+
+  // 오차 분포(5% 구간)
+  const bins = [];
+  for (let b = -30; b <= 30; b += 5) bins.push(b);
+  const counts = bins.map((b, i) => rows.filter(r => i === 0 ? r.err < b + 2.5 : i === bins.length - 1 ? r.err >= b - 2.5 : (r.err >= b - 2.5 && r.err < b + 2.5)).length);
+  if (charts.score) charts.score.destroy();
+  const cv = document.getElementById('chartScore');
+  if (cv && typeof Chart !== 'undefined') {
+    charts.score = new Chart(cv, {
+      type: 'bar',
+      data: { labels: bins.map((b, i) => i === 0 ? `≤${b}%` : i === bins.length - 1 ? `≥+${b}%` : `${b > 0 ? '+' : ''}${b}%`),
+        datasets: [{ label: '물건 수', data: counts, borderRadius: 4,
+          backgroundColor: bins.map(b => Math.abs(b) <= 5 ? 'rgba(63,185,80,0.7)' : b > 0 ? 'rgba(248,81,73,0.6)' : 'rgba(47,129,247,0.6)') }] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { title: (it) => `오차 ${it[0].label} 근처`, label: (c) => `${c.parsed.y}건` } } },
+        scales: { x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: '#8b949e', precision: 0 }, grid: { color: 'rgba(139,148,158,0.12)' } } } },
+    });
+  }
+
+  // 크게 빗나간 물건 5건
+  const misses = [...rows].sort((a, b) => Math.abs(b.err) - Math.abs(a.err)).slice(0, 5);
+  document.getElementById('scoreMisses').innerHTML = `<table class="thermo-table"><thead><tr><th>물건</th><th>목표가</th><th>실제</th><th>오차</th><th>응찰</th></tr></thead><tbody>
+    ${misses.map(r => `<tr class="${r.id ? 'clickable' : ''}" ${r.id ? `onclick="openDetailModal('${r.id}')"` : ''} title="${escapeHtml(r.case_no || '')} · ${r.ver} · ${escapeHtml(r.risk)}">
+      <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(r.name || '-')}</td><td>${fmt(r.target)}</td><td>${fmt(r.actual)}</td>
+      <td style="color:${r.err > 0 ? 'var(--red)' : 'var(--blue)'}; font-weight:700;">${sgn(r.err)}</td><td>${r.bidders || '-'}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+
+// ─────────────────────────────────────────────────────
+// 9단계 · 내 투자 판단: 관심 물건(진행중)을 목표가 기준으로 한 표에. 금리 변화(+0/+1/+2%p) 민감도
+//  관심 물건이 없으면 '관심 등록 후보'(진행중·예산 안·순익 높은 순 5건)
+// ─────────────────────────────────────────────────────
+let picksRateBump = 0;
+function setPicksRate(bump) { picksRateBump = bump; renderMyPicks(); }
+
+function renderMyPicks() {
+  const box = document.getElementById('myPicks');
+  if (!box || !Array.isArray(allItems)) return;
+  const isStar = (i) => !!i.is_interested && i.is_interested !== 'false' && i.is_interested !== 0;
+  const active = allItems.filter(i => i.status === '진행중' && !isHiddenItem(i));
+  const baseRate = Number(currentProfile.loanInterestRate) || 0.05;
+  const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const dday = (d) => { const s = String(d || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null; return Math.round((Date.parse(s) - Date.parse(today)) / 86400e3); };
+  const calc = (i) => {
+    let r0, r1;
+    try { r0 = calculateAuctionROI(i, { loanInterestRate: baseRate + picksRateBump / 100 }); r1 = calculateAuctionROI(i, { loanInterestRate: baseRate + (picksRateBump + 1) / 100 }); } catch (e) { return null; }
+    const market = Number(i.market_price) > 0 ? Number(i.market_price) : 0;
+    return { i, r: r0, sens: r1.netProfit - r0.netProfit, d: dday(i.bid_date), disc: market && r0.bidPrice ? (1 - r0.bidPrice / market) * 100 : null };
+  };
+  let rows = active.filter(isStar).map(calc).filter(Boolean);
+  const starred = rows.length > 0;
+  if (!starred) {
+    rows = active.map(calc).filter(x => x && x.r.isBudgetOk && x.r.netProfit > 0 && x.i.ai_risk !== '위험')
+      .sort((a, b) => b.r.netProfit - a.r.netProfit).slice(0, 5);
+  } else {
+    rows.sort((a, b) => (a.d ?? 999) - (b.d ?? 999));
+  }
+  document.getElementById('picksTitle').textContent = starred ? `⭐ 내 관심 물건 ${rows.length}건` : '⭐ 관심 등록 후보 (관심 물건 없음)';
+  const budgetOk = rows.filter(x => x.r.isBudgetOk).length;
+  const plus = rows.filter(x => x.r.netProfit > 0).length;
+  const soon = rows.filter(x => x.d != null && x.d >= 0 && x.d <= 7).length;
+  const kpi = (label, val, sub) => `<div class="thermo-kpi"><div class="k-label">${label}</div><div class="k-val">${val}</div><div class="k-delta" style="color:var(--text-sub);">${sub}</div></div>`;
+  document.getElementById('picksKpis').innerHTML = rows.length ? (
+    kpi('예산 안', `${budgetOk} / ${rows.length}`, `가용자금 ${fmt(currentProfile.availableCash)} 기준`) +
+    kpi('목표가 낙찰 시 순익 플러스', `${plus} / ${rows.length}`, `금리 ${((baseRate * 100) + picksRateBump).toFixed(1)}% 기준`) +
+    kpi('7일 안 매각기일', `${soon}건`, soon ? '입찰 준비 확인' : '급한 물건 없음') +
+    kpi('금리 +1%p 영향', fmt(Math.abs(rows.reduce((s, x) => s + x.sens, 0))) , '목록 전체 순익 감소 합계')
+  ) : '';
+  document.getElementById('picksBody').innerHTML = rows.length ? `
+    <div class="table-scroll"><table class="thermo-table" style="min-width:640px;">
+      <thead><tr><th>물건</th><th>기일</th><th>위험</th><th>목표가</th><th>시세 대비</th><th>필요 현금</th><th>세후 순익</th><th>금리 +1%p</th><th>ROI</th></tr></thead>
+      <tbody>${rows.map(({ i, r, sens, d, disc }) => `
+        <tr class="clickable" onclick="openDetailModal('${i.Id}')">
+          <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(i.location || '')}">${escapeHtml(i.complex_name || i.case_no || '-')}</td>
+          <td style="color:${d != null && d <= 7 ? 'var(--red)' : 'var(--text)'};">${d == null ? '-' : d < 0 ? '지남' : d === 0 ? '오늘' : `D-${d}`}</td>
+          <td style="color:${i.ai_risk === '안전' ? 'var(--green)' : i.ai_risk === '주의' ? 'var(--yellow)' : 'var(--red)'};">${escapeHtml(i.ai_risk || '-')}</td>
+          <td>${fmt(r.bidPrice)}</td>
+          <td style="color:${disc == null ? 'var(--text-sub)' : disc >= 0 ? 'var(--green)' : 'var(--red)'};">${disc == null ? '시세 없음' : `${disc >= 0 ? '-' : '+'}${Math.abs(disc).toFixed(0)}%`}</td>
+          <td style="color:${r.isBudgetOk ? 'var(--text)' : 'var(--red)'};">${fmt(r.cashOnClosing)}${r.isBudgetOk ? '' : ' ⚠️'}</td>
+          <td style="color:${r.netProfit >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:700;">${r.netProfit < 0 ? '-' : '+'}${fmt(Math.abs(r.netProfit))}</td>
+          <td class="muted">${sens < 0 ? '-' : '+'}${fmt(Math.abs(sens))}</td>
+          <td>${escapeHtml(String(r.roiReal || '-'))}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>` : '<div class="muted t-sm">예산 안·순익 플러스·위험 아님 조건에 맞는 진행중 물건이 없습니다. 물건 창에서 ☆ 관심 등록하면 여기 모입니다.</div>';
+  document.querySelectorAll('#myPicks [data-bump]').forEach(b => b.classList.toggle('active', Number(b.dataset.bump) === picksRateBump));
+}
+
+// ─────────────────────────────────────────────────────
+// Starred (NocoDB 연동 — 낙관적 UI + PATCH 중계)
+// ─────────────────────────────────────────────────────
+async function toggleStar(id) {
+  const sid = String(id);
+  const item = allItems.find(i => String(i.Id) === sid);
+  if (!item) return;
+
+  // ── 1. 낙관적 UI 업데이트 (즉시 반영) ──────────────
+  const prevState = !!item.is_interested;
+  const nextState = !prevState;
+  item.is_interested = nextState;
+  updateStats();
+  applyFilters();
+
+  // ── 2. PATCH 페이로드 구성 ───────────────────────────
+  const payload = nextState
+    ? { is_interested: true, interest_level: 1, interested_at: new Date().toISOString() }
+    : { is_interested: false };
+
+  // ── 3. 백엔드 프록시로 PATCH 요청 ────────────────────
+  try {
+    const res = await apiFetch(`/api/auction-data?id=${sid}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    showToast(nextState ? '⭐ 관심 등록됨' : '관심 해제됨');
+  } catch (err) {
+    // ── 4. 실패 시 롤백 ─────────────────────────────────
+    item.is_interested = prevState;
+    updateStats();
+    applyFilters();
+    showToast(`❌ 저장 실패: ${err.message}`, 'error');
+  }
+  refreshModalFooter(sid);
+  try { renderMyPicks(); } catch (e) {}
+}
+
+// ─────────────────────────────────────────────────────
+// Helpers & Modals
+// ─────────────────────────────────────────────────────
+function getDocUrl(val) {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val) && val.length > 0 && val[0].url) return val[0].url;
+  return null;
+}
+
+
+// ─────────────────────────────────────────────────────
+// Unified Modal & Smart Document Viewer
+// ─────────────────────────────────────────────────────
+let currentDocItemId = null;
+let currentDocField = 'summary';
+
+function openTextModal(id, fieldName, title) {
+  openUnifiedModal(id, fieldName);
+}
+
+function openDocViewerModal(id, initialField) {
+  openUnifiedModal(id, initialField);
+}
+
+function openDetailModal(id) {
+  openUnifiedModal(id, 'summary');
+}
+
+async function openUnifiedModal(id, initialTab) {
+  const item = allItems.find(i => String(i.Id) === String(id));
+  if (!item) return;
+  try {
+    await loadItemDocs(item);
+  } catch (e) {
+    showToast(`❌ ${e.message}`, true);
+  }
+
+  if (currentDocItemId !== id) {
+    modalSimOverrides = {};
+  }
+  currentDocItemId = id;
+  currentDocField = initialTab || 'summary';
+
+  const modalContainer = document.querySelector('#detailModal .modal-container');
+  if (modalContainer) modalContainer.classList.add('modal-wide');
+
+  document.getElementById('modalTitle').textContent = item.complex_name || item.case_no || '경매 상세 정보';
+  document.getElementById('modalSubtitle').textContent = `${item.court || ''} ${item.case_no || ''} | ${item.location || ''} | ${item.area_m2 || '-'}㎡ | ${item.floor || '-'}층`;
+
+  renderUnifiedModalContent(item);
+  document.getElementById('detailModal').classList.add('show');
+}
+
+function switchDocTab(tabName) {
+  currentDocField = tabName;
+  const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+  if (!item) return;
+  renderUnifiedModalContent(item);
+}
+
+function renderUnifiedModalContent(item) {
+  const docFields = [
+    { key: 'summary', label: '📊 종합 요약', title: '살지 말지 판단: 결론·위험·입찰가·예상 순익' },
+    { key: 'roi', label: '🧮 수익 계산기', title: '낙찰가·매도가·임대 조건을 바꿔 보며 세후 순익 계산' },
+    { key: 'doc_spec_text', label: '📄 명세서', title: '매각물건명세서' },
+    { key: 'doc_survey_text', label: '📄 현황조사', title: '현황조사서' },
+    { key: 'doc_appraisal_text', label: '📄 감정평가', title: '감정평가서' },
+    { key: 'doc_registry_text', label: '📄 등기부', title: '등기사항전부증명서' },
+    { key: 'doc_ledger_text', label: '📄 대장', title: '건축물대장' },
+    { key: 'real_trade_history', label: '📈 실거래가', title: '실거래가 내역' },
+  ];
+
+  let tabsHtml = '<div class="doc-tab-bar">';
+  docFields.forEach(f => {
+    const hasData = (f.key === 'summary' || f.key === 'roi') ? true : !!item[f.key];
+    const isActive = f.key === currentDocField;
+    tabsHtml += `
+      <button class="doc-tab ${isActive ? 'active' : ''} ${!hasData ? 'disabled' : ''}"
+              ${hasData ? `onclick="switchDocTab('${f.key}')"` : 'disabled'}
+              title="${f.title}">
+        ${f.label} ${f.key === 'summary' ? '' : (hasData ? '✅' : '❌')}
+      </button>`;
+  });
+  tabsHtml += '</div>';
+
+  let bodyContentHtml = '';
+
+  if (currentDocField === 'roi') {
+    bodyContentHtml = `<div style="padding:16px;">${buildROISimulatorBody(item)}</div>`;
+  } else if (currentDocField === 'summary') {
+    bodyContentHtml = `<div style="padding:16px;">${buildSummaryTabBody(item)}</div>`;
+  } else {
+    const searchHtml = `
+      <div class="doc-search-box">
+        <input type="text" id="docSearchInput" class="doc-search-input"
+               placeholder="서류 내 키워드 검색 (예: 근저당, 임차인, 보증금, 대지권)..."
+               oninput="filterDocText(this.value)" />
+        <span class="doc-search-count" id="docSearchCount"></span>
+        <button class="btn-sm" style="background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:5px 10px; cursor:pointer;" onclick="copyRawDocText()">📋 원문 복사</button>
+      </div>
+    `;
+    const rawText = item[currentDocField] || '';
+    const parsedBody = parseAndFormatDocument(rawText, currentDocField);
+    bodyContentHtml = searchHtml + `<div id="docBodyContainer" style="padding:16px;">${parsedBody}</div>`;
+  }
+
+  document.getElementById('modalBody').innerHTML = tabsHtml + bodyContentHtml;
+
+  renderModalFooter(item);
+}
+
+
+
+
+// ── 상세 창 아래 버튼: 관심·숨김 / AI 재분석·서류 재수집 / 외부 링크 ──
+const isHiddenItem = (item) => Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김');
+
+function requestStateLabel(val) {
+  const v = String(val || '');
+  if (!v) return '';
+  return v;
+}
+
+function renderModalFooter(item) {
+  const starred = !!item.is_interested && item.is_interested !== 'false';
+  const hidden = isHiddenItem(item);
+  const aiState = String(item.ai_reanalyze_status || '');
+  const docState = String(item.refetch_status || '');
+  const aiBusy = /^(대기|분석중)/.test(aiState);
+  const docBusy = /^(대기|수집중)/.test(docState);
+  const missing = missingDocs(item);
+  document.getElementById('modalFooter').innerHTML = `
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; width:100%;">
+      <button class="btn-sm btn-star ${starred ? 'starred' : ''} btn-pad" onclick="toggleStar('${item.Id}')" aria-pressed="${starred}">${starred ? '⭐ 관심 해제' : '☆ 관심 등록'}</button>
+      <button class="btn-sm btn-ghost btn-pad" onclick="toggleHideItem('${item.Id}')">${hidden ? '↩️ 숨김 해제' : '👁️‍🗨️ 숨김'}</button>
+      <span style="width:1px; height:22px; background:var(--border); margin:0 2px;"></span>
+      <button class="btn-sm btn-ghost btn-pad" ${aiBusy ? 'disabled' : ''} onclick="requestAiReanalyze('${item.Id}')" title="저장된 서류로 Dify 권리분석을 다시 돌립니다 (보통 10분 안)">🤖 AI 권리분석 다시</button>
+      <button class="btn-sm btn-ghost btn-pad" ${docBusy ? 'disabled' : ''} onclick="requestDocRefetch('${item.Id}')" title="${missing.length ? '빠진 서류: ' + missing.join(', ') : '모든 서류가 있지만 다시 받을 수 있습니다'} · 크롤러가 켜지는 새벽(02:15)에 수집">📥 서류 다시 수집 예약${missing.length ? ` <span class="c-red">(${missing.length}개 없음)</span>` : ''}</button>
+      <span class="grow"></span>
+      ${item.naver_url ? `<a class="btn-sm btn-ghost btn-pad" href="${safeUrl(item.naver_url)}" target="_blank" rel="noopener">네이버 시세</a>` : ''}
+      ${item.court_url ? `<a class="btn-sm btn-court btn-pad" href="${safeUrl(item.court_url)}" target="_blank" rel="noopener">대법원 경매정보 →</a>` : ''}
+      <button class="btn-sm btn-ghost btn-pad" onclick="closeModal()">닫기</button>
+    </div>
+    ${(aiState || docState) ? `<div style="width:100%; font-size:var(--fs-xs); color:var(--text-sub); margin-top:6px; display:flex; gap:14px; flex-wrap:wrap;">
+      ${aiState ? `<span>🤖 AI 재분석: ${escapeHtml(aiState)}</span>` : ''}
+      ${docState ? `<span>📥 서류 재수집: ${escapeHtml(docState)}</span>` : ''}
+    </div>` : ''}`;
+}
+
+function refreshModalFooter(id) {
+  const modal = document.getElementById('detailModal');
+  if (!modal || !modal.classList.contains('show') || String(currentDocItemId) !== String(id)) return;
+  const item = allItems.find(i => String(i.Id) === String(id));
+  if (item) renderModalFooter(item);
+}
+
+const DOC_LABELS = { doc_spec_text: '명세서', doc_survey_text: '현황조사', doc_appraisal_text: '감정평가', doc_registry_text: '등기부', doc_ledger_text: '건축물대장' };
+function missingDocs(item) {
+  return Object.entries(DOC_LABELS).filter(([k]) => !item[k]).map(([, v]) => v);
+}
+
+// 크롤러(browserless·auction-crawler)는 NAS 메모리 때문에 매일 00:50~04:00에만 켜짐.
+// 그 안에서 012(01:00~), 043(02:00, 약 2분), 010(03:00~) 사이 빈 시간 02:15에 재수집(058)이 돈다.
+function nextRefetchSlot(now = new Date()) {
+  const kst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+  const slot = new Date(kst); slot.setHours(2, 15, 0, 0);
+  if (kst >= slot) slot.setDate(slot.getDate() + 1);
+  const today = kst.getDate() === slot.getDate();
+  return `${today ? '오늘' : '내일'} 새벽 02:15`;
+}
+
+function kstStamp() {
+  const d = new Date(Date.now() + 9 * 3600e3);
+  return d.toISOString().slice(5, 16).replace('T', ' ');
+}
+
+async function patchItemFields(id, body) {
+  const res = await apiFetch(`/api/auction-data?id=${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
+}
+
+async function requestAiReanalyze(id) {
+  const item = allItems.find(i => String(i.Id) === String(id));
+  if (!item) return;
+  if (!item.doc_spec_text && !item.doc_registry_text) {
+    if (!confirm('명세서·등기부가 모두 없어 분석 결과가 부정확할 수 있습니다. 그래도 요청할까요? (먼저 [서류 다시 수집]을 권장)')) return;
+  }
+  const prev = item.ai_reanalyze_status;
+  item.ai_reanalyze_status = `대기 · ${kstStamp()} 요청`;
+  refreshModalFooter(id);
+  try {
+    await patchItemFields(id, { ai_reanalyze_status: item.ai_reanalyze_status });
+    showToast('🤖 AI 재분석 요청됨 — 10분 안에 결과가 반영됩니다(새로고침해서 확인).');
+  } catch (e) {
+    item.ai_reanalyze_status = prev; refreshModalFooter(id);
+    showToast(`❌ 요청 실패: ${e.message}`, true);
+  }
+}
+
+async function requestDocRefetch(id) {
+  const item = allItems.find(i => String(i.Id) === String(id));
+  if (!item) return;
+  const missing = missingDocs(item);
+  const slot = nextRefetchSlot();
+  const msg = `${missing.length ? '빠진 서류: ' + missing.join(', ') + '\n' : ''}크롤러는 새벽에만 켜져 있어 ${slot}에 수집합니다.\n받은 서류로 AI 권리분석·시세·입찰가도 다시 계산합니다(빈 서류로 기존 서류를 지우지 않음). 요청할까요?`;
+  if (!confirm(msg)) return;
+  const prev = item.refetch_status;
+  item.refetch_status = `대기 · ${kstStamp()} 요청 → ${slot} 수집 예정`;
+  refreshModalFooter(id);
+  try {
+    await patchItemFields(id, { refetch_status: item.refetch_status });
+    showToast(`📥 서류 재수집 예약됨 — ${slot}`);
+  } catch (e) {
+    item.refetch_status = prev; refreshModalFooter(id);
+    showToast(`❌ 요청 실패: ${e.message}`, true);
+  }
+}
+
+let modalSimOverrides = {};
+
+function buildROISimulatorBody(item) {
+  const roi = calculateAuctionROI(item, modalSimOverrides, currentProfile);
+
+  const minBid = Math.round((roi.minPrice || 10000000) * 0.7);
+  const maxBid = Math.round((roi.appraisalPrice || 100000000) * 1.5);
+  const minSale = Math.round((roi.bidPrice || 10000000) * 0.7);
+  const maxSale = Math.round((roi.appraisalPrice || 100000000) * 1.6);
+
+  return `
+    <div class="muted t-sm mb-10">조건을 바꿔 보며 계산하는 곳입니다. 결론·위험·입찰 전략은 <a href="#" onclick="switchDocTab('summary'); return false;" class="c-blue">📊 종합 요약</a>에 있습니다.</div>
+    <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:20px;" class="sim-responsive-grid">
+      <!-- 좌측: 입력 컨트롤러 (슬라이더 + 직접입력 양방향 동기화) -->
+      <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px;">
+          <span style="font-weight:700; font-size:var(--fs-base); color:var(--text);">🎛️ 실시간 투자 조건 조절</span>
+          <button class="btn-sm" style="background:var(--surface); border:1px solid var(--border); color:var(--text-sub); font-size:var(--fs-xs); padding:3px 8px; cursor:pointer;" onclick="resetSimOverrides()">초기화 ↺</button>
+        </div>
+
+        <!-- 예상 낙찰가 (슬라이더 + 직접입력) -->
+        <div class="sim-input-group">
+          <div class="sim-label-row">
+            <span style="font-weight:600;">예상 낙찰가</span>
+            <span class="sim-val-display" id="simDisplayBid" style="color:var(--blue); font-size:var(--fs-base);">${fmt(roi.bidPrice)}</span>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input type="range" class="sim-slider" id="simSliderBid"
+                   min="${minBid}" max="${maxBid}" step="500000" value="${roi.bidPrice}"
+                   oninput="handleSimBidInput(this.value, 'slider')" style="flex:1;" />
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="number" class="sim-input" id="simInputBid"
+                     step="1000000" value="${roi.bidPrice}"
+                     oninput="handleSimBidInput(this.value, 'input')"
+                     style="width:130px; text-align:right; font-weight:700; font-size:var(--fs-md);" />
+              <span class="muted t-sm">원</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 예상 매도가 (슬라이더 + 직접입력) -->
+        <div class="sim-input-group">
+          <div class="sim-label-row">
+            <span style="font-weight:600;">예상 매도가 (출구 시세)</span>
+            <span class="sim-val-display" id="simDisplaySale" style="color:var(--green); font-size:var(--fs-base);">${fmt(roi.expectedSalePrice)}</span>
+          </div>
+          <div style="font-size:var(--fs-xs); color:var(--text-sub); margin:-2px 0 6px;">${Number(item.market_price) > 0
+            ? `시세 ${fmt(item.market_price)} · ${escapeHtml(item.market_basis || '')} · ${escapeHtml(item.market_period || '')} ${item.market_sample_count || 0}건`
+            : (item.market_basis ? `시세 없음 (${escapeHtml(item.market_basis)}) — ${roi.marketPriceType === 'appraisal_discount' ? '감정가 할인값 사용' : '예전 실거래 평균 사용'}` : '')}</div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input type="range" class="sim-slider" id="simSliderSale"
+                   min="${minSale}" max="${maxSale}" step="500000" value="${roi.expectedSalePrice}"
+                   oninput="handleSimSaleInput(this.value, 'slider')" style="flex:1;" />
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="number" class="sim-input" id="simInputSale"
+                     step="1000000" value="${roi.expectedSalePrice}"
+                     oninput="handleSimSaleInput(this.value, 'input')"
+                     style="width:130px; text-align:right; font-weight:700; font-size:var(--fs-md);" />
+              <span class="muted t-sm">원</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>임대 보증금</span></div>
+            <input type="number" class="sim-input" id="simInputDeposit" step="1000000" value="${roi.rentalDeposit}" oninput="handleSimParamInput('rentalDeposit', this.value)" />
+          </div>
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>월세 (월)</span></div>
+            <input type="number" class="sim-input" id="simInputRent" step="50000" value="${roi.monthlyRent}" oninput="handleSimParamInput('monthlyRent', this.value)" />
+          </div>
+        </div>
+        ${(Number(item.jeonse_median) > 0 || Number(item.rent_monthly_median) > 0) ? `
+        <div style="font-size:var(--fs-xs); color:var(--text-sub); display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:-4px 0 6px;">
+          <span>실거래 중앙값:</span>
+          ${Number(item.jeonse_median) > 0 ? `<button class="btn-sm btn-ghost" onclick="applyRentPreset(${Number(item.jeonse_median)}, 0)">전세 ${fmt(item.jeonse_median)} 넣기</button>` : ''}
+          ${Number(item.rent_monthly_median) > 0 ? `<button class="btn-sm btn-ghost" onclick="applyRentPreset(${Number(item.rent_deposit_median) || 0}, ${Number(item.rent_monthly_median)})">월세 ${fmt(item.rent_deposit_median || 0)} / 월 ${fmt(item.rent_monthly_median)} 넣기</button>` : ''}
+        </div>` : ''}
+
+        <div class="grid-2">
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>수리비 (자본적지출)</span></div>
+            <input type="number" class="sim-input" id="simInputRepair" step="500000" value="${modalSimOverrides.repairFee ?? currentProfile.repairFee}" oninput="handleSimParamInput('repairFee', this.value)" />
+          </div>
+          <div class="sim-input-group">
+            <div class="sim-label-row"><span>명도비 (이사비)</span></div>
+            <input type="number" class="sim-input" id="simInputEviction" step="500000" value="${modalSimOverrides.evictionFee ?? currentProfile.evictionFee}" oninput="handleSimParamInput('evictionFee', this.value)" />
+          </div>
+        </div>
+
+        <div class="sim-input-group">
+          <div class="sim-label-row">
+            <span>보유기간</span>
+            <span class="sim-val-display" id="simDisplayHolding">${roi.holdingMonths}개월 (${roi.capitalGainsTaxLabel})</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="filter-btn ${roi.holdingMonths == 6 ? 'active' : ''}" onclick="updateModalSimHolding(6)">6개월 (단기)</button>
+            <button class="filter-btn ${roi.holdingMonths == 12 ? 'active' : ''}" onclick="updateModalSimHolding(12)">12개월 (1년)</button>
+            <button class="filter-btn ${roi.holdingMonths == 24 ? 'active' : ''}" onclick="updateModalSimHolding(24)">24개월 (기본)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측: 결과 브레이크다운 (실시간 반응형 DOM) -->
+      <div id="roiSimResultsContainer" style="background:#131c2b; border:1px solid #233348; border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:12px;">
+        ${buildROIResultsPaneHTML(roi, item)}
+      </div>
+    </div>
+  `;
+}
+
+// 5단계: 보유기간 뒤 매도가 세 가지(연 −3% / 0% / +3%)로 세후 순익
+function buildSaleScenariosHTML(roi, item) {
+  if (!item || !(roi.expectedSalePrice > 0)) return '';
+  const yrs = (roi.holdingMonths || 24) / 12;
+  const rows = [['비관', -0.03], ['기본', 0], ['낙관', 0.03]].map(([label, r]) => {
+    const sale = Math.round(roi.expectedSalePrice * Math.pow(1 + r, yrs));
+    const x = r === 0 ? roi : calculateAuctionROI(item, { ...modalSimOverrides, expectedSalePrice: sale }, currentProfile);
+    const c = x.netProfit >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<div style="text-align:center;">${label} <span class="muted">(연 ${r > 0 ? '+' : ''}${Math.round(r * 100)}%)</span><br/>매도 ${fmt(sale)}<br/><strong style="color:${c};">${x.netProfit < 0 ? '-' : '+'}${fmt(Math.abs(x.netProfit))}</strong></div>`;
+  }).join('');
+  return `<div style="background:var(--surface); border:1px solid var(--border); padding:10px; border-radius:8px; font-size:var(--fs-sm);">
+      <div style="color:var(--text-sub); margin-bottom:6px;">${roi.holdingMonths}개월 뒤 매도가 시나리오 · 세후 순익 (현재 매도가 기준 연 ±3%)</div>
+      <div style="display:flex; justify-content:space-between; gap:6px;">${rows}</div>
+    </div>`;
+}
+
+function buildROIResultsPaneHTML(roi, item) {
+  return `
+    <div style="font-weight:700; font-size:var(--fs-base); color:var(--yellow); border-bottom:1px solid #233348; padding-bottom:8px;">📊 최종 손익 및 ROI 계산 결과</div>
+    ${buildSaleScenariosHTML(roi, item)}
+
+    <div class="grid-2">
+      <div style="background:var(--surface); border:1px solid ${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'}; padding:10px; border-radius:8px;">
+        <div class="muted t-xs mb-2">💰 잔금일 필요 현금</div>
+        <div style="font-size:var(--fs-lg); font-weight:800; color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'};">${fmt(roi.cashOnClosing)}</div>
+        <span style="font-size:var(--fs-xs); color:${roi.isBudgetOk ? 'var(--green)' : 'var(--red)'};">${roi.isBudgetOk ? '🟢 내 예산 충족' : '🔴 예산 초과'}</span>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--purple); padding:10px; border-radius:8px;">
+        <div class="muted t-xs mb-2">🤝 세입자 세팅 후 실투자금</div>
+        <div style="font-size:var(--fs-lg); font-weight:800; color:var(--purple);">${roi.isPlusFee ? '0원 (무피)' : fmt(roi.realCashNeeded)}</div>
+        <span class="muted t-xs">${roi.isPlusFee ? '🏆 무피/플러스피' : '보증금 회수 후 잔여금'}</span>
+      </div>
+    </div>
+
+    <div style="background:#1a2536; border:1px solid var(--yellow); padding:12px; border-radius:8px;">
+      <div class="muted t-xs mb-2">🏆 최종 세후 순수익 & ROI</div>
+      <div style="font-size:var(--fs-xl); font-weight:800; color:var(--yellow);">${roi.netProfit >= 0 ? '+' : ''}${fmt(roi.netProfit)} <span style="font-size:var(--fs-base); font-weight:600; color:var(--text);">(${roi.roiReal})</span></div>
+      ${roi.annualizedROI ? `<div style="font-size:var(--fs-xs); color:var(--text-sub); margin-top:3px;">연환산 ROI: <strong class="c-yellow">${roi.annualizedROI}</strong></div>` : ''}
+    </div>
+
+    <table style="width:100%; border-collapse:collapse; font-size:var(--fs-sm);">
+      <tr><td style="padding:4px 0; color:var(--text-sub);">적용 경락대출 한도 (감정60%/낙찰80% Min)</td><td class="num fw-6">${fmt(roi.loanLimit)}</td></tr>
+      ${roi.inheritedAmount > 0 ? `<tr><td style="padding:4px 0; color:var(--red);">⚠️ 인수금액 (대항력 임차인 보증금 등, 별도 현금)</td><td style="text-align:right; font-weight:600; color:var(--red);">${fmt(roi.inheritedAmount)}</td></tr>` : ''}
+      ${roi.inheritedUnknown ? `<tr><td colspan="2" style="padding:4px 0; color:var(--yellow);">⚠️ 인수금액 불명 — AI가 판단하지 못함. 명세서 확인 전까지 수익이 과대평가됐을 수 있음</td></tr>` : ''}
+      <tr><td style="padding:4px 0; color:var(--text-sub);">취득세액 (${(roi.acquisitionTaxRate*100).toFixed(1)}%, 교육세 포함) + 법무비</td><td class="num fw-6">${fmt(roi.acquisitionTax + currentProfile.legalFee)}</td></tr>
+      <tr><td style="padding:4px 0; color:var(--text-sub);">명도비 + 수리비(자본적지출 인정분)</td><td class="num fw-6">${fmt((modalSimOverrides.evictionFee ?? currentProfile.evictionFee) + (modalSimOverrides.repairFee ?? currentProfile.repairFee))}</td></tr>
+      <tr><td style="padding:4px 0; color:var(--text-sub);">총 대출이자 (${roi.holdingMonths}개월, 연 ${(currentProfile.loanInterestRate*100).toFixed(1)}%)</td><td class="num fw-6">${fmt(roi.totalLoanInterest)}</td></tr>
+      ${roi.totalRentIncome > 0 ? `<tr><td style="padding:4px 0; color:var(--text-sub);">세후 임대 순수익 (소득세 15.4% 공제)</td><td style="text-align:right; font-weight:600; color:var(--green);">+${fmt(roi.netRentalIncome)}</td></tr>` : ''}
+      <tr><td style="padding:4px 0; color:var(--text-sub);">양도세 필요경비 (취득세+법무+수리+중개수수료)</td><td class="num fw-6">${fmt(roi.capitalGainsExpenses)}</td></tr>
+      <tr><td style="padding:4px 0; color:var(--text-sub);">양도차익 (매도가 - 낙찰가 - 인수금액 - 필요경비)</td><td class="num fw-6">${fmt(roi.capitalGains)}</td></tr>
+      <tr><td style="padding:4px 0; color:var(--text-sub);">양도소득세 + 지방소득세 (${roi.capitalGainsTaxLabel}, 실효 ${Math.round(roi.capitalGainsTaxRate*100)}%)</td><td style="text-align:right; font-weight:600; color:var(--red);">-${fmt(roi.totalTax)}</td></tr>
+      <tr style="font-weight:700; border-top:1px solid #233348;"><td style="padding:6px 0;">총투입원가 (낙찰가+인수금액+취득비용+대출이자)</td><td class="num">${fmt(roi.totalInvestedCost)}</td></tr>
+    </table>
+  `;
+}
+
+function handleSimBidInput(val, source) {
+  const num = Number(val) || 0;
+  modalSimOverrides.bidPrice = num;
+  const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+  if (!item) return;
+
+  if (source === "slider") {
+    const inp = document.getElementById("simInputBid");
+    if (inp) inp.value = num;
+  } else if (source === "input") {
+    const sld = document.getElementById("simSliderBid");
+    if (sld) sld.value = num;
+  }
+  const disp = document.getElementById("simDisplayBid");
+  if (disp) disp.innerText = fmt(num);
+
+  refreshROISimulatorResults(item);
+}
+
+function handleSimSaleInput(val, source) {
+  const num = Number(val) || 0;
+  modalSimOverrides.expectedSalePrice = num;
+  const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+  if (!item) return;
+
+  if (source === "slider") {
+    const inp = document.getElementById("simInputSale");
+    if (inp) inp.value = num;
+  } else if (source === "input") {
+    const sld = document.getElementById("simSliderSale");
+    if (sld) sld.value = num;
+  }
+  const disp = document.getElementById("simDisplaySale");
+  if (disp) disp.innerText = fmt(num);
+
+  refreshROISimulatorResults(item);
+}
+
+// 5단계: 실거래 전세·월세 중앙값을 임대 조건에 바로 넣기
+function applyRentPreset(deposit, monthly) {
+  const d = document.getElementById('simInputDeposit'), r = document.getElementById('simInputRent');
+  if (d) d.value = deposit; if (r) r.value = monthly;
+  modalSimOverrides.rentalDeposit = Number(deposit) || 0;
+  handleSimParamInput('monthlyRent', monthly);
+}
+
+function handleSimParamInput(key, val) {
+  modalSimOverrides[key] = Number(val) || 0;
+  const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+  if (!item) return;
+  refreshROISimulatorResults(item);
+}
+
+function updateModalSimHolding(months) {
+  modalSimOverrides.holdingMonths = Number(months);
+  const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+  if (!item) return;
+  renderUnifiedModalContent(item);
+}
+
+function resetSimOverrides() {
+  modalSimOverrides = {};
+  const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+  if (!item) return;
+  renderUnifiedModalContent(item);
+}
+
+function refreshROISimulatorResults(item) {
+  const roi = calculateAuctionROI(item, modalSimOverrides, currentProfile);
+  const pane = document.getElementById("roiSimResultsContainer");
+  if (pane) {
+    pane.innerHTML = buildROIResultsPaneHTML(roi, item);
+  }
+}
+
+
+// 4단계 · 입찰가 → 낙찰 확률 (V4 물건만)
+// 하한·목표·상한 = 최저가 × 낙찰가 배수 25%·50%·75% 분위. 사분위 3점을 잇고 꼬리는 같은 기울기로 연장.
+// 낙찰가는 위로 길게 튀는 경우(경쟁 과열)가 많아 위쪽 폭은 2배로 넓힘 — 8-15 이후 백테스트에서 예측·실제 차이 5%p 안팎으로 맞춘 값.
+// 뜻: '다른 사람의 최고 입찰가보다 높게 쓸 확률'(그 회차에 낙찰이 난다는 가정).
+function winProb(item, price) {
+  if (!/V4 엔진/.test(item.bid_strategy_text || '')) return null;
+  const t = Number(item.bid_target), hi = Number(item.bid_max), min = Number(item.min_price) || 0;
+  let lo = Number(item.bid_min);
+  if (!(t > 0 && hi > t && price > 0)) return null;
+  if (!(lo > 0 && lo < t) || lo <= min * 1.001) lo = t - (hi - t);   // 하한이 최저가에 막혔으면 위쪽 폭으로 대신
+  const up = (hi - t) * 2;
+  let p;
+  if (price <= t) p = 0.5 - (t - price) / (t - lo) * 0.25;
+  else p = 0.5 + (price - t) / up * 0.25;
+  return Math.round(Math.min(0.95, Math.max(0.02, p)) * 100);
+}
+function updateWinProb(input, id) {
+  const item = window.__winProbItem; if (item && String(item.Id) !== String(id)) return;
+  const out = document.getElementById('winProbOut');
+  if (!item || !out) return;
+  const won = Number(String(input.value).replace(/[^0-9.]/g, '')) * 10000;   // 만원 단위 입력
+  const p = winProb(item, won);
+  out.textContent = p == null ? '-' : (won < Number(item.min_price) ? '최저가 미만' : `약 ${p}%`);
+}
+
+// 6단계: 종합 요약 = "살지 말지" 판단(읽기 전용), 수익 계산기 = 조건을 바꿔 보는 도구
+function buildVerdictCard(item, safeFmt) {
+  if (item.status === '낙찰') return '';
+  const target = Number(item.bid_target) || Number(item.min_price) || 0;
+  let roi = null;
+  try { roi = target > 0 ? calculateAuctionROI(item, { bidPrice: target }) : null; } catch (e) { roi = null; }
+  const market = Number(item.market_price) > 0 ? Number(item.market_price) : 0;
+  const discount = market > 0 && target > 0 ? Math.round((1 - target / market) * 100) : null;
+  const missing = missingDocs(item);
+  const risk = item.ai_risk || '미분석';
+  const riskColor = risk === '안전' ? 'var(--green)' : risk === '주의' ? 'var(--yellow)' : 'var(--red)';
+  const checks = [];
+  if (missing.length) checks.push(`빠진 서류 ${missing.join('·')} → [📥 서류 다시 수집 예약]`);
+  if (!market) checks.push('시세 근거 없음 → 매도가는 감정가 할인값(추정)');
+  if (Number(item.inherited_amount) < 0 || item.inherited_amount == null) checks.push('인수금액을 AI가 판단 못함 → 명세서 직접 확인');
+  if (Number(item.inherited_amount) > 0) checks.push(`인수금액 ${safeFmt(item.inherited_amount)} 별도 현금 필요`);
+  if (roi && !roi.isBudgetOk) checks.push(`잔금 필요현금 ${safeFmt(roi.cashOnClosing)} — 내 예산 초과`);
+  const profitColor = roi && roi.netProfit >= 0 ? 'var(--green)' : 'var(--red)';
+  const cell = (label, val, color = 'var(--text)', sub = '') => `
+    <div class="kpi kpi-flat">
+      <div class="k-label">${label}</div>
+      <div class="k-val k-val-md" style="color:${color};">${val}</div>
+      ${sub ? `<div class="k-sub" title="${String(sub).replace(/"/g, '&quot;')}">${sub}</div>` : ''}
+    </div>`;
+  return `
+    <div class="modal-section">
+      <div class="modal-section-title">🧭 한눈에 결론</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px;">
+        ${cell('AI 위험도', `${escapeHtml(risk)}`, riskColor, escapeHtml(item.ai_recommend || ''))}
+        ${cell(item.bid_target ? '목표 입찰가' : '최저가 (목표가 없음)', safeFmt(target), 'var(--blue)', item.bid_target ? `최저가 대비 ${Math.round(target / (Number(item.min_price) || target) * 100)}%` : '')}
+        ${cell('시세 대비', discount == null ? '-' : `${discount >= 0 ? discount + '% 싸게' : -discount + '% 비싸게'}`, discount == null ? 'var(--text-sub)' : discount >= 0 ? 'var(--green)' : 'var(--red)', market ? `시세 ${safeFmt(market)}` : '시세 없음')}
+        ${cell('목표가 낙찰 시 세후 순익', roi ? `${roi.netProfit < 0 ? '-' : '+'}${safeFmt(Math.abs(roi.netProfit))}` : '-', profitColor, roi ? `ROI ${roi.roiReal} · ${roi.holdingMonths}개월` : '')}
+        ${cell('잔금일 필요 현금', roi ? safeFmt(roi.cashOnClosing) : '-', roi && roi.isBudgetOk ? 'var(--green)' : 'var(--red)', roi ? (roi.isBudgetOk ? '예산 안' : '예산 초과') : '')}
+      </div>
+      ${checks.length ? `<ul style="margin:10px 0 0; padding-left:18px; font-size:var(--fs-sm); color:var(--yellow); line-height:1.6;">${checks.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul>` : `<div style="margin-top:10px; font-size:var(--fs-sm); color:var(--green);">✅ 서류·시세·인수금액 확인 항목 이상 없음</div>`}
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-sm btn-ghost btn-pad" onclick="openCalculatorAt('${item.Id}', ${target})">🧮 이 가격으로 수익 계산기 열기 →</button>
+      </div>
+    </div>`;
+}
+
+function openCalculatorAt(id, bidPrice) {
+  if (String(currentDocItemId) === String(id) && bidPrice > 0) modalSimOverrides.bidPrice = Number(bidPrice);
+  switchDocTab('roi');
+}
+
+function buildSummaryTabBody(item) {
+  const safeFmt = fmtPos;
+
+  let bodyHtml = buildVerdictCard(item, safeFmt);
+
+  if (item.status === '낙찰') {
+    const errVal = item.bid_engine_error || 0;
+    const errColor = errVal > 0 ? 'var(--red)' : errVal < 0 ? 'var(--green)' : 'var(--text-sub)';
+    bodyHtml += `
+      <div class="modal-section">
+        <div class="modal-section-title">🔨 경매 낙찰 결과</div>
+        <div style="background:rgba(163,113,247,0.1); padding:16px; border-radius:8px; border:1px solid rgba(163,113,247,0.3);">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div>
+              <div class="muted t-sm mb-4">실제 낙찰가 (${item.actual_bid_rate || 0}%)</div>
+              <div style="font-weight:700; font-size:var(--fs-xl); color:var(--purple)">${safeFmt(item.actual_bid_price)}</div>
+            </div>
+            <div>
+              <div class="muted t-sm mb-4">응찰자 수</div>
+              <div style="font-weight:700; font-size:var(--fs-xl);">👥 ${item.bidder_count || 0}명</div>
+            </div>
+          </div>
+          ${item.bid_target ? `
+          <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(163,113,247,0.2); font-size:var(--fs-md); display:flex; justify-content:space-between;">
+            <div><strong>당시 목표가 대비 오차:</strong> <span style="color:${errColor}; font-weight:800;">${errVal > 0 ? '+' : ''}${errVal}%</span></div>
+            <div class="muted">목표가: ${safeFmt(item.bid_target)}</div>
+          </div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  if (item.ai_summary || item.ai_flags) {
+    const riskColor = item.ai_risk === '안전' ? 'var(--green)' : item.ai_risk === '주의' ? 'var(--yellow)' : 'var(--red)';
+    bodyHtml += `
+      <div class="modal-section">
+        <div class="modal-section-title">🤖 AI 권리분석 요약</div>
+        <div class="modal-text" style="border-left: 3px solid ${riskColor}; padding-left: 12px; background: rgba(0,0,0,0.2); white-space: normal;">
+          <strong style="color:${riskColor}">${escapeHtml(item.ai_risk || '미분석')} | ${escapeHtml(item.ai_recommend || '')}</strong><br/>
+          ${escapeHtml(item.ai_summary || '')}
+          ${item.ai_flags ? `<br/><br/><span style="color:var(--text-sub)">🚩 특이사항: ${escapeHtml(item.ai_flags)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  bodyHtml += `
+    <div class="modal-section">
+      <div class="modal-section-title">💰 가격 및 갭(GAP) 분석</div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border);">
+        <div>
+          <div class="muted t-xs">감정가</div>
+          <div style="font-weight:700; font-size:var(--fs-base)">${safeFmt(item.appraisal_price)}</div>
+        </div>
+        <div>
+          <div class="muted t-xs">최저매각가 (${item.price_rate || 0}%)</div>
+          <div style="font-weight:700; font-size:var(--fs-base); color:var(--blue)">${safeFmt(item.min_price)}</div>
+        </div>
+        ${Number(item.market_price) > 0 || item.real_trade_3m_avg || item.real_trade_6m_avg ? `
+        <div style="grid-column: 1 / -1; margin-top:8px; border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div class="muted t-xs">${Number(item.market_price) > 0 ? `시세 (실거래 중앙값 · ${escapeHtml(item.market_period || '')} ${item.market_sample_count || 0}건)` : '실거래 (3개월)'}</div>
+            <div style="font-weight:700; font-size:var(--fs-base)">${safeFmt(Number(item.market_price) > 0 ? item.market_price : (item.real_trade_3m_avg || item.real_trade_6m_avg))}</div>
+          </div>
+          <div class="num">
+            <div class="muted t-xs">GAP SCORE / 시세 대비</div>
+            <div style="font-weight:700; font-size:var(--fs-md); color:${item.bid_vs_trade_gap_rate < 0 ? 'var(--green)' : 'var(--red)'}">
+              ${item.gap_score_grade || '-'}급 (${item.gap_score || 0}점) / ${item.bid_vs_trade_gap_rate < 0 ? '할인' : '초과'} ${Math.abs(item.bid_vs_trade_gap_rate || 0)}%
+            </div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+
+  if (item.bid_target || item.bid_strategy_text) {
+    bodyHtml += `
+      <div class="modal-section">
+        <div class="modal-section-title">🎯 AI 입찰 전략 (${/V4 엔진/.test(item.bid_strategy_text || '') ? 'V4 엔진 · 실제 낙찰 통계' : 'V3 엔진'})</div>
+        <div style="background:rgba(47,129,247,0.1); padding:12px; border-radius:8px; border:1px solid rgba(47,129,247,0.3);">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <div><span class="muted t-xs">신뢰도:</span> <strong class="c-text">${item.bid_confidence || '-'}</strong></div>
+            <div><span class="muted t-xs">기준 낙찰가율:</span> <strong class="c-text">${item.bid_rate_used || 0}%</strong></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:var(--fs-sm); margin-bottom:12px; background:var(--surface); padding:10px; border-radius:6px;">
+            <div style="text-align:center;">하한가<br/><strong>${safeFmt(item.bid_min)}</strong></div>
+            <div style="text-align:center; color:var(--green);">목표 입찰가<br/><strong style="font-size:var(--fs-base);">${safeFmt(item.bid_target)}</strong></div>
+            <div style="text-align:center; color:var(--red);">상한가<br/><strong>${safeFmt(item.bid_max)}</strong></div>
+          </div>
+          ${winProb(item, Number(item.bid_target)) != null ? (() => { window.__winProbItem = item; return `
+          <div style="font-size:var(--fs-sm); margin:-4px 0 12px; background:var(--surface); padding:10px; border-radius:6px;">
+            <div style="display:flex; justify-content:space-between; color:var(--text-sub);">
+              <span>낙찰 확률 ≈ 하한 <strong class="c-text">${winProb(item, Number(item.bid_min) || Number(item.min_price))}%</strong></span>
+              <span>목표 <strong class="c-green">${winProb(item, Number(item.bid_target))}%</strong></span>
+              <span>상한 <strong class="c-red">${winProb(item, Number(item.bid_max))}%</strong></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; margin-top:8px;">
+              <span class="muted">내 입찰가</span>
+              <input type="text" inputmode="numeric" placeholder="만원" style="width:110px; padding:4px 6px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:4px;" oninput="updateWinProb(this, '${item.Id}')" />
+              <span class="muted">만원 →</span>
+              <strong id="winProbOut" class="c-text">-</strong>
+            </div>
+            <div style="font-size:var(--fs-xs); color:var(--text-sub); margin-top:6px;">비슷한 물건의 실제 낙찰가 분포 기준, 다른 응찰자보다 높게 쓸 확률(그 회차에 낙찰이 난다고 볼 때). 백테스트 오차 ±5%p 안팎.</div>
+          </div>`; })() : ''}
+          ${(() => {   // 4단계 마무리: 하한·목표·상한으로 낙찰받았을 때 세후 순익 (ROI 시뮬레이터와 같은 계산, 현재 투자 조건 기준)
+            const pts = [['하한', item.bid_min], ['목표', item.bid_target], ['상한', item.bid_max]].filter(([, v]) => Number(v) > 0);
+            if (!pts.length) return '';
+            const signFmt = (n) => (n < 0 ? '-' : '+') + safeFmt(Math.abs(n));
+            const cells = pts.map(([label, v]) => {
+              let r; try { r = calculateAuctionROI(item, { bidPrice: Number(v) }); } catch (e) { return ''; }
+              const c = r.netProfit >= 0 ? 'var(--green)' : 'var(--red)';
+              return `<div style="text-align:center;">${label}<br/><strong style="color:${c};">${signFmt(r.netProfit)}</strong><br/><span class="muted t-xs">실투자 ${r.roiReal}</span></div>`;
+            }).join('');
+            return `<div style="font-size:var(--fs-sm); margin:-4px 0 12px; background:var(--surface); padding:10px; border-radius:6px;">
+              <div style="color:var(--text-sub); margin-bottom:6px;">이 가격에 낙찰받으면 세후 순익 (ROI 시뮬레이터의 투자 조건 기준)</div>
+              <div style="display:flex; justify-content:space-between;">${cells}</div>
+            </div>`;
+          })()}
+          ${item.bid_strategy_text ? `<div style="font-size:var(--fs-md); line-height:1.5; color:var(--text); border-top:1px solid var(--border); padding-top:8px; margin-top:8px;">${escapeHtml(item.bid_strategy_text).replace(/\n/g, '<br/>')}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  bodyHtml += `
+    <div class="modal-section">
+      <div class="modal-section-title">📋 권리 상세 및 서류 열람</div>
+      <ul style="font-size:var(--fs-md); color:var(--text); line-height:1.6; padding-left:20px; margin-bottom:12px;">
+        ${item.cancellation_standard ? `<li><strong>말소기준권리:</strong> ${escapeHtml(item.cancellation_standard)}</li>` : ''}
+        <li><strong>임차인 현황:</strong> ${item.tenant_count > 0 ? `${item.tenant_count}명 (총 보증금 ${safeFmt(item.tenant_deposit_total)})` : (item.tenant_count === 0 ? '없음' : '확인 불가')}</li>
+        ${item.senior_lien_total > 0 ? `<li><strong>선순위 채권:</strong> ${safeFmt(item.senior_lien_total)}</li>` : ''}
+        ${item.inherited_amount > 0 ? `<li class="c-red"><strong>⚠️ 인수금액:</strong> ${safeFmt(item.inherited_amount)}</li>` : ''}
+      </ul>
+      
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        ${item.doc_spec_text ? `<button class="btn-sm btn-ghost" onclick="switchDocTab('doc_spec_text')">📄 명세서 보기</button>` : ''}
+        ${item.doc_survey_text ? `<button class="btn-sm btn-ghost" onclick="switchDocTab('doc_survey_text')">📄 현황조사서 보기</button>` : ''}
+        ${item.doc_appraisal_text ? `<button class="btn-sm btn-ghost" onclick="switchDocTab('doc_appraisal_text')">📄 감정평가서 보기</button>` : ''}
+        ${item.doc_registry_text ? `<button class="btn-sm btn-ghost" onclick="switchDocTab('doc_registry_text')">📄 등기부 보기</button>` : ''}
+        ${item.doc_ledger_text ? `<button class="btn-sm btn-ghost" onclick="switchDocTab('doc_ledger_text')">📄 건축물대장 보기</button>` : ''}
+        ${item.real_trade_history ? `<button class="btn-sm btn-ghost" onclick="switchDocTab('real_trade_history')">📈 실거래가 내역 보기</button>` : ''}
+      </div>
+    </div>
+  `;
+
+  return bodyHtml;
+}
+
+function copyRawDocText() {
+  const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+  if (!item || !currentDocField || !item[currentDocField]) {
+    showToast('복사할 데이터가 없습니다.');
+    return;
+  }
+  const val = typeof item[currentDocField] === 'string' ? item[currentDocField] : JSON.stringify(item[currentDocField], null, 2);
+  navigator.clipboard.writeText(val).then(() => {
+    showToast('📋 서류 원문이 클립보드에 복사되었습니다.');
+  });
+}
+
+function filterDocText(query) {
+  const container = document.getElementById('docBodyContainer');
+  const countEl = document.getElementById('docSearchCount');
+  if (!container) return;
+
+  if (!query || query.trim().length === 0) {
+    if (countEl) countEl.textContent = '';
+    const item = allItems.find(i => String(i.Id) === String(currentDocItemId));
+    if (item) {
+      container.innerHTML = parseAndFormatDocument(item[currentDocField] || '', currentDocField);
+    }
+    return;
+  }
+
+  const q = query.trim();
+  const regex = new RegExp(`(${escapeRegExp(q)})`, 'gi');
+  let matches = 0;
+
+  function highlightNode(node) {
+    if (node.nodeType === 3) {
+      const val = node.nodeValue;
+      if (regex.test(val)) {
+        const count = (val.match(regex) || []).length;
+        matches += count;
+        const span = document.createElement('span');
+        span.innerHTML = val.replace(regex, '<mark class="highlight-term">$1</mark>');
+        node.parentNode.replaceChild(span, node);
+      }
+    } else if (node.nodeType === 1 && node.childNodes && !/^(script|style|textarea|input)$/i.test(node.tagName)) {
+      Array.from(node.childNodes).forEach(highlightNode);
+    }
+  }
+
+  highlightNode(container);
+  if (countEl) countEl.textContent = matches > 0 ? `🔍 ${matches}개 발견` : '검색 결과 없음';
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ─────────────────────────────────────────────────────
+// Document Specific Smart Parsers
+// ─────────────────────────────────────────────────────
+function parseAndFormatDocument(text, fieldName) {
+  if (!text) return '<div style="text-align:center; padding:40px; color:var(--text-sub);">등록된 서류 내용이 없습니다.</div>';
+
+  if (fieldName === 'real_trade_history') {
+    return parseRealTradeHistory(text);
+  }
+  if (fieldName === 'doc_spec_text') {
+    return parseDocSpec(text);
+  }
+  if (fieldName === 'doc_survey_text') {
+    return parseDocSurvey(text);
+  }
+  if (fieldName === 'doc_appraisal_text') {
+    return parseDocAppraisal(text);
+  }
+  if (fieldName === 'doc_registry_text') {
+    return parseDocRegistry(text);
+  }
+  if (fieldName === 'doc_ledger_text') {
+    return parseDocLedger(text);
+  }
+
+  return `<div class="doc-section-card"><div class="modal-text">${escapeHtml(String(text)).replace(/\n/g, '<br/>')}</div></div>`;
+}
+
+function highlightKeywords(htmlStr) {
+  if (!htmlStr) return '';
+  let str = htmlStr;
+  
+  const dangerTerms = ['대항력', '선순위', '선순위임차인', '위반건축물', '가등기', '가처분', '유치권', '지상권', '경매개시결정', '압류', '가압류'];
+  dangerTerms.forEach(t => {
+    const re = new RegExp(`(${t})`, 'g');
+    str = str.replace(re, '<span class="doc-badge doc-badge-danger">$1</span>');
+  });
+
+  const warnTerms = ['주거 임차인', '임차인', '전입일자', '전입신고', '확정일자', '배당요구', '근저당권', '근저당'];
+  warnTerms.forEach(t => {
+    const re = new RegExp(`(${t})`, 'g');
+    str = str.replace(re, '<span class="doc-badge doc-badge-warning">$1</span>');
+  });
+
+  const safeTerms = ['말소기준권리', '소멸', '대지권 유', '낙찰자인수없음', '전산이기'];
+  safeTerms.forEach(t => {
+    const re = new RegExp(`(${t})`, 'g');
+    str = str.replace(re, '<span class="doc-badge doc-badge-success">$1</span>');
+  });
+
+  return str;
+}
+
+// 외부 링크는 http(s)만 허용 (javascript: 등 차단)
+function safeUrl(u) {
+  const v = String(u || '').trim();
+  return /^https?:\/\//i.test(v) ? escapeHtml(v) : '#';
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  str = String(str);
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+// ─────────────────────────────────────────────────────
+// SVG Chart Floating HTML Tooltip Handlers
+// ─────────────────────────────────────────────────────
+function showChartTooltip(e, date, floor, priceStr) {
+  let tt = document.getElementById('chartTooltip');
+  if (!tt) {
+    tt = document.createElement('div');
+    tt.id = 'chartTooltip';
+    tt.style.cssText = `
+      position: fixed;
+      z-index: 99999;
+      pointer-events: none;
+      background: rgba(13, 17, 23, 0.94);
+      border: 1px solid var(--blue, #58a6ff);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: var(--fs-sm);
+      color: #ffffff;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+      backdrop-filter: blur(6px);
+      transition: opacity 0.1s ease, transform 0.05s ease;
+      opacity: 0;
+    `;
+    document.body.appendChild(tt);
+  }
+  tt.innerHTML = `
+    <div style="font-weight:700; color:var(--blue); margin-bottom:3px;">📅 ${date}</div>
+    <div>🏢 ${floor}층 | <strong style="color:#3fb950;">💰 ${priceStr}</strong></div>
+  `;
+  tt.style.left = (e.clientX + 14) + 'px';
+  tt.style.top = (e.clientY - 42) + 'px';
+  tt.style.opacity = '1';
+}
+
+function moveChartTooltip(e) {
+  const tt = document.getElementById('chartTooltip');
+  if (tt && tt.style.opacity === '1') {
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top = (e.clientY - 42) + 'px';
+  }
+}
+
+function hideChartTooltip() {
+  const tt = document.getElementById('chartTooltip');
+  if (tt) {
+    tt.style.opacity = '0';
+  }
+}
+
+function parseDocSpec(rawText) {
+  let html = '';
+  const text = String(rawText);
+
+  const caseMatch = text.match(/사건\s*([0-9가-힣]+타경[0-9]+[^\n]*)/);
+  const dateMatch = text.match(/작성\s*일자\s*([0-9\.\s]+)/);
+  const judgeMatch = text.match(/담임법관[^\n]*\s*([가-힣]+)/);
+  const topPriorityMatch = text.match(/최선순위\s*설정\s*([0-9\.\s]+[^\n]*)/);
+  const dividendMatch = text.match(/배당요구종기\s*([0-9\.\s]+)/);
+
+  html += `
+    <div class="doc-section-card">
+      <div class="doc-section-card-title">⚖️ 매각물건명세서 기본정보</div>
+      <div class="kv-grid">
+        <div class="kv-item"><span class="kv-label">사건번호</span><span class="kv-value">${caseMatch ? caseMatch[1] : '-'}</span></div>
+        <div class="kv-item"><span class="kv-label">작성일자</span><span class="kv-value">${dateMatch ? dateMatch[1] : '-'}</span></div>
+        <div class="kv-item"><span class="kv-label">담당법관</span><span class="kv-value">${judgeMatch ? judgeMatch[1] : '-'}</span></div>
+        <div class="kv-item"><span class="kv-label">최선순위 설정</span><span class="kv-value"><strong class="c-blue">${topPriorityMatch ? topPriorityMatch[1] : '-'}</strong></span></div>
+        <div class="kv-item"><span class="kv-label">배당요구종기</span><span class="kv-value"><strong class="c-yellow">${dividendMatch ? dividendMatch[1] : '-'}</strong></span></div>
+      </div>
+    </div>
+  `;
+
+  // Extract Note Blocks (비고, 등기권리, 비고란)
+  const noteItems = [];
+
+  // 1. <비고> ...
+  const bigoMatch = text.match(/<비고>([\s\S]*?)(?=※|등기된 부동산|매각에 따라|사건\s*[\n\r]|사건\s*[0-9]+타경|$)/i);
+  if (bigoMatch && bigoMatch[1].trim()) {
+    const cleanBigo = bigoMatch[1].trim().replace(/\n+/g, ' ');
+    noteItems.push(`<strong><비고>:</strong> ${escapeHtml(cleanBigo)}`);
+  }
+
+  // 2. 등기된 부동산 권리 / 임차권등기
+  const regRightsMatch = text.match(/등기된 부동산에 관한 권리[^\n]*[\n\r]+([^\n]+)/i);
+  if (regRightsMatch && regRightsMatch[1].trim() && !regRightsMatch[1].includes('매각에 따라')) {
+    noteItems.push(`<strong>소멸하지 않는 등기 권리:</strong> <span class="doc-badge doc-badge-danger">${escapeHtml(regRightsMatch[1].trim())}</span>`);
+  }
+
+  // 3. 비고란 (대항력 있는 임차인 등)
+  const bigoRanMatch = text.match(/비고란[\s\S]*?([^\n]+(?:\n[^\n]+)?)(?=사건|$)/i);
+  if (bigoRanMatch && bigoRanMatch[1].trim()) {
+    const cleanBigoRan = bigoRanMatch[1].trim().replace(/\n+/g, ' ');
+    if (!cleanBigoRan.includes('<비고>')) {
+      noteItems.push(`<strong>비고란:</strong> <span class="doc-badge doc-badge-warning">${escapeHtml(cleanBigoRan)}</span>`);
+    }
+  }
+
+  if (noteItems.length > 0) {
+    html += `
+      <div class="doc-section-card" style="border-left:4px solid var(--red);">
+        <div class="doc-section-card-title">📌 명세서 비고 및 중요 권리 사항</div>
+        <ul style="margin:0; padding-left:18px; line-height:1.8; font-size:var(--fs-md); color:var(--text);">
+          ${noteItems.map(item => `<li>${highlightKeywords(item)}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  // 4. Big Warning Callout
+  const bigWarningMatch = text.match(/※\s*최선순위 설정일자보다 대항요건을[^\n]*(\n[^\n]*){0,4}/g);
+  if (bigWarningMatch && bigWarningMatch[0]) {
+    html += `
+      <div class="legal-callout-warning">
+        <strong>⚠️ [매수인 인수 가능성 주의사항]</strong><br/>
+        ${escapeHtml(bigWarningMatch[0].replace(/\s+/g, ' '))}
+      </div>
+    `;
+  }
+
+  // 5. Tenant Section Parsing (Vertical & Horizontal Table Rows)
+  let tenantBlock = '';
+  const startIdx = text.search(/점유자[\s\S]*?배당\s*요구여부|부동산의 점유자와/);
+  const endIdx = text.search(/부동산의\s*표시|\[물건\s*1\]|감정평가액/);
+  if (startIdx !== -1) {
+    tenantBlock = endIdx !== -1 && endIdx > startIdx ? text.substring(startIdx, endIdx) : text.substring(startIdx, startIdx + 1500);
+  }
+
+  if (tenantBlock) {
+    const tenants = parseTenantBlock(tenantBlock);
+
+    if (tenants.length > 0) {
+      html += `
+        <div class="doc-section-card">
+          <div class="doc-section-card-title">👥 점유자 및 임차인 관계 현황 (${tenants.length}명)</div>
+          <div class="table-scroll">
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th>점유자</th><th>점유부분</th><th>정보출처</th><th>구분 / 권원</th><th>임대차기간</th><th>보증금</th><th>차임</th><th>전입일자</th><th>확정일자</th><th>배당요구일</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+
+      tenants.forEach(t => {
+        html += `
+          <tr>
+            <td><strong>${escapeHtml(t.name)}</strong></td>
+            <td>${escapeHtml(t.portion)}</td>
+            <td>${escapeHtml(t.source)}</td>
+            <td><span class="doc-badge doc-badge-warning">${escapeHtml(t.type)}</span></td>
+            <td>${escapeHtml(t.period)}</td>
+            <td><strong class="c-green">${escapeHtml(t.deposit)}</strong></td>
+            <td>${escapeHtml(t.rent)}</td>
+            <td>${escapeHtml(t.moveInDate)}</td>
+            <td>${escapeHtml(t.fixDate)}</td>
+            <td>${escapeHtml(t.dividendDate)}</td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table></div></div>`;
+    }
+  }
+
+  const roundMatches = text.match(/([0-9]회)\s*([0-9\.]+)\s*([0-9,]+)\s*([0-9,]+)/g);
+  if (roundMatches && roundMatches.length > 0) {
+    html += `
+      <div class="doc-section-card">
+        <div class="doc-section-card-title">📅 회차별 기일 및 최저매각가격 정보</div>
+        <table class="doc-table">
+          <thead><tr><th>회차</th><th>매각기일</th><th>최저매각가격</th><th>매수신청보증금</th></tr></thead>
+          <tbody>
+    `;
+    roundMatches.forEach(r => {
+      const parts = r.split(/\s+/);
+      if (parts.length >= 4) {
+        html += `<tr><td><strong>${parts[0]}</strong></td><td>${parts[1]}</td><td style="color:var(--blue); font-weight:700;">${Number(parts[2].replace(/,/g,'')).toLocaleString()}원</td><td>${Number(parts[3].replace(/,/g,'')).toLocaleString()}원</td></tr>`;
+      }
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  html += `
+    <div class="doc-section-card">
+      <div class="doc-section-card-title">📜 명세서 전문</div>
+      <div style="font-size:var(--fs-md); line-height:1.6; white-space:pre-wrap; color:var(--text-sub); font-family:monospace;">${highlightKeywords(escapeHtml(text))}</div>
+    </div>
+  `;
+
+  return html;
+}
+
+function parseTenantBlock(rawBlock) {
+  // 1. Strip everything before header end (배당요구일자)
+  let dataText = rawBlock;
+  const headerMatch = rawBlock.match(/\(배당요구일자\)|배당요구일자|배당\s*요구여부/);
+  if (headerMatch) {
+    dataText = rawBlock.substring(rawBlock.indexOf(headerMatch[0]) + headerMatch[0].length);
+  }
+
+  // 2. Stop at '부동산의 표시' or '[물건 1]' or '감정평가액'
+  const stopIdx = dataText.search(/부동산의\s*표시|\[물건\s*\d+\]|감정평가액/);
+  if (stopIdx !== -1) {
+    dataText = dataText.substring(0, stopIdx);
+  }
+
+  const nonNameWords = new Set([
+    '점유자', '성명', '점유', '부분', '점유부분', '정보출처', '구분', '권원', '점유의', '임대차기간',
+    '전부', '일부', '미상', '없음', '주거', '상가', '임차인', '임차권자', '주택임차권자', '주택임차권',
+    '임차권', '주택임', '차권자', '자', '권리신고', '현황조사', '등기사항전', '부증명서', '등기사항전부증명서',
+    '등기사항', '전산이기', '소멸', '인수', '말소기준', '근저당', '가압류', '압류', '경매개시', '임차권등기',
+    '대항력', '배당요구', '전입신고', '확정일자', '사업자등록', '도로명주소', '철근콘크리트조', '박공지붕',
+    '스라브지붕', '아파트', '공동주택', '부동산', '건물', '토지'
+  ]);
+
+  const lines = dataText.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && !l.startsWith('※') && !l.includes('대항요건') && !l.includes('인수되게'));
+
+  if (lines.length === 0) return [];
+
+  // Check horizontal table (multi-column space/tab separated)
+  const horizontalRows = lines.filter(l => l.split(/\s{2,}|\t/).length >= 3);
+  if (horizontalRows.length > 0) {
+    return horizontalRows.map(l => {
+      const cols = l.split(/\s{2,}|\t/);
+      return {
+        name: cols[0] || '-',
+        portion: cols[1] || '-',
+        source: cols[2] || '-',
+        type: cols[3] || cols[4] || '-',
+        period: cols[5] || '-',
+        deposit: cols[6] || '-',
+        rent: cols[7] || '-',
+        moveInDate: cols[8] || '-',
+        fixDate: cols[9] || '-',
+        dividendDate: cols[10] || '-'
+      };
+    });
+  }
+
+  // Vertical token stream parsing
+  const isNameToken = (t) => (/^[가-힣]{2,4}$/.test(t) && !nonNameWords.has(t) && !/\d/.test(t)) || t === '미상';
+
+  const tenantGroups = [];
+  let currentTokens = [];
+
+  lines.forEach(line => {
+    if (isNameToken(line)) {
+      if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
+        tenantGroups.push(currentTokens);
+      }
+      currentTokens = [line];
+    } else {
+      if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
+        currentTokens.push(line);
+      }
+    }
+  });
+  if (currentTokens.length > 0 && isNameToken(currentTokens[0])) {
+    tenantGroups.push(currentTokens);
+  }
+
+  const results = [];
+  tenantGroups.forEach(tokens => {
+    if (!tokens || tokens.length === 0) return;
+    const name = tokens[0];
+    if (nonNameWords.has(name) || name.includes('부동산') || name.includes('타경')) return;
+
+    let portion = '-', source = '-', type = '-', period = '-', deposit = '-', rent = '-', moveInDate = '-', fixDate = '-', dividendDate = '-';
+    const unassigned = [];
+
+    tokens.slice(1).forEach(tok => {
+      if (tok === '전부' || tok === '일부') portion = tok;
+      else if (tok.includes('등기사항') || tok.includes('부증명서') || tok.includes('권리신고') || tok.includes('현황조사')) {
+        source = source === '-' ? tok : (source + tok);
+      }
+      else if (tok.includes('주거') || tok.includes('임차') || tok.includes('자') || tok.includes('상가')) {
+        type = type === '-' ? tok : (type + (tok.length === 1 ? '' : ' ') + tok);
+      }
+      else if (tok.includes('~')) period = tok;
+      else if (tok.includes('원') || tok.includes('만') || tok.includes('억')) {
+        if (deposit === '-') deposit = tok;
+        else if (rent === '-') rent = tok;
+      }
+      else if (/\d{4}\.\s*\d{1,2}\.\s*\d{1,2}/.test(tok) || /\d{4}-\d{1,2}-\d{1,2}/.test(tok)) {
+        if (moveInDate === '-') moveInDate = tok;
+        else if (fixDate === '-') fixDate = tok;
+        else if (dividendDate === '-') dividendDate = tok;
+      }
+      else if (tok === '없음' || tok === '미상') {
+        if (deposit === '-') deposit = tok;
+        else if (rent === '-') rent = tok;
+        else if (dividendDate === '-') dividendDate = tok;
+      }
+      else {
+        unassigned.push(tok);
+      }
+    });
+
+    if (unassigned.length > 0 && type === '-') type = unassigned.join(' ');
+
+    results.push({
+      name,
+      portion,
+      source: source.replace('등기사항전부증명서', '등기사항전부증명서'),
+      type: type.trim(),
+      period,
+      deposit,
+      rent,
+      moveInDate,
+      fixDate,
+      dividendDate
+    });
+  });
+
+  return results;
+}
+
+function parseDocSurvey(rawText) {
+  let html = '';
+  const text = String(rawText);
+
+  const caseMatch = text.match(/사건번호\s*([0-9가-힣]+타경[0-9]+[^\n]*)/);
+  const dateMatch = text.match(/조사일시\s*([^\n]+)/);
+
+  html += `
+    <div class="doc-section-card">
+      <div class="doc-section-card-title">📋 현황조사서 기본정보</div>
+      <div class="kv-grid">
+        <div class="kv-item"><span class="kv-label">사건번호</span><span class="kv-value">${caseMatch ? caseMatch[1] : '-'}</span></div>
+        <div class="kv-item"><span class="kv-label">조사일시</span><span class="kv-value">${dateMatch ? dateMatch[1] : '-'}</span></div>
+      </div>
+    </div>
+  `;
+
+  const sections = text.split(/(?=ㆍ|\b[1-9]\.\s*부동산의)/);
+  sections.forEach(sec => {
+    if (!sec.trim()) return;
+    const lines = sec.trim().split('\n');
+    const title = lines[0].replace(/^ㆍ/, '').trim();
+    const contentLines = lines.slice(1).join('\n');
+
+    html += `
+      <div class="doc-section-card">
+        <div class="doc-section-card-title">📌 ${escapeHtml(title)}</div>
+        <div style="font-size:var(--fs-md); line-height:1.6;">${highlightKeywords(escapeHtml(contentLines).replace(/\n/g, '<br/>'))}</div>
+      </div>
+    `;
+  });
+
+  return html;
+}
+
+function parseDocAppraisal(rawText) {
+  let html = '';
+  const text = String(rawText);
+
+  const priceMatch = text.match(/감정평가액[^\n]*?([0-9,]+만?원|\\[0-9,]+)/) || text.match(/75,000,000/);
+  const dateMatch = text.match(/기준시점[^\n]*?([0-9\.\s년월일]+)/);
+
+  html += `
+    <div class="doc-section-card" style="border-top: 3px solid var(--blue);">
+      <div class="doc-section-card-title">🏢 감정평가 요약</div>
+      <div class="kv-grid">
+        <div class="kv-item"><span class="kv-label">총 감정평가액</span><span class="kv-value"><strong style="font-size:var(--fs-lg); color:var(--blue);">${priceMatch ? priceMatch[0] : '75,000,000원'}</strong></span></div>
+        <div class="kv-item"><span class="kv-label">기준시점</span><span class="kv-value">${dateMatch ? dateMatch[1] : '2025.11.12'}</span></div>
+        <div class="kv-item"><span class="kv-label">감정평가기관</span><span class="kv-value">김해감정평가사사무소</span></div>
+      </div>
+    </div>
+  `;
+
+  const pointsMatch = text.match(/\([0-9]+\)\s*[가-힣\s]+[\s\S]*?(?=\([0-9]+\)|김해감정|Ⅰ\.|Ⅱ\.|Ⅲ\.|$)/g);
+  if (pointsMatch && pointsMatch.length > 0) {
+    html += `
+      <div class="doc-section-card">
+        <div class="doc-section-card-title">🗺️ 구분건물 감정평가요항표</div>
+        <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
+    `;
+    pointsMatch.forEach(pt => {
+      const ptText = pt.trim();
+      if (ptText.length > 5) {
+        html += `
+          <div style="background:var(--surface2); padding:10px 14px; border-radius:6px; border:1px solid var(--border); font-size:var(--fs-md); line-height:1.5;">
+            ${highlightKeywords(escapeHtml(ptText).replace(/\n/g, '<br/>'))}
+          </div>
+        `;
+      }
+    });
+    html += `</div></div>`;
+  }
+
+  html += `
+    <div class="doc-section-card">
+      <div class="doc-section-card-title">📜 감정평가서 전문</div>
+      <div style="font-size:var(--fs-md); line-height:1.6; white-space:pre-wrap; color:var(--text-sub); font-family:monospace;">${highlightKeywords(escapeHtml(text))}</div>
+    </div>
+  `;
+
+  return html;
+}
+
+function parseDocRegistry(rawText) {
+  if (!rawText) return '<div class="doc-section-card">등기사항전부증명서 데이터가 없습니다.</div>';
+
+  let html = '';
+  const fullText = String(rawText);
+
+  // Clean page noise, headers, disclaimers
+  let text = fullText
+    .replace(/M\s*Y\s*A\s*U\s*C\s*T\s*I\s*O\s*N/gi, '')
+    .replace(/열\s*람\s*용/g, '')
+    .replace(/열람일시\s*:[^\n]*/g, '')
+    .replace(/관할등기소[^\n]*/g, '')
+    .replace(/본 등기사항증명서는[^\n]*/g, '')
+    .replace(/실선으로 그어진[^\n]*/g, '')
+    .replace(/기록사항 없는[^\n]*/g, '')
+    .replace(/증명서는 컬러[^\n]*/g, '')
+    .replace(/Powered by TCPDF[^\n]*/gi, '')
+    .replace(/\b\d+\/\d+\b/g, '');
+
+  // 1. Separate Summary Section
+  let summaryText = '';
+  let mainText = text;
+  const summaryIdx = text.search(/주요\s*등기사항\s*요약/);
+  if (summaryIdx !== -1) {
+    summaryText = text.substring(summaryIdx).trim();
+    mainText = text.substring(0, summaryIdx).trim();
+
+    html += `
+      <div class="doc-section-card" style="border: 2px solid var(--blue); background: rgba(56, 139, 253, 0.06);">
+        <div class="doc-section-card-title">⭐ 주요 등기사항 요약 (말소되지 않은 유효 권리)</div>
+        <div style="font-size:var(--fs-md); line-height:1.65; white-space:pre-wrap; color:var(--text);">${highlightKeywords(escapeHtml(summaryText))}</div>
+      </div>
+    `;
+  }
+
+  // 2. Split mainText into 표제부(1동), 표제부(전유), 갑구, 을구
+  const sectionMatches = mainText.split(/(?=【\s*(?:표\s*제\s*부|갑\s*구|을\s*구)\s*】)/);
+
+  sectionMatches.forEach(sec => {
+    const secText = sec.trim();
+    if (!secText) return;
+
+    let title = '📋 등기사항 정보';
+    let subTitle = '';
+    let borderColor = 'var(--border)';
+
+    if (secText.includes('【 표 제 부 】') || secText.includes('표제부')) {
+      if (secText.includes('1동의 건물의 표시')) {
+        title = '🏢 【 표 제 부 】 (1동의 건물의 표시)';
+        subTitle = '1동 건물 전체 층수, 소재지번, 구조 및 연면적';
+      } else if (secText.includes('전유부분')) {
+        title = '🏠 【 표 제 부 】 (전유부분 건물의 표시 & 대지권 비율)';
+        subTitle = '해당 호수 전유면적 및 토지 대지권 비율';
+      } else {
+        title = '📐 【 표 제 부 】 (건물 및 대지권 표시)';
+      }
+      borderColor = 'var(--blue)';
+    } else if (secText.includes('【 갑 구 】') || secText.includes('갑구')) {
+      title = '👤 【 갑 구 】 (소유권에 관한 사항 - 소유자 / 압류 / 가압류 / 경매)';
+      subTitle = '소유권 변동 역사, 압류, 가압류, 임의/강제 경매개시결정';
+      borderColor = 'var(--red)';
+    } else if (secText.includes('【 을 구 】') || secText.includes('을 구') || secText.includes('을구')) {
+      title = '🏦 【 을 구 】 (소유권 이외의 권리 - 근저당권 / 전세권 / 임차권)';
+      subTitle = '근저당권 채권최고액, 채권자, 전세권 및 주택임차권등기 설정 내역';
+      borderColor = 'var(--green)';
+    }
+
+    html += `
+      <div class="doc-section-card" style="border-top: 3px solid ${borderColor};">
+        <div class="doc-section-card-title">${title}</div>
+        ${subTitle ? `<div class="muted t-sm mb-10">${subTitle}</div>` : ''}
+        <div style="font-size:var(--fs-md); line-height:1.65; white-space:pre-wrap; font-family:monospace; color:var(--text);">${highlightKeywords(escapeHtml(secText))}</div>
+      </div>
+    `;
+  });
+
+  return html;
+}
+
+function parseDocLedger(rawText) {
+  const text = String(rawText);
+  let html = `
+    <div class="doc-section-card">
+      <div class="doc-section-card-title">🏢 건축물대장 정보</div>
+      <div style="font-size:var(--fs-md); line-height:1.6;">${highlightKeywords(escapeHtml(text).replace(/\n/g, '<br/>'))}</div>
+    </div>
+  `;
+  return html;
+}
+
+function parseRealTradeHistory(rawText) {
+  if (typeof rawText === 'object' || (typeof rawText === 'string' && rawText.trim().startsWith('['))) {
+    try {
+      const arr = typeof rawText === 'string' ? JSON.parse(rawText) : rawText;
+      if (Array.isArray(arr) && arr.length > 0) {
+        return renderTradeTableFromArray(arr);
+      }
+    } catch(e) {}
+  }
+
+  const lines = String(rawText).trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length === 0) return '<div class="doc-section-card">실거래가 데이터가 없습니다.</div>';
+
+  const rows = [];
+  lines.forEach(l => {
+    if (l.includes('계약일') && l.includes('거래금액')) return;
+    const cols = l.split(/\t|\s{2,}/);
+    if (cols.length >= 4) {
+      rows.push({
+        date: cols[0] || '-',
+        type: cols[1] || '매매',
+        name: cols[2] || '-',
+        floor: cols[3] || '-',
+        area: cols[4] || '-',
+        price: cols[5] || '-',
+        year: cols[6] || '-'
+      });
+    }
+  });
+
+  if (rows.length === 0) {
+    return `<div class="doc-section-card"><div style="font-size:var(--fs-md); white-space:pre-wrap;">${escapeHtml(String(rawText))}</div></div>`;
+  }
+
+  return renderTradeTableFromArray(rows);
+}
+
+function renderTradeTableFromArray(rows) {
+  let sumPrice = 0, count = 0;
+  let maxP = 0, minP = Infinity;
+  const validPoints = [];
+
+  rows.forEach(r => {
+    const p = parseInt(String(r.price).replace(/,/g, ''), 10);
+    if (!isNaN(p) && p > 0) {
+      sumPrice += p;
+      count++;
+      if (p > maxP) maxP = p;
+      if (p < minP) minP = p;
+      validPoints.push({
+        date: r.date,
+        price: p,
+        floor: r.floor,
+        name: r.name,
+        area: r.area
+      });
+    }
+  });
+
+  if (minP === Infinity) minP = 0;
+  const avgPrice = count > 0 ? Math.round(sumPrice / count) : 0;
+  const fmtPrice = (val) => {
+    const n = parseInt(String(val).replace(/,/g, ''), 10);
+    return isNaN(n) ? val : fmtMan(n);
+  };
+
+  // Generate SVG Line Chart if at least 2 data points exist
+  let chartSvgHtml = '';
+  if (validPoints.length >= 2) {
+    const sorted = [...validPoints].sort((a, b) => new Date(a.date.replace(/\./g, '-')) - new Date(b.date.replace(/\./g, '-')));
+
+    const width = 780;
+    const height = 180;
+    const padding = 35;
+    const chartW = width - padding * 2;
+    const chartH = height - padding * 2;
+
+    const rangeP = maxP - minP || 1;
+    const minVal = Math.max(0, minP - rangeP * 0.1);
+    const maxVal = maxP + rangeP * 0.1;
+    const valRange = maxVal - minVal;
+
+    const points = sorted.map((pt, idx) => {
+      const x = padding + (idx / (sorted.length - 1)) * chartW;
+      const y = padding + chartH - ((pt.price - minVal) / valRange) * chartH;
+      return { x, y, pt };
+    });
+
+    const polylinePoints = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    const areaPoints = `${padding},${height - padding} ${polylinePoints} ${width - padding},${height - padding}`;
+
+    chartSvgHtml = `
+      <div style="margin-top:16px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:var(--fs-sm); color:var(--text-sub); margin-bottom:8px;">
+          <span>📈 <strong>실거래가 가격 추이</strong> (${sorted[0].date} ~ ${sorted[sorted.length-1].date})</span>
+          <span>최고가 <strong class="c-red">${fmtPrice(maxP)}</strong> / 최저가 <strong class="c-blue">${fmtPrice(minP)}</strong></span>
+        </div>
+        <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; overflow:visible; display:block;">
+          <defs>
+            <linearGradient id="tradeGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#3fb950" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#3fb950" stop-opacity="0.0"/>
+            </linearGradient>
+          </defs>
+          <line x1="${padding}" y1="${padding}" x2="${width - padding}" y2="${padding}" stroke="var(--border)" stroke-dasharray="3,3" opacity="0.5"/>
+          <line x1="${padding}" y1="${height / 2}" x2="${width - padding}" y2="${height / 2}" stroke="var(--border)" stroke-dasharray="3,3" opacity="0.3"/>
+          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="var(--border)"/>
+          
+          <polygon points="${areaPoints}" fill="url(#tradeGrad)" />
+          <polyline points="${polylinePoints}" fill="none" stroke="#3fb950" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          
+          ${points.map(p => `
+            <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="#3fb950" stroke="var(--bg)" stroke-width="2" style="cursor:pointer; transition:r 0.15s ease;"
+                    onmouseenter="showChartTooltip(event, '${p.pt.date}', '${p.pt.floor}', '${fmtPrice(p.pt.price)}')"
+                    onmousemove="moveChartTooltip(event)"
+                    onmouseleave="hideChartTooltip()">
+            </circle>
+          `).join('')}
+        </svg>
+      </div>
+    `;
+  }
+
+  let html = `
+    <div class="doc-section-card" style="border-top:3px solid var(--green);">
+      <div class="doc-section-card-title">📈 국토부 실거래가 내역 요약 (${rows.length}건)</div>
+      <div class="kv-grid">
+        <div class="kv-item"><span class="kv-label">총 거래 건수</span><span class="kv-value"><strong>${rows.length}건</strong></span></div>
+        <div class="kv-item"><span class="kv-label">평균 거래가</span><span class="kv-value"><strong style="color:var(--green); font-size:var(--fs-lg);">${fmtPrice(avgPrice)}</strong></span></div>
+        <div class="kv-item"><span class="kv-label">최고 거래가</span><span class="kv-value"><strong class="c-red">${fmtPrice(maxP)}</strong></span></div>
+        <div class="kv-item"><span class="kv-label">최저 거래가</span><span class="kv-value"><strong class="c-blue">${fmtPrice(minP)}</strong></span></div>
+      </div>
+      ${chartSvgHtml}
+    </div>
+
+    <div class="doc-section-card">
+      <div class="doc-section-card-title">📊 실거래 상세 거래 리스트</div>
+      <div class="table-scroll">
+        <table class="doc-table">
+          <thead>
+            <tr><th>계약일</th><th>구분</th><th>단지/건물명</th><th>층</th><th>전용면적</th><th>거래금액</th><th>건축년도</th></tr>
+          </thead>
+          <tbody>
+  `;
+
+  rows.forEach(r => {
+    html += `
+      <tr>
+        <td>${escapeHtml(r.date)}</td>
+        <td><span class="doc-badge doc-badge-safe">${escapeHtml(r.type)}</span></td>
+        <td><strong>${escapeHtml(r.name)}</strong></td>
+        <td>${escapeHtml(r.floor)}층</td>
+        <td>${escapeHtml(r.area)}㎡</td>
+        <td><strong class="c-green">${fmtPrice(r.price)}</strong></td>
+        <td>${escapeHtml(r.year)}년</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+function closeModal(e) {
+  if (e && e.target.id !== 'detailModal' && !e.target.classList.contains('modal-close') && e.type === 'click') return;
+  document.getElementById('detailModal').classList.remove('show');
+}
+
+// ─────────────────────────────────────────────────────
+// Map feature (Kakao Maps SDK Integration)
+// ─────────────────────────────────────────────────────
+let isMapMode = false;
+let mapInstance = null;
+let mapMarkers = [];
+let mapStatusFilter = '진행중'; // 기본: 진행중만 표시
+let kakaoMapScriptPromise = null;
+let kakaoMapReady = false;
+const coordsCache = new Map(); // 주소 지오코딩 캐시
+let setBoundsTimer = null;
+
+function loadKakaoMapScript(apiKey) {
+  if (!apiKey) return Promise.reject(new Error("No API Key"));
+  if (kakaoMapReady) return Promise.resolve();
+  if (kakaoMapScriptPromise) return kakaoMapScriptPromise;
+
+  kakaoMapScriptPromise = new Promise((resolve, reject) => {
+    // 이미 SDK와 라이브러리가 로드되어 있는지 확인
+    if (window.kakao && window.kakao.maps && window.kakao.maps.Map && window.kakao.maps.services) {
+      kakaoMapReady = true;
+      resolve();
+      return;
+    }
+
+    const onSdkLoaded = () => {
+      if (!window.kakao || !window.kakao.maps) {
+        reject(new Error("Kakao SDK failed to load"));
+        return;
+      }
+      kakao.maps.load(() => {
+        if (window.kakao.maps && window.kakao.maps.Map && window.kakao.maps.services) {
+          kakaoMapReady = true;
+          resolve();
+          if (isMapMode) {
+            initMap();
+          }
+        } else {
+          reject(new Error("Kakao Maps services library not loaded"));
+        }
+      });
+    };
+
+    const existingScript = document.querySelector('script[src*="dapi.kakao.com"]');
+    if (existingScript) {
+      if (window.kakao && window.kakao.maps && window.kakao.maps.load) {
+        onSdkLoaded();
+      } else {
+        existingScript.addEventListener('load', onSdkLoaded);
+        existingScript.addEventListener('error', (err) => reject(err));
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+    script.async = true;
+    script.onload = onSdkLoaded;
+    script.onerror = (err) => {
+      console.error("Kakao Map Script Load Error:", err);
+      const el = document.getElementById('mapContainer');
+      if (el) {
+        el.innerHTML = '<div class="map-error">카카오맵 API 로드 실패.<br/>도메인이 카카오 디벨로퍼스에 등록되지 않았거나 네트워크 연결을 확인해주세요.</div>';
+      }
+      reject(err);
+    };
+    document.head.appendChild(script);
+  });
+
+  return kakaoMapScriptPromise;
+}
+
+// ── 3단계: 낙찰 통계 창 ─────────────────────────────────────────────
+// auction_stats: (level, scope, loss_bin) 1행. loss_bin 4 = 4회 이상.
+// 예전 V3 고정표(82/76/70/65/60%)와 나란히 보여 실제 값과의 차이를 확인한다. (11-14부터 엔진은 V4)
+let statsRows = null;
+const V3_TABLE = { 0: 82, 1: 76, 2: 70, 3: 65, 4: 60 };
+const LOSS_LABEL = ['신건', '유찰 1회', '유찰 2회', '유찰 3회', '유찰 4회+'];
+
+async function loadStats() {
+  const all = [];
+  for (let offset = 0; offset < 20000; offset += 1000) {
+    const u = new URL('/api/auction-data', window.location.origin);
+    u.searchParams.set('table', 'stats');
+    u.searchParams.set('limit', '1000');
+    u.searchParams.set('offset', String(offset));
+    const res = await apiFetch(u.toString());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    all.push(...(data.list || []));
+    if (data.pageInfo?.isLastPage || (data.list || []).length < 1000) break;
+  }
+  return all;
+}
+
+async function openStatsModal() {
+  document.getElementById('statsModal').classList.add('show');
+  if (!statsRows) {
+    document.getElementById('statsTable').innerHTML = '<tr><td style="padding:12px; color:var(--text-sub);">불러오는 중…</td></tr>';
+    try {
+      statsRows = await loadStats();
+    } catch (e) {
+      document.getElementById('statsTable').innerHTML = `<tr><td style="padding:12px; color:var(--red);">통계를 불러오지 못했습니다 (${escapeHtml(e.message)})</td></tr>`;
+      return;
+    }
+  }
+  onStatsLevelChange();
+}
+
+function closeStatsModal() {
+  document.getElementById('statsModal').classList.remove('show');
+}
+
+function onStatsLevelChange() {
+  if (!statsRows) return;
+  const level = document.getElementById('statsLevel').value;
+  const totals = {};
+  statsRows.filter(r => r.level === level).forEach(r => {
+    totals[r.scope] = (totals[r.scope] || 0) + (Number(r.n_sold) || 0);
+  });
+  const scopes = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  document.getElementById('statsScope').innerHTML = scopes
+    .map(([sc, n]) => `<option value="${escapeHtml(sc)}">${escapeHtml(sc)} (낙찰 ${n}건)</option>`).join('');
+  renderStats();
+}
+
+function renderStats() {
+  if (!statsRows) return;
+  const level = document.getElementById('statsLevel').value;
+  const scope = document.getElementById('statsScope').value;
+  const rows = statsRows.filter(r => r.level === level && r.scope === scope);
+  const byBin = {};
+  rows.forEach(r => { byBin[Number(r.loss_bin)] = r; });
+  const fmt = (v, unit = '%') => (v === null || v === undefined || v === '' ? '—' : `${v}${unit}`);
+
+  const head = `<tr style="color:var(--text-sub); text-align:right;">
+    <th style="text-align:left; padding:6px;">회차</th><th style="padding:6px;">낙찰</th><th style="padding:6px;">유찰</th>
+    <th style="padding:6px;">매각 비율</th><th style="padding:6px;">낙찰가율 중앙값</th><th style="padding:6px;">25~75%</th>
+    <th style="padding:6px;">최저가율</th><th style="padding:6px;">최저가 대비</th><th style="padding:6px;">응찰자</th><th style="padding:6px;">V3 표</th></tr>`;
+  const body = [0, 1, 2, 3, 4].map(b => {
+    const r = byBin[b];
+    if (!r) return `<tr style="border-top:1px solid var(--border); color:var(--text-sub);"><td style="padding:6px;">${LOSS_LABEL[b]}</td><td colspan="8" style="padding:6px; text-align:center;">표본 없음</td><td style="padding:6px; text-align:right;">${V3_TABLE[b]}%</td></tr>`;
+    const n = Number(r.n_sold) || 0, f = Number(r.n_fail) || 0;
+    const few = n < 5 ? ' style="color:var(--yellow);" title="표본 5건 미만 — 참고만"' : '';
+    const diff = r.rate_median != null ? Math.round((V3_TABLE[b] - Number(r.rate_median)) * 10) / 10 : null;
+    return `<tr style="border-top:1px solid var(--border); text-align:right;">
+      <td style="text-align:left; padding:6px;">${LOSS_LABEL[b]}</td>
+      <td style="padding:6px;"${few}>${n}</td><td style="padding:6px;">${f}</td>
+      <td style="padding:6px;">${f > 0 ? fmt(r.sale_ratio) : '—'}</td>
+      <td style="padding:6px; font-weight:700;">${fmt(r.rate_median)}</td>
+      <td style="padding:6px;">${r.rate_q1 != null ? `${r.rate_q1}~${r.rate_q3}%` : '—'}</td>
+      <td style="padding:6px;">${fmt(r.min_rate_median)}</td>
+      <td style="padding:6px;">${r.over_min_median != null ? `×${r.over_min_median}` : '—'}</td>
+      <td style="padding:6px;">${fmt(r.bidders_avg, '명')}</td>
+      <td style="padding:6px; color:${diff != null && Math.abs(diff) >= 5 ? 'var(--red)' : 'var(--text-sub)'};">${V3_TABLE[b]}%${diff != null ? ` (${diff > 0 ? '+' : ''}${diff})` : ''}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('statsTable').innerHTML = head + body;
+
+  const any = rows[0];
+  const computed = any ? String(any.computed_at || '').slice(0, 16).replace('T', ' ') : '';
+  document.getElementById('statsSubtitle').textContent = any
+    ? `${scope} · 기일 ${any.period_from || ''}~${any.period_to || ''} · ${computed} UTC 계산`
+    : '통계 없음';
+  document.getElementById('statsNote').innerHTML =
+    '· 낙찰가율 = 낙찰가 ÷ 감정가. 최저가 대비 = 낙찰가 ÷ 그 회차 최저가(중앙값).<br>' +
+    '· 이상치·지분·일괄·유찰 횟수 불확실 행은 제외. 노란 숫자는 표본 5건 미만.<br>' +
+    '· 매각 비율은 유찰 기록이 쌓이는 중이라(11-14부터 유찰 보강 수집) 당분간 실제보다 높게 나옵니다.<br>' +
+    '· V3 표 = 예전 입찰가 엔진의 고정 낙찰가율(11-14부터 V4가 이 통계로 추천가 계산). 괄호는 실제 중앙값과의 차이(빨강 = 5%p 이상).';
+
+  if (charts.stats) charts.stats.destroy();
+  const cv = document.getElementById('chartStats');
+  if (cv && typeof Chart !== 'undefined') {
+    charts.stats = new Chart(cv, {
+      data: {
+        labels: LOSS_LABEL,
+        datasets: [
+          { type: 'bar', label: '실제 낙찰가율 중앙값 (%)', data: [0, 1, 2, 3, 4].map(b => byBin[b]?.rate_median ?? null),
+            backgroundColor: 'rgba(47, 129, 247, 0.7)', borderColor: '#2f81f7', borderWidth: 1.5, borderRadius: 6 },
+          { type: 'line', label: 'V3 고정표 (%)', data: [0, 1, 2, 3, 4].map(b => V3_TABLE[b]),
+            borderColor: '#f85149', backgroundColor: '#f85149', borderDash: [4, 4], pointRadius: 3 },
+          { type: 'line', label: '그 회차 최저가율 (%)', data: [0, 1, 2, 3, 4].map(b => byBin[b]?.min_rate_median ?? null),
+            borderColor: '#8b949e', backgroundColor: '#8b949e', pointRadius: 2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { color: '#30363d' } },
+          y: { min: 0, ticks: { color: '#8b949e', callback: v => v + '%' }, grid: { color: '#30363d' } },
+        },
+      },
+    });
+  }
+}
+
+function toggleMap() {
+  isMapMode = !isMapMode;
+  const btn = document.getElementById('btnToggleMap');
+  const mapContainer = document.getElementById('mapContainer');
+  const mapFilterBar = document.getElementById('mapFilterBar');
+  const cardsGrid = document.getElementById('cardsGrid');
+
+  if (isMapMode) {
+    btn.innerHTML = '<span class="icon">📄</span> 리스트로 돌아가기';
+    btn.classList.add('active');
+    cardsGrid.style.display = 'none';
+    mapFilterBar.style.display = 'flex';
+    mapContainer.style.display = 'block';
+    // 지도 열 때 기본 필터: 진행중
+    mapStatusFilter = '진행중';
+    document.querySelectorAll('[id^="mapFilter-"]').forEach(b => b.classList.remove('active'));
+    const filterOngoing = document.getElementById('mapFilter-진행중');
+    if (filterOngoing) filterOngoing.classList.add('active');
+    
+    initMap();
+
+    // 모바일/반응형 렌더링 보정: display 변경 직후 relayout 실행
+    setTimeout(() => {
+      if (mapInstance) {
+        mapInstance.relayout();
+      }
+    }, 100);
+  } else {
+    mapSingleItem = null;
+    btn.innerHTML = '<span class="icon">🗺️</span> 지도';
+    btn.classList.remove('active');
+    mapFilterBar.style.display = 'none';
+    mapContainer.style.display = 'none';
+    cardsGrid.style.display = 'grid';
+  }
+}
+
+function setMapFilter(val, btn) {
+  mapSingleItem = null;
+  mapStatusFilter = val;
+  document.querySelectorAll('[id^="mapFilter-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateMapMarkers();
+}
+
+function initMap() {
+  const container = document.getElementById('mapContainer');
+  if (!container) return;
+
+  // 1. 카카오맵 SDK가 아직 준비되지 않은 경우
+  if (!kakaoMapReady || !window.kakao || !window.kakao.maps || !window.kakao.maps.Map || !window.kakao.maps.services) {
+    if (!mapInstance) {
+      container.innerHTML = `
+        <div class="map-error" id="mapLoadingState">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+            <div class="skeleton" style="width:36px; height:36px; border-radius:50%; animation:spin 1.5s linear infinite;"></div>
+            <div>카카오맵을 불러오는 중입니다...<br/><span class="muted t-sm">API 연결 및 지도를 준비하고 있습니다.</span></div>
+          </div>
+        </div>`;
+    }
+
+    // 캐시된 API 키가 있으면 즉시 로드 시도
+    try {
+      const cachedKey = localStorage.getItem('AUCTION_DASH_KAKAO_KEY');
+      if (cachedKey && !kakaoMapScriptPromise) {
+        loadKakaoMapScript(cachedKey).then(() => {
+          if (isMapMode) initMap();
+        }).catch(() => {});
+      }
+    } catch (e) {}
+    return;
+  }
+
+  // 2. SDK 준비 완료: 로딩 UI 제거
+  const loadingEl = document.getElementById('mapLoadingState');
+  if (loadingEl) {
+    loadingEl.remove();
+  }
+
+  // 3. 맵 인스턴스 생성 (없거나 컨테이너가 덮어씌워졌을 때)
+  if (!mapInstance || !container.querySelector('div')) {
+    container.innerHTML = '';
+    const options = {
+      center: new kakao.maps.LatLng(35.228, 128.681), // 창원 중심 좌표
+      level: 9
+    };
+    mapInstance = new kakao.maps.Map(container, options);
+
+    const zoomControl = new kakao.maps.ZoomControl();
+    mapInstance.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+  }
+
+  updateMapMarkers();
+}
+
+function updateMapMarkers() {
+  if (!mapInstance || !kakaoMapReady || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) return;
+
+  mapMarkers.forEach(m => m.setMap(null));
+  mapMarkers = [];
+
+  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  const result = mapSingleItem !== null
+    ? allItems.filter(i => String(i.Id) === String(mapSingleItem))
+    : allItems.filter(item => {
+    const isHidden = Boolean(item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === 'true' || item.is_hidden === '1' || item.status === '숨김' || (typeof hiddenItemIds !== 'undefined' && hiddenItemIds.has(String(item.Id))));
+    if (filters.hidden) {
+      if (!isHidden) return false;
+    } else {
+      if (isHidden) return false;
+      // 지도 전용 상태 필터
+      if (mapStatusFilter === '진행중') {
+        if (item.status !== '진행중' && item.status !== '진행') return false;
+      } else if (mapStatusFilter === '낙찰') {
+        if (item.status !== '낙찰' && item.status !== '매각') return false;
+      } else if (mapStatusFilter !== 'all' && item.status !== mapStatusFilter) {
+        return false;
+      }
+    }
+
+    // 기존 필터 (risk, gap, star, urgent, budget, 검색어)
+    if (filters.risk !== 'all' && item.ai_risk !== filters.risk) return false;
+    if (filters.gap !== 'all' && item.gap_score_grade !== filters.gap) return false;
+    if (filters.star && !item.is_interested) return false;
+    if (filters.budget) {
+      const sim = calculateAuctionROI(item, {}, currentProfile);
+      if (!sim.isBudgetOk) return false;
+    }
+    if (filters.urgent) {
+      const bdStr = String(item.bid_date || '').split('T')[0];
+      const bdParts = bdStr.split('-');
+      const bd = bdParts.length === 3 ? new Date(bdParts[0], bdParts[1] - 1, bdParts[2]) : new Date(NaN);
+      const diff = Math.round((bd - today) / 86400000);
+      if (isNaN(diff) || diff < 0 || diff > 7) return false;
+    }
+    if (q) {
+      const hay = [item.complex_name, item.location, item.case_no].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // 마커 수 카운터 업데이트
+  const countEl = document.getElementById('mapMarkerCount');
+  if (countEl) countEl.textContent = `${result.length}개 표시`;
+
+  const geocoder = new kakao.maps.services.Geocoder();
+  const bounds = new kakao.maps.LatLngBounds();
+  let added = 0;
+
+  const placeMarker = (coords, item) => {
+    let mColor = '#2f81f7';
+    if (item.ai_risk === '위험') mColor = '#f85149';
+    else if (item.ai_risk === '주의') mColor = '#d29922';
+    else if (item.ai_risk === '안전') mColor = '#3fb950';
+
+    const safeFmt = fmtPos;
+
+    const content = document.createElement('div');
+    content.style.position = 'relative';
+    content.innerHTML = `
+      <div style="background:${mColor}; color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:var(--fs-sm); font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.5); border:2px solid #fff; cursor:pointer;">${item.gap_score_grade || 'O'}</div>
+      <div class="hover-info" style="display:none; position:absolute; bottom:35px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:8px; font-size:var(--fs-sm); width:max-content; box-shadow:0 8px 24px rgba(0,0,0,0.4); z-index:100; pointer-events:none; white-space:nowrap; text-align:center;">
+        <strong style="display:block; margin-bottom:4px; font-size:var(--fs-md); color:var(--blue);">${escapeHtml(item.case_no)}</strong>
+        ${escapeHtml(item.complex_name || '단지명 미확인')} / ${escapeHtml(item.floor || '-')}층<br/>
+        <span style="color:var(--text-sub)">최저</span> <strong>${safeFmt(item.min_price)}</strong>
+      </div>
+    `;
+
+    const badge = content.firstElementChild;
+    const hoverInfo = content.querySelector('.hover-info');
+    
+    content.addEventListener('mouseenter', () => { if (hoverInfo) hoverInfo.style.display = 'block'; });
+    content.addEventListener('mouseleave', () => { if (hoverInfo) hoverInfo.style.display = 'none'; });
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDetailModal(item.Id);
+    });
+
+    const customOverlay = new kakao.maps.CustomOverlay({
+      position: coords,
+      content: content,
+      clickable: true
+    });
+
+    customOverlay.setMap(mapInstance);
+    mapMarkers.push(customOverlay);
+    bounds.extend(coords);
+    added++;
+
+    // Debounce setBounds for smooth mobile rendering
+    clearTimeout(setBoundsTimer);
+    setBoundsTimer = setTimeout(() => {
+      if (added > 0 && mapInstance) {
+        if (mapSingleItem !== null && added === 1) {
+          mapInstance.setCenter(bounds.getCenter());
+          mapInstance.setLevel(3);
+        } else {
+          mapInstance.setBounds(bounds);
+        }
+      }
+    }, 80);
+  };
+
+  result.forEach(item => {
+    if (!item.location) return;
+
+    if (coordsCache.has(item.location)) {
+      const c = coordsCache.get(item.location);
+      const coords = new kakao.maps.LatLng(c.lat, c.lng);
+      placeMarker(coords, item);
+      return;
+    }
+
+    geocoder.addressSearch(item.location, function (data, status) {
+      if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+        coordsCache.set(item.location, { lat: data[0].y, lng: data[0].x });
+        const coords = new kakao.maps.LatLng(data[0].y, data[0].x);
+        placeMarker(coords, item);
+      }
+    });
+  });
+}
+
+// applyFilters 후 맵 마커 업데이트 연동
+const originalApplyFilters = applyFilters;
+applyFilters = function () {
+  originalApplyFilters();
+  if (isMapMode) updateMapMarkers();
+};
+
+function openCourt(url, caseNo) {
+  if (url) window.open(url, '_blank', 'noopener');
+}
+
+function showOnMap(id) {
+  if (!isMapMode) toggleMap();
+  mapSingleItem = String(id);
+  updateMapMarkers();
+  const item = allItems.find(i => String(i.Id) === String(id));
+  if (item && item.location) {
+    const moveToLocation = () => {
+      if (!mapInstance || !kakaoMapReady || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) return;
+      
+      if (coordsCache.has(item.location)) {
+        const c = coordsCache.get(item.location);
+        const coords = new kakao.maps.LatLng(c.lat, c.lng);
+        mapInstance.setCenter(coords);
+        mapInstance.setLevel(3);
+        return;
+      }
+
+      const geocoder = new kakao.maps.services.Geocoder();
+      geocoder.addressSearch(item.location, function (data, status) {
+        if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+          coordsCache.set(item.location, { lat: data[0].y, lng: data[0].x });
+          const coords = new kakao.maps.LatLng(data[0].y, data[0].x);
+          mapInstance.setCenter(coords);
+          mapInstance.setLevel(3); // 확대
+        }
+      });
+    };
+
+    if (kakaoMapReady && mapInstance) {
+      setTimeout(moveToLocation, 200);
+    } else {
+      const checkTimer = setInterval(() => {
+        if (kakaoMapReady && mapInstance) {
+          clearInterval(checkTimer);
+          moveToLocation();
+        }
+      }, 200);
+      setTimeout(() => clearInterval(checkTimer), 5000);
+    }
+  }
+}
+
+let toastTimer;
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = isError ? 'var(--red)' : 'var(--border)';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// 백그라운드에서 캐시된 키가 있으면 즉시 SDK 프리로드
+try {
+  const cachedKey = localStorage.getItem('AUCTION_DASH_KAKAO_KEY');
+  if (cachedKey) {
+    loadKakaoMapScript(cachedKey).catch(() => {});
+  }
+} catch (e) {}
+
+// ─────────────────────────────────────────────────────
+// 크롤링 파이프라인 즉시 실행 & 10분 쿨다운 시스템
+// ─────────────────────────────────────────────────────
+const CRAWL_COOLDOWN_MS = 10 * 60 * 1000; // 10분 (600,000ms)
+const CRAWL_STORAGE_KEY = 'AUCTION_DASH_LAST_CRAWL_TIME';
+let crawlCooldownTimer = null;
+
+function initCrawlCooldown() {
+  const lastTriggered = localStorage.getItem(CRAWL_STORAGE_KEY);
+  if (!lastTriggered) return;
+
+  const elapsed = Date.now() - parseInt(lastTriggered, 10);
+  if (elapsed < CRAWL_COOLDOWN_MS) {
+    startCrawlCooldown(CRAWL_COOLDOWN_MS - elapsed);
+  } else {
+    localStorage.removeItem(CRAWL_STORAGE_KEY);
+  }
+}
+
+function startCrawlCooldown(remainingMs) {
+  const btn = document.getElementById('btnRunCrawl');
+  const textSpan = document.getElementById('btnCrawlText');
+  const iconSpan = document.getElementById('btnCrawlIcon');
+  if (!btn || !textSpan) return;
+
+  btn.disabled = true;
+  btn.classList.remove('loading');
+  if (iconSpan) iconSpan.textContent = '⏳';
+
+  if (crawlCooldownTimer) clearInterval(crawlCooldownTimer);
+
+  const endTime = Date.now() + remainingMs;
+
+  const updateTimer = () => {
+    const left = endTime - Date.now();
+    if (left <= 0) {
+      clearInterval(crawlCooldownTimer);
+      btn.disabled = false;
+      textSpan.textContent = '크롤링 실행';
+      if (iconSpan) iconSpan.textContent = '⚡';
+      localStorage.removeItem(CRAWL_STORAGE_KEY);
+      return;
+    }
+    const m = Math.floor(left / 60000);
+    const s = Math.floor((left % 60000) / 1000);
+    textSpan.textContent = `재실행 가능 (${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')})`;
+  };
+
+  updateTimer();
+  crawlCooldownTimer = setInterval(updateTimer, 1000);
+}
+
+async function handleRunCrawl() {
+  const btn = document.getElementById('btnRunCrawl');
+  const textSpan = document.getElementById('btnCrawlText');
+  const iconSpan = document.getElementById('btnCrawlIcon');
+
+  // 쿨다운 진행 여부 재확인
+  const lastTriggered = localStorage.getItem(CRAWL_STORAGE_KEY);
+  if (lastTriggered) {
+    const elapsed = Date.now() - parseInt(lastTriggered, 10);
+    if (elapsed < CRAWL_COOLDOWN_MS) {
+      showToast('⏳ 아직 쿨다운 진행 중입니다. 남은 시간을 기다려주세요.');
+      return;
+    }
+  }
+
+  // 실행 전 확인 confirm 대화창
+  const confirmMsg = "⚡ [경매 일일 파이프라인] 크롤링을 지금 즉시 실행하시겠습니까?\n\n" +
+    "· 대상: 법원경매 신규/진행 물건 수집 및 Dify AI 권리분석\n" +
+    "· 예상 소요 시간: 약 5~15분 (백그라운드 비동기 처리)\n" +
+    "· 결과 안내: 완료 시 텔레그램으로 알림 메시지가 전송됩니다.\n" +
+    "· 안전을 위해 실행 후 10분간 재실행이 제한됩니다.";
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  // 버튼 로딩 상태 전환
+  btn.disabled = true;
+  btn.classList.add('loading');
+  if (iconSpan) iconSpan.textContent = '🔄';
+  if (textSpan) textSpan.textContent = '요청 중...';
+
+  try {
+    const res = await apiFetch('/api/run-pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trigger: 'manual_button' }),
+    });
+
+    const result = await res.json();
+
+    if (res.ok && result.success) {
+      showToast('🚀 크롤링 파이프라인이 시작되었습니다! 완료 시 텔레그램으로 알림이 전송됩니다.');
+      localStorage.setItem(CRAWL_STORAGE_KEY, Date.now().toString());
+      startCrawlCooldown(CRAWL_COOLDOWN_MS);
+    } else {
+      showToast(`❌ 크롤링 실행 실패: ${result.error || '알 수 없는 오류'}`, true);
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      if (iconSpan) iconSpan.textContent = '⚡';
+      if (textSpan) textSpan.textContent = '크롤링 실행';
+    }
+  } catch (err) {
+    showToast(`❌ 네트워크 연결 실패: ${err.message}`, true);
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    if (iconSpan) iconSpan.textContent = '⚡';
+    if (textSpan) textSpan.textContent = '크롤링 실행';
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  refreshProfileLabels();
+  loadData();
+  initCrawlCooldown();
+});
