@@ -9,7 +9,7 @@
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- 카카오맵 API는 동적으로 로딩됩니다 -->
-  <link rel="stylesheet" href="/styles.css?v=20261117b">
+  <link rel="stylesheet" href="/styles.css?v=20261117c">
 </head>
 
 <body>
@@ -110,12 +110,15 @@
         </div>
 
         <!-- Filter Bar -->
-        <div class="filter-bar" role="search" aria-label="물건 필터">
+        <div class="filter-backdrop" id="filterBackdrop" onclick="closeFilterSheet()"></div>
+        <div class="filter-bar" id="filterBar" role="search" aria-label="물건 필터">
+          <div class="sheet-head"><b>필터 · 정렬</b><button class="icon-btn" onclick="closeFilterSheet()" aria-label="필터 닫기">✕</button></div>
           <div class="search-wrap">
             <span class="search-icon" aria-hidden="true">🔍</span>
             <input id="searchInput" class="search-input" type="search" placeholder="단지명, 소재지, 사건번호 검색…" aria-label="물건 검색"
               oninput="applyFilters()" />
           </div>
+          <button class="filter-sheet-btn" onclick="openFilterSheet()" aria-label="필터 열기">⚙️ 필터 <span class="tab-count" id="filterActiveCount"></span></button>
           <div class="filter-group" role="group" aria-label="상태 필터">
             <button class="filter-btn" data-filter="status" data-value="all" onclick="setFilter('status','all',this)">전체</button>
             <button class="filter-btn active" data-filter="status" data-value="진행중" onclick="setFilter('status','진행중',this)">진행중</button>
@@ -154,6 +157,10 @@
             <option value="price_rate">최저가율순</option>
             <option value="loss_count">유찰횟수순</option>
           </select>
+          <div class="sheet-foot">
+            <button class="btn-secondary" onclick="resetFilters()">초기화</button>
+            <button class="btn-primary" onclick="closeFilterSheet()">결과 보기 <span id="sheetResultCount"></span></button>
+          </div>
         </div>
 
         <!-- Count -->
@@ -295,10 +302,10 @@
     </div>
   </div>
 
-  <script src="/js/auth.js?v=20261117b"></script>
-  <script src="/js/format.js?v=20261117b"></script>
-  <script src="/js/roi.js?v=20261117b"></script>
-  <script src="/js/app.js?v=20261117b"></script>
+  <script src="/js/auth.js?v=20261117c"></script>
+  <script src="/js/format.js?v=20261117c"></script>
+  <script src="/js/roi.js?v=20261117c"></script>
+  <script src="/js/app.js?v=20261117c"></script>
 
     <!-- Profile Settings Modal -->
     <div class="modal-overlay" id="profileModal" onclick="closeProfileModalOnOverlay(event)">

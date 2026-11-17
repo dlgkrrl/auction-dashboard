@@ -580,6 +580,38 @@ function setFilter(key, val, btn) {
   applyFilters();
 }
 
+// ── 리뉴얼 3단계: 휴대폰 필터 시트 ──
+const FILTER_DEFAULTS = { status: '진행중', risk: 'all', gap: 'all' };
+function activeFilterCount() {
+  return Object.keys(FILTER_DEFAULTS).filter(k => filters[k] !== FILTER_DEFAULTS[k]).length
+    + ['star', 'urgent', 'budget', 'hidden'].filter(k => filters[k]).length;
+}
+function updateFilterBadge(resultCount) {
+  const n = activeFilterCount();
+  const b = document.getElementById('filterActiveCount'); if (b) b.textContent = n ? String(n) : '';
+  const r = document.getElementById('sheetResultCount'); if (r && resultCount != null) r.textContent = `(${resultCount}건)`;
+}
+function openFilterSheet() {
+  document.getElementById('filterBar').classList.add('sheet-open');
+  document.getElementById('filterBackdrop').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeFilterSheet() {
+  document.getElementById('filterBar').classList.remove('sheet-open');
+  document.getElementById('filterBackdrop').classList.remove('show');
+  document.body.style.overflow = '';
+}
+function resetFilters() {
+  Object.entries(FILTER_DEFAULTS).forEach(([k, v]) => {
+    const b = document.querySelector(`.filter-btn[data-filter="${k}"][data-value="${v}"]`);
+    if (b && filters[k] !== v) setFilter(k, v, b);
+  });
+  ['btnStar', 'btnUrgent', 'btnBudget', 'btnHidden'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b && b.classList.contains('active')) b.click();
+  });
+}
+
 function toggleStarFilter(btn) {
   filters.star = !filters.star;
   btn.classList.toggle('active', filters.star);
@@ -700,6 +732,7 @@ function applyFilters() {
 // ─────────────────────────────────────────────────────
 function renderCards(items) {
   const grid = document.getElementById('cardsGrid');
+  try { updateFilterBadge(items.length); } catch (e) {}
 
   if (items.length === 0) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
@@ -1181,7 +1214,19 @@ function renderMyPicks() {
           <td class="muted">${sens < 0 ? '-' : '+'}${fmt(Math.abs(sens))}</td>
           <td>${escapeHtml(String(r.roiReal || '-'))}</td>
         </tr>`).join('')}</tbody>
-    </table></div>` : '<div class="muted t-sm">예산 안·순익 플러스·위험 아님 조건에 맞는 진행중 물건이 없습니다. 물건 창에서 ☆ 관심 등록하면 여기 모입니다.</div>';
+    </table></div>
+    <div class="picks-cards">${rows.map(({ i, r, sens, d, disc }) => `
+      <button class="mini-item" onclick="openDetailModal('${i.Id}')">
+        <div class="mi-top"><span class="mi-name">${escapeHtml(i.complex_name || i.case_no || '-')}</span><span class="mi-dday ${d != null && d <= 7 ? 'c-red' : ''}">${d == null ? '-' : d < 0 ? '지남' : d === 0 ? '오늘' : `D-${d}`}</span></div>
+        <div class="pc-grid">
+          <div><span>위험</span><b class="${i.ai_risk === '안전' ? 'c-green' : i.ai_risk === '주의' ? 'c-yellow' : 'c-red'}">${escapeHtml(i.ai_risk || '-')}</b></div>
+          <div><span>목표가</span><b>${fmt(r.bidPrice)}</b></div>
+          <div><span>시세 대비</span><b class="${disc == null ? '' : disc >= 0 ? 'c-green' : 'c-red'}">${disc == null ? '-' : `${disc >= 0 ? '-' : '+'}${Math.abs(disc).toFixed(0)}%`}</b></div>
+          <div><span>필요 현금</span><b class="${r.isBudgetOk ? '' : 'c-red'}">${fmt(r.cashOnClosing)}</b></div>
+          <div><span>세후 순익</span><b class="${r.netProfit >= 0 ? 'c-green' : 'c-red'}">${r.netProfit < 0 ? '-' : '+'}${fmt(Math.abs(r.netProfit))}</b></div>
+          <div><span>금리 +1%p</span><b class="muted">${sens < 0 ? '-' : '+'}${fmt(Math.abs(sens))}</b></div>
+        </div>
+      </button>`).join('')}</div>` : '<div class="muted t-sm">예산 안·순익 플러스·위험 아님 조건에 맞는 진행중 물건이 없습니다. 물건 창에서 ☆ 관심 등록하면 여기 모입니다.</div>';
   document.querySelectorAll('#myPicks [data-bump]').forEach(b => b.classList.toggle('active', Number(b.dataset.bump) === picksRateBump));
   try { renderTodayBoard(); } catch (e) { console.warn('오늘 할 일 오류:', e); }
 }
@@ -1552,7 +1597,7 @@ function buildROISimulatorBody(item) {
             <span>보유기간</span>
             <span class="sim-val-display" id="simDisplayHolding">${roi.holdingMonths}개월 (${roi.capitalGainsTaxLabel})</span>
           </div>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button class="filter-btn ${roi.holdingMonths == 6 ? 'active' : ''}" onclick="updateModalSimHolding(6)">6개월 (단기)</button>
             <button class="filter-btn ${roi.holdingMonths == 12 ? 'active' : ''}" onclick="updateModalSimHolding(12)">12개월 (1년)</button>
             <button class="filter-btn ${roi.holdingMonths == 24 ? 'active' : ''}" onclick="updateModalSimHolding(24)">24개월 (기본)</button>
@@ -1618,7 +1663,7 @@ function buildROIResultsPaneHTML(roi, item) {
       ${roi.totalRentIncome > 0 ? `<tr><td style="padding:4px 0; color:var(--text-sub);">세후 임대 순수익 (소득세 15.4% 공제)</td><td style="text-align:right; font-weight:600; color:var(--green);">+${fmt(roi.netRentalIncome)}</td></tr>` : ''}
       <tr><td style="padding:4px 0; color:var(--text-sub);">양도세 필요경비 (취득세+법무+수리+중개수수료)</td><td class="num fw-6">${fmt(roi.capitalGainsExpenses)}</td></tr>
       <tr><td style="padding:4px 0; color:var(--text-sub);">양도차익 (매도가 - 낙찰가 - 인수금액 - 필요경비)</td><td class="num fw-6">${fmt(roi.capitalGains)}</td></tr>
-      <tr><td style="padding:4px 0; color:var(--text-sub);">양도소득세 + 지방소득세 (${roi.capitalGainsTaxLabel}, 실효 ${Math.round(roi.capitalGainsTaxRate*100)}%)</td><td style="text-align:right; font-weight:600; color:var(--red);">-${fmt(roi.totalTax)}</td></tr>
+      <tr><td style="padding:4px 0; color:var(--text-sub);">양도소득세 + 지방소득세 (${roi.capitalGainsTaxLabel}, 실효 ${Math.round(roi.capitalGainsTaxRate*100)}%)</td><td style="text-align:right; font-weight:600; color:${roi.totalTax > 0 ? 'var(--red)' : 'var(--text-sub)'};">${roi.totalTax > 0 ? '-' + fmt(roi.totalTax) : '없음'}</td></tr>
       <tr style="font-weight:700; border-top:1px solid #233348;"><td style="padding:6px 0;">총투입원가 (낙찰가+인수금액+취득비용+대출이자)</td><td class="num">${fmt(roi.totalInvestedCost)}</td></tr>
     </table>
   `;
@@ -1862,14 +1907,14 @@ function buildSummaryTabBody(item) {
           </div>
           ${winProb(item, Number(item.bid_target)) != null ? (() => { window.__winProbItem = item; return `
           <div style="font-size:var(--fs-sm); margin:-4px 0 12px; background:var(--surface); padding:10px; border-radius:6px;">
-            <div style="display:flex; justify-content:space-between; color:var(--text-sub);">
+            <div class="wp-row">
               <span>낙찰 확률 ≈ 하한 <strong class="c-text">${winProb(item, Number(item.bid_min) || Number(item.min_price))}%</strong></span>
               <span>목표 <strong class="c-green">${winProb(item, Number(item.bid_target))}%</strong></span>
               <span>상한 <strong class="c-red">${winProb(item, Number(item.bid_max))}%</strong></span>
             </div>
-            <div style="display:flex; align-items:center; gap:6px; margin-top:8px;">
+            <div class="wp-input">
               <span class="muted">내 입찰가</span>
-              <input type="text" inputmode="numeric" placeholder="만원" style="width:110px; padding:4px 6px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:4px;" oninput="updateWinProb(this, '${item.Id}')" />
+              <input type="text" inputmode="numeric" placeholder="만원" style="width:100px; min-width:0; padding:4px 6px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:4px;" oninput="updateWinProb(this, '${item.Id}')" />
               <span class="muted">만원 →</span>
               <strong id="winProbOut" class="c-text">-</strong>
             </div>
@@ -2839,7 +2884,7 @@ function renderStats() {
     <th style="padding:6px;">최저가율</th><th style="padding:6px;">최저가 대비</th><th style="padding:6px;">응찰자</th><th style="padding:6px;">V3 표</th></tr>`;
   const body = [0, 1, 2, 3, 4].map(b => {
     const r = byBin[b];
-    if (!r) return `<tr style="border-top:1px solid var(--border); color:var(--text-sub);"><td style="padding:6px;">${LOSS_LABEL[b]}</td><td colspan="8" style="padding:6px; text-align:center;">표본 없음</td><td style="padding:6px; text-align:right;">${V3_TABLE[b]}%</td></tr>`;
+    if (!r) return `<tr class="ns" style="border-top:1px solid var(--border); color:var(--text-sub);"><td style="padding:6px;">${LOSS_LABEL[b]}</td><td colspan="8" style="padding:6px; text-align:center;">표본 없음</td><td style="padding:6px; text-align:right;">${V3_TABLE[b]}%</td></tr>`;
     const n = Number(r.n_sold) || 0, f = Number(r.n_fail) || 0;
     const few = n < 5 ? ' style="color:var(--yellow);" title="표본 5건 미만 — 참고만"' : '';
     const diff = r.rate_median != null ? Math.round((V3_TABLE[b] - Number(r.rate_median)) * 10) / 10 : null;
