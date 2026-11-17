@@ -326,7 +326,9 @@
     .thermo-table tr.clickable { cursor: pointer; }
     .thermo-table tr.clickable:hover { background: var(--surface2); }
     .thermo-table tr.sel { background: rgba(47,129,247,0.12); }
+    .score-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
     @media (max-width: 760px) {
+      .score-groups { grid-template-columns: 1fr; }
       .thermo-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .thermo-body { grid-template-columns: 1fr; }
     }
@@ -1236,6 +1238,30 @@
         </div>
       </div>
 
+      <!-- 8단계: 입찰 엔진 성적표 -->
+      <section class="thermo-card" id="engineScore" aria-label="입찰 엔진 성적표" style="display:none;">
+        <div class="thermo-head">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="thermo-title">🎯 입찰 엔진 성적표</span>
+            <span style="font-size:11px; color:var(--text-sub);" id="scoreBasis"></span>
+          </div>
+          <span style="font-size:12px; font-weight:700;" id="scoreVerdict"></span>
+        </div>
+        <div class="thermo-kpis" id="scoreKpis"></div>
+        <div class="score-groups" id="scoreGroups"></div>
+        <div class="thermo-body">
+          <div>
+            <div style="font-size:12px; color:var(--text-sub); margin-bottom:6px;">오차 분포 — 초록 ±5% 안 · 빨강 목표가가 낮았음 · 파랑 목표가가 높았음</div>
+            <div style="position:relative; height:200px;"><canvas id="chartScore" aria-label="목표가 대비 실제 낙찰가 오차 분포"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-sub); margin-bottom:6px;">크게 빗나간 물건 (누르면 상세)</div>
+            <div id="scoreMisses"></div>
+          </div>
+        </div>
+        <div style="font-size:11px; color:var(--text-sub); margin-top:10px;">오차 = (실제 낙찰가 − 우리 목표가) ÷ 목표가. 목표가는 엔진이 '이 값이면 절반쯤 낙찰'로 잡은 값이라 오차 중앙값 0%, 목표가 낙찰 50% 근처가 잘 맞는 상태입니다. 우리가 추적한 물건만 들어갑니다.</div>
+      </section>
+
       <!-- Filter Bar -->
       <div class="filter-bar" role="search" aria-label="물건 필터">
         <div class="search-wrap">
@@ -1878,6 +1904,7 @@
         updateStats();
         updateCharts();
         try { renderMarketThermo(); } catch (e) { console.warn('시장 온도계 오류:', e); }
+        try { renderEngineScore(); } catch (e) { console.warn('엔진 성적표 오류:', e); }
         applyFilters();
 
         const now = new Date(Date.now() + 9 * 3600000);
@@ -2651,6 +2678,122 @@
       if (![...sel.options].some(o => o.value === g)) sel.add(new Option(g, g));
       sel.value = sel.value === g ? '' : g;
       renderMarketThermo();
+    }
+
+    // ─────────────────────────────────────────────────────
+    // 8단계 · 입찰 엔진 성적표: 우리가 낸 목표가 vs 실제 낙찰가
+    //  기준 = 결과 테이블의 우리 물건 행(our_bid_target 있음) + 물건 테이블의 낙찰 물건(결과 행이 없을 때)
+    //  오차 = (실제 낙찰가 − 목표가) ÷ 목표가. +면 목표가가 낮았음(그 값으로 냈다면 졌음)
+    // ─────────────────────────────────────────────────────
+    function scoreRows() {
+      const isTrue = (v) => v === true || v === 1 || v === '1' || v === 'true';
+      const key = (c, n) => `${String(c || '').trim()}#${String(n || '1')}`;
+      const itemsByKey = {};
+      (allItems || []).forEach(i => { itemsByKey[key(i.case_no, i.item_no)] = i; });
+      const out = [], seen = new Set();
+      (allResults || []).forEach(r => {
+        if (r.result_type && r.result_type !== '매각') return;
+        if (isTrue(r.is_outlier) || isTrue(r.is_share) || isTrue(r.is_bulk)) return;
+        const target = Number(r.our_bid_target), actual = Number(r.actual_bid_price);
+        if (!(target > 0 && actual > 0)) return;
+        const k = key(r.case_no, r.item_no);
+        if (seen.has(k)) return;
+        seen.add(k);
+        const it = itemsByKey[k] || {};
+        const ver = String(r.engine_version || '').toLowerCase() || (/V4 엔진/.test(it.bid_strategy_text || '') ? 'v4' : 'v3');
+        out.push({ id: it.Id, name: it.complex_name || r.complex_name || r.case_no, case_no: r.case_no, date: String(r.bid_date || '').slice(0, 10),
+          target, actual, min: Number(it.bid_min) || 0, max: Number(it.bid_max) || 0, ver: ver === 'v4' ? 'V4' : 'V3',
+          loss: Number(r.loss_count) || 0, risk: it.ai_risk || r.ai_risk || '미분석', bidders: Number(r.bidder_count) || 0,
+          rate: Number(r.actual_bid_rate) || 0 });
+      });
+      (allItems || []).forEach(i => {
+        const target = Number(i.bid_target), actual = Number(i.actual_bid_price);
+        if (i.status !== '낙찰' || !(target > 0 && actual > 0) || seen.has(key(i.case_no, i.item_no))) return;
+        out.push({ id: i.Id, name: i.complex_name || i.case_no, case_no: i.case_no, date: String(i.bid_date || '').slice(0, 10),
+          target, actual, min: Number(i.bid_min) || 0, max: Number(i.bid_max) || 0, ver: /V4 엔진/.test(i.bid_strategy_text || '') ? 'V4' : 'V3',
+          loss: Number(i.loss_count) || 0, risk: i.ai_risk || '미분석', bidders: Number(i.bidder_count) || 0, rate: Number(i.actual_bid_rate) || 0 });
+      });
+      return out.map(r => ({ ...r, err: (r.actual - r.target) / r.target * 100 }))
+        .filter(r => Math.abs(r.err) < 150);   // 목표가 단위 오류 등 극단값 제외
+    }
+
+    function scoreSummary(rows) {
+      if (!rows.length) return { n: 0 };
+      const errs = rows.map(r => r.err);
+      const ranged = rows.filter(r => r.min > 0 && r.max > 0);
+      return {
+        n: rows.length,
+        med: tMedian(errs),
+        mae: tMean(errs.map(Math.abs)),
+        win: rows.filter(r => r.target >= r.actual).length / rows.length * 100,          // 목표가로 냈다면 이겼을 비율
+        inRange: ranged.length ? ranged.filter(r => r.actual >= r.min && r.actual <= r.max).length / ranged.length * 100 : null,
+        rangedN: ranged.length,
+      };
+    }
+
+    function renderEngineScore() {
+      const box = document.getElementById('engineScore');
+      if (!box) return;
+      const rows = scoreRows();
+      if (!rows.length) { box.style.display = 'none'; return; }
+      box.style.display = '';
+      const all = scoreSummary(rows);
+      const pct = (v, d = 0) => v == null ? '-' : `${v.toFixed(d)}%`;
+      const sgn = (v) => v == null ? '-' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+      const verdict = all.med == null ? '' : Math.abs(all.med) <= 3 ? '목표가가 실제 낙찰가와 거의 맞음'
+        : all.med > 0 ? `목표가가 실제보다 ${all.med.toFixed(1)}% 낮은 편 — 그대로 내면 자주 짐` : `목표가가 실제보다 ${(-all.med).toFixed(1)}% 높은 편 — 더 낮게 써도 됐음`;
+      document.getElementById('scoreBasis').textContent = `우리 물건 낙찰 ${all.n}건 · ${rows.map(r => r.date).filter(Boolean).sort()[0] || ''} ~ ${rows.map(r => r.date).filter(Boolean).sort().pop() || ''}`;
+      document.getElementById('scoreVerdict').textContent = verdict;
+      const kpi = (label, val, sub, title = '') => `<div class="thermo-kpi" title="${title}"><div class="k-label">${label}</div><div class="k-val">${val}</div><div class="k-delta" style="color:var(--text-sub);">${sub}</div></div>`;
+      document.getElementById('scoreKpis').innerHTML =
+        kpi('오차 중앙값', sgn(all.med), '+면 목표가가 낮았음', '(실제 낙찰가 − 목표가) ÷ 목표가') +
+        kpi('평균 절대 오차', pct(all.mae, 1), '작을수록 정확') +
+        kpi('목표가로 냈다면 낙찰', pct(all.win), '목표가 ≥ 실제 낙찰가', '다른 사람의 최고가보다 목표가가 높았던 비율. 50% 근처가 목표(목표가 = 중앙값)') +
+        kpi('하한~상한 안에 들어온 비율', pct(all.inRange), all.rangedN ? `범위 있는 ${all.rangedN}건 기준` : '범위 정보 없음', '실제 낙찰가가 엔진의 하한~상한 사이였던 비율');
+
+      // 그룹 표: 엔진 · 유찰 회차 · AI 위험도
+      const groupTable = (title, keyFn, order) => {
+        const g = {};
+        rows.forEach(r => { const k = keyFn(r); (g[k] = g[k] || []).push(r); });
+        const keys = (order || Object.keys(g)).filter(k => g[k]);
+        return `<div style="min-width:0;"><div style="font-size:12px; color:var(--text-sub); margin:4px 0;">${title}</div>
+          <table class="thermo-table"><thead><tr><th></th><th>건수</th><th>오차 중앙값</th><th>목표가 낙찰</th></tr></thead><tbody>
+          ${keys.map(k => { const s = scoreSummary(g[k]); return `<tr><td>${escapeHtml(k)}</td><td>${s.n}${s.n < 5 ? ' <span style="color:var(--text-sub);">(적음)</span>' : ''}</td>
+            <td style="color:${Math.abs(s.med) <= 3 ? 'var(--green)' : s.med > 0 ? 'var(--red)' : 'var(--blue)'}; font-weight:700;">${sgn(s.med)}</td><td>${pct(s.win)}</td></tr>`; }).join('')}
+          </tbody></table></div>`;
+      };
+      const lossLabel = (r) => r.loss >= 3 ? '유찰 3회+' : r.loss === 0 ? '신건' : `유찰 ${r.loss}회`;
+      document.getElementById('scoreGroups').innerHTML =
+        groupTable('엔진 버전', r => r.ver, ['V3', 'V4']) +
+        groupTable('유찰 회차', lossLabel, ['신건', '유찰 1회', '유찰 2회', '유찰 3회+']) +
+        groupTable('AI 위험도', r => r.risk, ['안전', '주의', '위험', '분석실패', '미분석']);
+
+      // 오차 분포(5% 구간)
+      const bins = [];
+      for (let b = -30; b <= 30; b += 5) bins.push(b);
+      const counts = bins.map((b, i) => rows.filter(r => i === 0 ? r.err < b + 2.5 : i === bins.length - 1 ? r.err >= b - 2.5 : (r.err >= b - 2.5 && r.err < b + 2.5)).length);
+      if (charts.score) charts.score.destroy();
+      const cv = document.getElementById('chartScore');
+      if (cv && typeof Chart !== 'undefined') {
+        charts.score = new Chart(cv, {
+          type: 'bar',
+          data: { labels: bins.map((b, i) => i === 0 ? `≤${b}%` : i === bins.length - 1 ? `≥+${b}%` : `${b > 0 ? '+' : ''}${b}%`),
+            datasets: [{ label: '물건 수', data: counts, borderRadius: 4,
+              backgroundColor: bins.map(b => Math.abs(b) <= 5 ? 'rgba(63,185,80,0.7)' : b > 0 ? 'rgba(248,81,73,0.6)' : 'rgba(47,129,247,0.6)') }] },
+          options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { title: (it) => `오차 ${it[0].label} 근처`, label: (c) => `${c.parsed.y}건` } } },
+            scales: { x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { display: false } },
+              y: { beginAtZero: true, ticks: { color: '#8b949e', precision: 0 }, grid: { color: 'rgba(139,148,158,0.12)' } } } },
+        });
+      }
+
+      // 크게 빗나간 물건 5건
+      const misses = [...rows].sort((a, b) => Math.abs(b.err) - Math.abs(a.err)).slice(0, 5);
+      document.getElementById('scoreMisses').innerHTML = `<table class="thermo-table"><thead><tr><th>물건</th><th>목표가</th><th>실제</th><th>오차</th><th>응찰</th></tr></thead><tbody>
+        ${misses.map(r => `<tr class="${r.id ? 'clickable' : ''}" ${r.id ? `onclick="openDetailModal('${r.id}')"` : ''} title="${escapeHtml(r.case_no || '')} · ${r.ver} · ${escapeHtml(r.risk)}">
+          <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(r.name || '-')}</td><td>${fmt(r.target)}</td><td>${fmt(r.actual)}</td>
+          <td style="color:${r.err > 0 ? 'var(--red)' : 'var(--blue)'}; font-weight:700;">${sgn(r.err)}</td><td>${r.bidders || '-'}</td></tr>`).join('')}
+        </tbody></table>`;
     }
 
     // ─────────────────────────────────────────────────────
